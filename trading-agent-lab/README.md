@@ -30,6 +30,13 @@ Each cycle the lab:
    (the Doc's *"อย่างน้อย 2 ใน 3 เงื่อนไข"*).
 4. Writes Obsidian-style Markdown notes to the vault.
 
+## Browser dashboard (no install)
+
+`index.html` is a self-contained dashboard that re-implements the whole lab in
+JavaScript — open it directly (or via GitHub Pages at `/trading-agent-lab/`) to
+watch the 3 agents, the 2-of-3 consensus, P/L and an Obsidian-style session log
+update live. Same logic as the Python version, also paper-trading only.
+
 ## Components
 
 | File | Role |
