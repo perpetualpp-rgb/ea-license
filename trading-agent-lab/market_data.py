@@ -25,11 +25,11 @@ BOOTSTRAP = 60
 MAX_HISTORY = 240
 
 
-def _bootstrap_prices(symbol: str) -> List[float]:
+def _bootstrap_prices(symbol: str, start: float) -> List[float]:
     """Generate a plausible starting price history for a fresh lab run."""
     rng = random.Random(hash(symbol) & 0xFFFFFFFF)
-    price = 60000.0 if "BTC" in symbol.upper() else 100.0
-    prices = [price]
+    price = float(start)
+    prices = [round(price, 2)]
     for _ in range(BOOTSTRAP - 1):
         price *= 1 + rng.gauss(0, 0.004)
         prices.append(round(price, 2))
@@ -43,7 +43,7 @@ def _next_simulated_price(prices: List[float]) -> float:
     return round(max(last * (1 + drift), 0.01), 2)
 
 
-def _try_tradingview(symbol: str, timeframe: str):
+def _try_tradingview(symbol: str, timeframe: str, screener: str, exchange: str):
     """Best-effort real price via tradingview-ta; return None on any failure."""
     try:
         from tradingview_ta import TA_Handler, Interval  # type: ignore
@@ -59,8 +59,8 @@ def _try_tradingview(symbol: str, timeframe: str):
     try:
         handler = TA_Handler(
             symbol=symbol,
-            screener="crypto",
-            exchange="BINANCE",
+            screener=screener,
+            exchange=exchange,
             interval=getattr(Interval, interval_map.get(timeframe, "INTERVAL_3_MINUTES")),
         )
         analysis = handler.get_analysis()
@@ -69,18 +69,25 @@ def _try_tradingview(symbol: str, timeframe: str):
         return None
 
 
-def get_snapshot(symbol: str, timeframe: str, state: Dict, source: str = "simulated") -> Dict:
+# Sensible fallbacks when a symbol has no explicit market profile in config.
+DEFAULT_PROFILE = {"start": 100.0, "screener": "crypto", "exchange": "BINANCE"}
+
+
+def get_snapshot(symbol: str, timeframe: str, state: Dict, source: str = "simulated",
+                 profile: Dict | None = None) -> Dict:
     """Advance the price series by one step and return a full indicator snapshot.
 
     The price history lives in ``state['prices']`` so consecutive cron
-    invocations continue the same series.
+    invocations continue the same series. ``profile`` carries the per-symbol
+    starting price and TradingView screener/exchange.
     """
-    prices: List[float] = state.get("prices") or _bootstrap_prices(symbol)
+    profile = {**DEFAULT_PROFILE, **(profile or {})}
+    prices: List[float] = state.get("prices") or _bootstrap_prices(symbol, profile["start"])
 
     used_source = source
     price = None
     if source == "tradingview":
-        price = _try_tradingview(symbol, timeframe)
+        price = _try_tradingview(symbol, timeframe, profile["screener"], profile["exchange"])
         if price is None:
             used_source = "simulated (tradingview unavailable)"
     if price is None:

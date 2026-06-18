@@ -43,7 +43,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>🤖 Trading Agent Lab — BTC/USDT</h1>
+  <h1>🤖 Trading Agent Lab — BTCUSDT / XAUUSD</h1>
   <div class="sub">3 AI agents · decision 2-in-3 · indicators in pure JS · inspired by the
     <a href="https://youtu.be/scI2NMd6yMk" target="_blank" rel="noopener">BoomBigNose video</a></div>
 
@@ -51,6 +51,12 @@
     และไม่มีการยิงออเดอร์เงินจริง ตัวเลขทั้งหมดเป็นเงินสมมติเพื่อการเรียนรู้เท่านั้น</div>
 
   <div class="controls">
+    <label>Symbol:
+      <select id="symbol">
+        <option value="BTCUSDT">BTCUSDT</option>
+        <option value="XAUUSD">XAUUSD (ทองคำ)</option>
+      </select>
+    </label>
     <label>Mode:
       <select id="mode">
         <option value="lab">Lab (แต่ละ agent เทรดงบตัวเอง)</option>
@@ -140,8 +146,10 @@ function consensus(sigs, required=2){
   return ["HOLD",v];
 }
 
-// ---- simulated market feed (ported from market_data.py) ----
-function bootstrap(){ let p=60000, out=[p];
+// ---- markets & simulated feed (ported from market_data.py) ----
+const MARKETS = { BTCUSDT:{start:60000}, XAUUSD:{start:2350} };
+function curSymbol(){ return document.getElementById("symbol").value; }
+function bootstrap(){ let p=(MARKETS[curSymbol()]||{start:100}).start, out=[+p.toFixed(2)];
   for(let i=0;i<59;i++){ p*=1+gauss(0,0.004); out.push(+p.toFixed(2)); } return out; }
 function gauss(m,s){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
   return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
@@ -192,7 +200,7 @@ function render(snap, rows, decision, votes, winner, status, mode){
     `Consensus: ${decision}  ·  BUY ${votes.BUY} / SELL ${votes.SELL} / HOLD ${votes.HOLD}  ·  winner: ${winner}  ·  ${status}`;
 
   document.getElementById("snap").innerHTML = [
-    ["Cycle", S.n], ["Price (BTCUSDT)", fmt(snap.price)], ["RSI(14)", fmt(snap.rsi,1)],
+    ["Cycle", S.n], ["Price ("+curSymbol()+")", fmt(snap.price)], ["RSI(14)", fmt(snap.rsi,1)],
     ["EMA12 / EMA26", `${fmt(snap.ema_fast)} / ${fmt(snap.ema_slow)}`],
     ["MACD hist", fmt(snap.macd_hist,2)], ["Mode", mode.toUpperCase()]
   ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -205,7 +213,7 @@ function render(snap, rows, decision, votes, winner, status, mode){
 
   const perf = rows.filter(r=>r.id!=="PROD").map(r=>`${r.id} (P/L ${r.pnl>=0?"+":""}${fmt(r.pnl)})`).join(" | ");
   const entry = `### 📈 Trading Session: ${snap.time}\n`+
-    `- Price: ${fmt(snap.price)}  (simulated)\n`+
+    `- Symbol: ${curSymbol()}  ·  Price: ${fmt(snap.price)}  (simulated)\n`+
     `- Performance: ${perf}\n`+
     `- Winning Agent: ${winner}\n`+
     `- Consensus Decision: ${decision} (BUY=${votes.BUY} SELL=${votes.SELL} HOLD=${votes.HOLD})\n`+
@@ -217,13 +225,15 @@ function render(snap, rows, decision, votes, winner, status, mode){
 
 // ---- controls ----
 let timer=null;
-document.getElementById("step").onclick = cycle;
-document.getElementById("reset").onclick = ()=>{ S=freshState();
+function doReset(){ S=freshState();
   document.getElementById("log").textContent="— ยังไม่มีรอบที่รัน —";
   document.getElementById("banner").className="decision-banner HOLD";
   document.getElementById("banner").textContent="รอเริ่มรอบแรก…";
   document.getElementById("snap").innerHTML=""; document.querySelector("#agents tbody").innerHTML="";
-  if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; } };
+  if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; } }
+document.getElementById("step").onclick = cycle;
+document.getElementById("reset").onclick = doReset;
+document.getElementById("symbol").onchange = doReset;  // base price differs per symbol
 document.getElementById("auto").onclick = (e)=>{
   if(timer){ clearInterval(timer); timer=null; e.target.textContent="⏩ Auto"; }
   else { cycle(); timer=setInterval(cycle,1500); e.target.textContent="⏸ Stop"; } };
