@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Agent Lab — BTC/USDT (Paper)</title>
+<style>
+  :root { --bg:#0e1117; --card:#161b22; --line:#30363d; --txt:#e6edf3; --muted:#8b949e;
+          --buy:#2ea043; --sell:#f85149; --hold:#8b949e; --accent:#58a6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Tahoma,sans-serif; background:var(--bg);
+         color:var(--txt); line-height:1.5; }
+  .wrap { max-width:980px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:.9rem; margin-bottom:16px; }
+  .warn { background:#3d1d00; border:1px solid #9e6a03; color:#ffd9a0; padding:10px 14px;
+          border-radius:8px; font-size:.85rem; margin-bottom:18px; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:18px; }
+  button, select { background:var(--card); color:var(--txt); border:1px solid var(--line);
+          padding:8px 14px; border-radius:6px; font-size:.9rem; cursor:pointer; }
+  button.primary { background:var(--accent); color:#06121f; border-color:var(--accent); font-weight:600; }
+  button:hover { border-color:var(--accent); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .card .k { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { font-size:1.25rem; font-weight:600; margin-top:4px; }
+  h2 { font-size:1.05rem; margin:22px 0 10px; border-bottom:1px solid var(--line); padding-bottom:6px; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; font-size:.78rem; text-transform:uppercase; }
+  .tag { display:inline-block; padding:2px 9px; border-radius:999px; font-weight:700; font-size:.78rem; }
+  .BUY { background:rgba(46,160,67,.18); color:var(--buy); }
+  .SELL { background:rgba(248,81,73,.18); color:var(--sell); }
+  .HOLD { background:rgba(139,148,158,.18); color:var(--hold); }
+  .pos { color:var(--buy); } .neg { color:var(--sell); }
+  .reason { color:var(--muted); font-size:.82rem; }
+  #log { max-height:320px; overflow:auto; font-family:ui-monospace,Menlo,monospace; font-size:.8rem;
+         background:#0b0f14; border:1px solid var(--line); border-radius:8px; padding:12px; white-space:pre-wrap; }
+  .decision-banner { font-size:1.1rem; font-weight:700; padding:12px 16px; border-radius:10px;
+         margin-bottom:18px; border:1px solid var(--line); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🤖 Trading Agent Lab — BTC/USDT</h1>
+  <div class="sub">3 AI agents · decision 2-in-3 · indicators in pure JS · inspired by the
+    <a href="https://youtu.be/scI2NMd6yMk" target="_blank" rel="noopener">BoomBigNose video</a></div>
+
+  <div class="warn">⚠️ <b>PAPER TRADING ONLY</b> — โหมดจำลองล้วน ทุกอย่างรันในเบราว์เซอร์ ไม่เชื่อมต่อ exchange
+    และไม่มีการยิงออเดอร์เงินจริง ตัวเลขทั้งหมดเป็นเงินสมมติเพื่อการเรียนรู้เท่านั้น</div>
+
+  <div class="controls">
+    <label>Mode:
+      <select id="mode">
+        <option value="lab">Lab (แต่ละ agent เทรดงบตัวเอง)</option>
+        <option value="prod">Prod (เทรดตาม consensus)</option>
+      </select>
+    </label>
+    <button class="primary" id="step">▶ Run 1 cycle</button>
+    <button id="auto">⏩ Auto</button>
+    <button id="reset">↺ Reset</button>
+  </div>
+
+  <div id="banner" class="decision-banner HOLD">รอเริ่มรอบแรก…</div>
+
+  <div class="grid" id="snap"></div>
+
+  <h2>Agents</h2>
+  <table id="agents"><thead><tr>
+    <th>Agent</th><th>Strategy</th><th>Signal</th><th>P/L</th><th>Equity</th><th>Reason</th>
+  </tr></thead><tbody></tbody></table>
+
+  <h2>Session log (Obsidian-style)</h2>
+  <div id="log">— ยังไม่มีรอบที่รัน —</div>
+</div>
+
+<script>
+"use strict";
+// ---- indicators (ported from indicators.py) ----
+const I = {
+  sma:(v,n)=> v.length<n?null:v.slice(-n).reduce((a,b)=>a+b,0)/n,
+  emaSeries:(v,n)=>{ if(!v.length) return []; const a=2/(n+1); const o=[v[0]];
+    for(let i=1;i<v.length;i++) o.push(a*v[i]+(1-a)*o[i-1]); return o; },
+  ema:(v,n)=> v.length<n?null:I.emaSeries(v,n).slice(-1)[0],
+  rsi:(v,n=14)=>{ if(v.length<n+1) return null; let g=0,l=0;
+    for(let i=v.length-n;i<v.length;i++){ const d=v[i]-v[i-1]; if(d>=0) g+=d; else l-=d; }
+    const ag=g/n, al=l/n; if(al===0) return 100; const rs=ag/al; return 100-100/(1+rs); },
+  macd:(v,f=12,s=26,sig=9)=>{ if(v.length<s) return [null,null,null];
+    const fs=I.emaSeries(v,f), ss=I.emaSeries(v,s);
+    const line=fs.map((x,i)=>x-ss[i]); const sg=I.emaSeries(line,sig);
+    const L=line.slice(-1)[0], S=sg.slice(-1)[0]; return [L,S,L-S]; },
+  bollinger:(v,n=20,m=2)=>{ if(v.length<n) return [null,null,null];
+    const w=v.slice(-n), mid=w.reduce((a,b)=>a+b,0)/n;
+    const std=Math.sqrt(w.reduce((a,b)=>a+(b-mid)**2,0)/n);
+    return [mid+m*std, mid, mid-m*std]; }
+};
+
+// ---- agents (ported from agents.py) ----
+const AGENTS = [
+  {id:"Agent_01", name:"Trend Following", strat:"trend_following", budget:33333,
+   decide:s=>{ const {ema_fast,ema_slow,macd,macd_signal}=s;
+     if([ema_fast,ema_slow,macd,macd_signal].some(x=>x==null)) return ["HOLD","insufficient data"];
+     if(ema_fast>ema_slow && macd>macd_signal) return ["BUY",`uptrend: EMA12>EMA26 & MACD>signal`];
+     if(ema_fast<ema_slow && macd<macd_signal) return ["SELL","downtrend: EMA12<EMA26 & MACD<signal"];
+     return ["HOLD","no clear trend"]; }},
+  {id:"Agent_02", name:"Mean Reversion", strat:"mean_reversion", budget:33333,
+   decide:s=>{ const {price,rsi,bb_upper,bb_lower}=s;
+     if([price,rsi,bb_upper,bb_lower].some(x=>x==null)) return ["HOLD","insufficient data"];
+     if(price<=bb_lower || rsi<30) return ["BUY",`oversold: RSI=${rsi.toFixed(0)}, price<=lower band`];
+     if(price>=bb_upper || rsi>70) return ["SELL",`overbought: RSI=${rsi.toFixed(0)}, price>=upper band`];
+     return ["HOLD",`in range: RSI=${rsi.toFixed(0)}`]; }},
+  {id:"Agent_03", name:"AI-based Scalping", strat:"scalping", budget:33334,
+   decide:s=>{ const {price,sma20,rsi,macd_hist}=s;
+     if([price,sma20,rsi,macd_hist].some(x=>x==null)) return ["HOLD","insufficient data"];
+     if(price>sma20 && rsi>=45 && rsi<=65 && macd_hist>0) return ["BUY",`momentum up: price>SMA20, RSI=${rsi.toFixed(0)}`];
+     if(price<sma20 && macd_hist<0) return ["SELL","momentum down: price<SMA20, hist<0"];
+     return ["HOLD","no scalp setup"]; }}
+];
+
+// ---- paper portfolio (ported from paper_broker.py) ----
+function newPF(budget){ return {budget, cash:budget, qty:0, avg:0, realized:0}; }
+function equity(pf,p){ return pf.cash + pf.qty*p; }
+function pnl(pf,p){ return equity(pf,p) - pf.budget; }
+function execute(pf, action, price){
+  if(action==="BUY" && pf.cash>0){ const spend=pf.cash; const bought=spend/price;
+    const cost=pf.avg*pf.qty+spend; pf.qty+=bought; pf.avg=cost/pf.qty; pf.cash-=spend;
+    return `BUY ${bought.toFixed(6)} @ ${price.toFixed(2)}`; }
+  if(action==="SELL" && pf.qty>0){ const proceeds=pf.qty*price;
+    pf.realized+=proceeds-pf.avg*pf.qty; const sold=pf.qty; pf.cash+=proceeds; pf.qty=0; pf.avg=0;
+    return `SELL ${sold.toFixed(6)} @ ${price.toFixed(2)}`; }
+  return "no-op";
+}
+
+// ---- consensus (ported from decision.py) ----
+function consensus(sigs, required=2){
+  const v={BUY:0,SELL:0,HOLD:0}; sigs.forEach(a=>v[a]++);
+  if(v.BUY>=required && v.BUY>=v.SELL) return ["BUY",v];
+  if(v.SELL>=required && v.SELL>v.BUY) return ["SELL",v];
+  return ["HOLD",v];
+}
+
+// ---- simulated market feed (ported from market_data.py) ----
+function bootstrap(){ let p=60000, out=[p];
+  for(let i=0;i<59;i++){ p*=1+gauss(0,0.004); out.push(+p.toFixed(2)); } return out; }
+function gauss(m,s){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
+  return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function nextPrice(prices){ return +Math.max(prices.at(-1)*(1+gauss(0,0.005)),0.01).toFixed(2); }
+
+// ---- state ----
+let S = freshState();
+function freshState(){ return { prices: bootstrap(), pf:{}, prod:newPF(100000), n:0, logs:[] }; }
+
+function snapshot(){
+  S.prices.push(nextPrice(S.prices));
+  if(S.prices.length>240) S.prices = S.prices.slice(-240);
+  const p=S.prices, price=p.at(-1);
+  const [macd,macd_signal,macd_hist]=I.macd(p);
+  const [bb_upper,,bb_lower]=I.bollinger(p);
+  return { time:new Date().toLocaleTimeString('en-GB'), price,
+    sma20:I.sma(p,20), ema_fast:I.ema(p,12), ema_slow:I.ema(p,26), rsi:I.rsi(p,14),
+    macd, macd_signal, macd_hist, bb_upper, bb_lower };
+}
+
+function cycle(){
+  const mode=document.getElementById("mode").value;
+  const snap=snapshot(); const price=snap.price; S.n++;
+  const rows=[]; const sigs=[];
+  for(const ag of AGENTS){
+    const [action,reason]=ag.decide(snap); sigs.push(action);
+    if(!S.pf[ag.id]) S.pf[ag.id]=newPF(ag.budget);
+    const order = mode==="lab" ? execute(S.pf[ag.id],action,price) : "no-op (prod)";
+    rows.push({id:ag.id,name:ag.name,action,reason,order,
+      pnl:pnl(S.pf[ag.id],price), equity:equity(S.pf[ag.id],price), budget:ag.budget});
+  }
+  const [decision,votes]=consensus(sigs,2);
+  if(mode==="prod"){ const o=execute(S.prod,decision,price);
+    rows.push({id:"PROD",name:"Consensus Portfolio",action:decision,
+      reason:`${votes.BUY}xBUY / ${votes.SELL}xSELL / ${votes.HOLD}xHOLD`,
+      order:o, pnl:pnl(S.prod,price), equity:equity(S.prod,price), budget:100000}); }
+  const winner = rows.reduce((a,b)=>b.pnl>a.pnl?b:a).id;
+  const status = Math.max(...Object.values(votes))>=2 ? "Stable" : "Unstable";
+  render(snap, rows, decision, votes, winner, status, mode);
+}
+
+function fmt(x,d=2){ return x==null?"—":(+x).toFixed(d); }
+function cls(x){ return x>=0?"pos":"neg"; }
+
+function render(snap, rows, decision, votes, winner, status, mode){
+  document.getElementById("banner").className = "decision-banner "+decision;
+  document.getElementById("banner").textContent =
+    `Consensus: ${decision}  ·  BUY ${votes.BUY} / SELL ${votes.SELL} / HOLD ${votes.HOLD}  ·  winner: ${winner}  ·  ${status}`;
+
+  document.getElementById("snap").innerHTML = [
+    ["Cycle", S.n], ["Price (BTCUSDT)", fmt(snap.price)], ["RSI(14)", fmt(snap.rsi,1)],
+    ["EMA12 / EMA26", `${fmt(snap.ema_fast)} / ${fmt(snap.ema_slow)}`],
+    ["MACD hist", fmt(snap.macd_hist,2)], ["Mode", mode.toUpperCase()]
+  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+
+  document.querySelector("#agents tbody").innerHTML = rows.map(r=>`<tr>
+    <td><b>${r.id}</b></td><td>${r.name}</td>
+    <td><span class="tag ${r.action}">${r.action}</span></td>
+    <td class="${cls(r.pnl)}">${r.pnl>=0?"+":""}${fmt(r.pnl)}</td>
+    <td>${fmt(r.equity)}</td><td class="reason">${r.reason}</td></tr>`).join("");
+
+  const perf = rows.filter(r=>r.id!=="PROD").map(r=>`${r.id} (P/L ${r.pnl>=0?"+":""}${fmt(r.pnl)})`).join(" | ");
+  const entry = `### 📈 Trading Session: ${snap.time}\n`+
+    `- Price: ${fmt(snap.price)}  (simulated)\n`+
+    `- Performance: ${perf}\n`+
+    `- Winning Agent: ${winner}\n`+
+    `- Consensus Decision: ${decision} (BUY=${votes.BUY} SELL=${votes.SELL} HOLD=${votes.HOLD})\n`+
+    `- Status: ${status}\n`;
+  S.logs.unshift(entry);
+  if(S.logs.length>40) S.logs.pop();
+  document.getElementById("log").textContent = S.logs.join("\n");
+}
+
+// ---- controls ----
+let timer=null;
+document.getElementById("step").onclick = cycle;
+document.getElementById("reset").onclick = ()=>{ S=freshState();
+  document.getElementById("log").textContent="— ยังไม่มีรอบที่รัน —";
+  document.getElementById("banner").className="decision-banner HOLD";
+  document.getElementById("banner").textContent="รอเริ่มรอบแรก…";
+  document.getElementById("snap").innerHTML=""; document.querySelector("#agents tbody").innerHTML="";
+  if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; } };
+document.getElementById("auto").onclick = (e)=>{
+  if(timer){ clearInterval(timer); timer=null; e.target.textContent="⏩ Auto"; }
+  else { cycle(); timer=setInterval(cycle,1500); e.target.textContent="⏸ Stop"; } };
+</script>
+</body>
+</html>

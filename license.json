@@ -8,5 +8,35 @@
       "expiry": "2026.12.31",
       "note": "Demo - PorPank"
     }
-  ]
+  ],
+  "content": {
+    "video": {
+      "title": "เทรดอัตโนมัติด้วย AI Agent ใช้ Hermes และ Obsidian เชื่อมต่อ TradingView MCP แบบครบระบบ",
+      "channel": "BoomBigNose",
+      "url": "https://youtu.be/scI2NMd6yMk"
+    },
+    "links": [
+      {
+        "title": "Hermes Agent",
+        "url": "https://hermes-agent.nousresearch.com/"
+      },
+      {
+        "title": "Obsidian",
+        "url": "https://obsidian.md"
+      },
+      {
+        "title": "TradingView MCP",
+        "url": "https://github.com/atilaahmettaner/tradingview-mcp"
+      },
+      {
+        "title": "Hostinger (โฮสเว็บไซต์)",
+        "url": "https://www.hostinger.com/th/web-apps-hosting?utm_medium=affiliate&utm_source=aff218020&utm_campaign=6&session=102f83b1fa332782ec72252f6a9a9a&special_offer=reach",
+        "note": "โค้ด: BOOMBIGNOSE"
+      },
+      {
+        "title": "Docs Setup",
+        "url": "https://docs.google.com/document/d/12n4JWBieXJmx6qbPWaYv70-7HGO-jJAqD6hGnLEoMkM/edit?tab=t.0#heading=h.h5xzvtnd6u3v"
+      }
+    ]
+  }
 }
