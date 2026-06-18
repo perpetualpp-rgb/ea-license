@@ -23,12 +23,49 @@ strategy (matching the Doc):
 | `Agent_03` | AI-based Scalping | $33,334 | Price vs SMA20 momentum + MACD histogram |
 
 Each cycle the lab:
-1. Pulls a market snapshot (simulated feed by default; optional real data via
-   TradingView).
-2. Asks each agent for a `BUY` / `SELL` / `HOLD` signal.
+1. Pulls a market snapshot — **real TradingView data by default** (falls back to
+   the built-in simulated feed if offline; see *Data source* below).
+2. Asks each agent for a `BUY` / `SELL` / `HOLD` signal. When an LLM is
+   configured (Hermes by default), **each agent decides with the real model**
+   using its own strategy persona; otherwise it uses the deterministic
+   indicator rules (see *AI agents* below).
 3. Applies the **consensus rule** — act only when **≥ 2 of 3** agents agree
    (the Doc's *"อย่างน้อย 2 ใน 3 เงื่อนไข"*).
 4. Writes Obsidian-style Markdown notes to the vault.
+
+## AI agents (Hermes / any OpenAI-compatible LLM)
+
+Each of the three agents can decide with a **real LLM**. The agent sends its
+strategy persona + the live indicator snapshot to the model and parses back a
+`{"action", "reason"}` decision; the 2-of-3 consensus then runs on those AI
+calls — i.e. **three independent AI agents per cycle**, as in the Doc.
+
+Configured under `"llm"` in `config.json` (defaults target the Nous Research
+Hermes inference API, OpenAI-compatible):
+
+```json
+"llm": {
+  "enabled": true,
+  "base_url": "https://inference-api.nousresearch.com/v1",
+  "model": "Hermes-3-Llama-3.1-70B",
+  "api_key_env": "NOUS_API_KEY"
+}
+```
+
+Provide the key via the environment (never commit it):
+
+```bash
+export NOUS_API_KEY="sk-..."
+python3 trading_analyzer.py --mode prod --once          # agents now use Hermes
+python3 trading_analyzer.py --mode prod --once --no-llm  # force indicator rules
+python3 trading_analyzer.py --mode prod --once --model Hermes-4-405B
+```
+
+**Fail-soft by design:** if `NOUS_API_KEY` is unset, the LLM is disabled, or any
+network/parse error occurs, each agent transparently falls back to its
+indicator rule — so the lab still runs fully offline. Point `base_url` /
+`api_key_env` at OpenAI, OpenRouter, or a local server to use a different model.
+The session log records whether each cycle was decided by AI or by rules.
 
 ## Browser dashboard (no install)
 
@@ -36,6 +73,11 @@ Each cycle the lab:
 JavaScript — open it directly (or via GitHub Pages at `/trading-agent-lab/`) to
 watch the 3 agents, the 2-of-3 consensus, P/L and an Obsidian-style session log
 update live. Same logic as the Python version, also paper-trading only.
+
+> The browser dashboard stays on the **simulated feed + indicator rules** on
+> purpose: a static page can't safely hold an API key, so real TradingView data
+> and the real Hermes/LLM agents live only in the Python runner above. Run that
+> (with `NOUS_API_KEY` set) for the genuine AI version.
 
 ## Components
 
@@ -62,22 +104,31 @@ Point your Obsidian vault at the `vault/` directory to browse the notes live.
 
 ## Usage
 
-No install needed for the default simulated mode (stdlib only):
+The lab runs on the stdlib alone — no install needed. For the real data feed,
+install `tradingview-ta`; for AI decisions, set `NOUS_API_KEY` (no package).
 
 ```bash
 # Lab mode: each agent paper-trades its own budget; run 5 cycles locally
 python3 trading_analyzer.py --mode lab --cycles 5 --interval 180
 
-# Single cycle (intended for cron)
+# Single cycle (intended for cron) — uses real TradingView data + Hermes if available
 python3 trading_analyzer.py --mode prod --once
 
 # Trade gold (XAUUSD) instead of BTCUSDT — keeps its own state/history
 python3 trading_analyzer.py --mode prod --once --symbol XAUUSD
 
-# Use real TradingView data instead of the simulated feed
-pip install -r requirements.txt
-python3 trading_analyzer.py --mode prod --once --source tradingview
+# Force the offline simulated feed and/or the indicator rules
+python3 trading_analyzer.py --mode prod --once --source simulated --no-llm
 ```
+
+### Data source
+
+The default `source` in `config.json` is **`tradingview`** — best-effort real
+analysis via the optional `tradingview-ta` package (mirroring the TradingView
+MCP server). Install it with `pip install -r requirements.txt`. If the package
+or network is unavailable, the snapshot transparently falls back to the
+simulated feed and flags it (`source: simulated (tradingview unavailable)`).
+Use `--source simulated` to force the offline feed.
 
 ### Symbols
 

@@ -17,19 +17,22 @@ def _ensure(path: str) -> None:
 
 
 def write_session_log(vault: str, snap: Dict, rows: List[Dict], winner: str,
-                      decision: str, votes: Dict, status: str) -> str:
+                      decision: str, votes: Dict, status: str,
+                      ai_agents: int = 0) -> str:
     """Append/create the per-cycle session note. Returns the file path."""
     logs_dir = os.path.join(vault, "trading-logs")
     _ensure(logs_dir)
     fname = "Session_" + snap["time"].replace(":", "-").replace(" ", "_") + ".md"
     path = os.path.join(logs_dir, fname)
 
+    decided_by = f"AI ({ai_agents}/3 agents)" if ai_agents else "indicator rules"
     perf = " | ".join(f"{r['id']} (P/L {r['pnl']:+.2f})" for r in rows)
     lines = [
         f"### \U0001F4C8 Trading Session: {snap['time']}",
         "",
         f"- **Symbol:** {snap['symbol']} @ {snap['timeframe']}  (source: {snap['source']})",
         f"- **Price:** {snap['price']:.2f}",
+        f"- **Decided by:** {decided_by}",
         f"- **Performance:** {perf}",
         f"- **Winning Agent:** {winner}",
         f"- **Consensus Decision:** {decision}  (votes BUY={votes['BUY']} "

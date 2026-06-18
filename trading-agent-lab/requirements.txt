@@ -1,6 +1,8 @@
 # Core lab runs on the Python standard library only - no install needed.
+# The LLM agents (Hermes) also use only the stdlib (urllib) - just set the
+# NOUS_API_KEY env var; no package required.
 #
-# Optional: enable the "tradingview" data source (real BTCUSDT analysis,
-# mirroring the TradingView MCP server). Without it the lab uses its built-in
-# simulated price feed.
+# Optional: enable the "tradingview" data source (real BTCUSDT / XAUUSD
+# analysis, mirroring the TradingView MCP server). This is the DEFAULT source
+# in config.json; without this package the lab falls back to its simulated feed.
 tradingview-ta>=3.3.0
