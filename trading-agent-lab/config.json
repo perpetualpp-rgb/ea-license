@@ -1,12 +1,22 @@
 {
   "symbol": "BTCUSDT",
   "timeframe": "3m",
-  "source": "simulated",
+  "source": "tradingview",
   "vault": "vault",
   "live_trading": false,
   "markets": {
     "BTCUSDT": { "start": 60000, "screener": "crypto", "exchange": "BINANCE" },
     "XAUUSD":  { "start": 2350,  "screener": "forex",  "exchange": "OANDA" }
+  },
+  "llm": {
+    "enabled": true,
+    "provider": "nous",
+    "base_url": "https://inference-api.nousresearch.com/v1",
+    "model": "Hermes-3-Llama-3.1-70B",
+    "api_key_env": "NOUS_API_KEY",
+    "temperature": 0.3,
+    "max_tokens": 200,
+    "timeout": 20
   },
   "agents": [
     {

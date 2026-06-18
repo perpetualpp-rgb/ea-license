@@ -30,6 +30,7 @@ from typing import Dict, List
 import market_data
 from agents import build_agents
 from decision import consensus
+from llm import LLMClient
 from obsidian_logger import write_dashboards, write_session_log
 from paper_broker import PaperPortfolio
 
@@ -54,7 +55,7 @@ def save_state(path: str, state: Dict) -> None:
         json.dump(state, f, indent=2)
 
 
-def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str) -> Dict:
+def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str, llm=None) -> Dict:
     """Run a single trading cycle and persist Obsidian notes. Returns a summary."""
     profile = cfg.get("markets", {}).get(cfg["symbol"])
     snap = market_data.get_snapshot(
@@ -67,7 +68,7 @@ def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str) -> Dict:
     rows: List[Dict] = []
     signals = []
     for ag in agents:
-        sig = ag.decide(snap)
+        sig = ag.decide(snap, llm)
         signals.append(sig)
         pf = PaperPortfolio(ag.budget, portfolios.get(ag.id))
         # In lab mode every agent acts on its own conviction.
@@ -76,8 +77,10 @@ def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str) -> Dict:
         rows.append({
             "id": ag.id, "name": ag.name, "action": sig.action, "reason": sig.reason,
             "order": order, "pnl": pf.pnl(price), "equity": pf.equity(price),
-            "budget": ag.budget,
+            "budget": ag.budget, "engine": sig.engine,
         })
+
+    ai_agents = sum(1 for r in rows if r.get("engine") == "ai")
 
     decision, votes = consensus(signals, cfg.get("decision", {}).get("consensus_required", 2))
 
@@ -98,20 +101,25 @@ def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str) -> Dict:
     # "Stable" when the agents reach a quorum, "Unstable" when they disagree.
     status = "Stable" if max(votes.values()) >= 2 else "Unstable"
 
-    log_path = write_session_log(vault, snap, rows, winner, decision, votes, status)
+    log_path = write_session_log(vault, snap, rows, winner, decision, votes, status,
+                                 ai_agents=ai_agents)
     write_dashboards(vault, snap, rows, winner, decision, status)
 
     return {
         "time": snap["time"], "price": price, "decision": decision, "votes": votes,
         "winner": winner, "rows": rows, "log_path": log_path, "source": snap["source"],
+        "ai_agents": ai_agents,
     }
 
 
 def print_summary(s: Dict) -> None:
-    print(f"[{s['time']}] {s['source']} | price={s['price']:.2f} | "
+    engine = f"AI {s['ai_agents']}/3" if s.get("ai_agents") else "rule-based"
+    print(f"[{s['time']}] {s['source']} | {engine} | price={s['price']:.2f} | "
           f"decision={s['decision']} {s['votes']} | winner={s['winner']}")
     for r in s["rows"]:
-        print(f"    {r['id']:<6} {r['action']:<4} P/L {r['pnl']:+10.2f}  {r['order']}  | {r['reason']}")
+        tag = "AI " if r.get("engine") == "ai" else "   "
+        print(f"    {tag}{r['id']:<6} {r['action']:<4} P/L {r['pnl']:+10.2f}  "
+              f"{r['order']}  | {r['reason']}")
     print(f"    -> log: {s['log_path']}")
 
 
@@ -125,6 +133,9 @@ def main(argv=None) -> int:
     p.add_argument("--vault", default=None, help="override vault dir from config")
     p.add_argument("--source", default=None, choices=["simulated", "tradingview"])
     p.add_argument("--symbol", default=None, help="symbol to trade, e.g. BTCUSDT or XAUUSD")
+    p.add_argument("--no-llm", action="store_true",
+                   help="force the deterministic indicator rules (skip the LLM)")
+    p.add_argument("--model", default=None, help="override the LLM model id from config")
     p.add_argument("--live", action="store_true", help="(refused) live trading is not supported")
     args = p.parse_args(argv)
 
@@ -144,6 +155,16 @@ def main(argv=None) -> int:
               "supported. Set it to false.", file=sys.stderr)
         return 2
 
+    # Build the LLM client (Hermes by default). It fails soft: agents fall back
+    # to the indicator rules whenever it is disabled or has no API key.
+    llm_cfg = dict(cfg.get("llm", {}))
+    if args.no_llm:
+        llm_cfg["enabled"] = False
+    if args.model:
+        llm_cfg["model"] = args.model
+    llm = LLMClient(llm_cfg)
+    print(f"# {llm.status()}", file=sys.stderr)
+
     vault = args.vault or os.path.join(HERE, cfg.get("vault", "vault"))
     # Isolate state per symbol so BTCUSDT and XAUUSD keep separate price
     # histories and portfolios.
@@ -151,7 +172,7 @@ def main(argv=None) -> int:
 
     def one():
         state = load_state(state_path)
-        summary = run_cycle(cfg, state, vault, args.mode)
+        summary = run_cycle(cfg, state, vault, args.mode, llm)
         save_state(state_path, state)
         print_summary(summary)
 
