@@ -146,8 +146,9 @@ function consensus(sigs, required=2){
   return ["HOLD",v];
 }
 
-// ---- markets & simulated feed (ported from market_data.py) ----
-const MARKETS = { BTCUSDT:{start:60000}, XAUUSD:{start:2350} };
+// ---- markets & price feed (ported from market_data.py) ----
+// `start` is only a fallback anchor; we try to seed from a real live price below.
+const MARKETS = { BTCUSDT:{start:60000}, XAUUSD:{start:4270} };
 function curSymbol(){ return document.getElementById("symbol").value; }
 function bootstrap(){ let p=(MARKETS[curSymbol()]||{start:100}).start, out=[+p.toFixed(2)];
   for(let i=0;i<59;i++){ p*=1+gauss(0,0.004); out.push(+p.toFixed(2)); } return out; }
@@ -155,9 +156,34 @@ function gauss(m,s){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.rand
   return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function nextPrice(prices){ return +Math.max(prices.at(-1)*(1+gauss(0,0.005)),0.01).toFixed(2); }
 
+// ---- best-effort LIVE price seed (anchors the simulation to reality) ----
+// Static page = no API key, so we use public CORS-friendly endpoints and fall
+// back to a synthetic series if anything fails.
+let SEEDED = "simulated";
+function seriesAround(anchor){ // 60-point history that ENDS at the real price
+  let out=[+(+anchor).toFixed(2)];
+  for(let i=0;i<59;i++){ out.unshift(+(out[0]/(1+gauss(0,0.004))).toFixed(2)); }
+  return out; }
+async function fetchSeed(symbol){
+  try{
+    if(symbol==="BTCUSDT"){
+      const r=await fetch("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=3m&limit=60");
+      const k=await r.json();
+      const closes=k.map(c=>+(+c[4]).toFixed(2)).filter(x=>x>0);
+      if(closes.length>=30){ SEEDED="live · Binance"; return closes; }
+    } else if(symbol==="XAUUSD"){
+      const r=await fetch("https://api.gold-api.com/price/XAU");
+      const j=await r.json();
+      const px=+j.price;
+      if(px>0){ SEEDED="live · gold-api"; return seriesAround(px); }
+    }
+  }catch(e){ /* network/CORS error -> simulated fallback */ }
+  SEEDED="simulated"; return bootstrap();
+}
+
 // ---- state ----
 let S = freshState();
-function freshState(){ return { prices: bootstrap(), pf:{}, prod:newPF(100000), n:0, logs:[] }; }
+function freshState(prices){ return { prices: prices||bootstrap(), pf:{}, prod:newPF(100000), n:0, logs:[] }; }
 
 function snapshot(){
   S.prices.push(nextPrice(S.prices));
@@ -213,7 +239,7 @@ function render(snap, rows, decision, votes, winner, status, mode){
 
   const perf = rows.filter(r=>r.id!=="PROD").map(r=>`${r.id} (P/L ${r.pnl>=0?"+":""}${fmt(r.pnl)})`).join(" | ");
   const entry = `### 📈 Trading Session: ${snap.time}\n`+
-    `- Symbol: ${curSymbol()}  ·  Price: ${fmt(snap.price)}  (simulated)\n`+
+    `- Symbol: ${curSymbol()}  ·  Price: ${fmt(snap.price)}  (${SEEDED})\n`+
     `- Performance: ${perf}\n`+
     `- Winning Agent: ${winner}\n`+
     `- Consensus Decision: ${decision} (BUY=${votes.BUY} SELL=${votes.SELL} HOLD=${votes.HOLD})\n`+
@@ -225,15 +251,20 @@ function render(snap, rows, decision, votes, winner, status, mode){
 
 // ---- controls ----
 let timer=null;
-function doReset(){ S=freshState();
+async function doReset(){
+  if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; }
   document.getElementById("log").textContent="— ยังไม่มีรอบที่รัน —";
-  document.getElementById("banner").className="decision-banner HOLD";
-  document.getElementById("banner").textContent="รอเริ่มรอบแรก…";
   document.getElementById("snap").innerHTML=""; document.querySelector("#agents tbody").innerHTML="";
-  if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; } }
+  document.getElementById("banner").className="decision-banner HOLD";
+  document.getElementById("banner").textContent="กำลังดึงราคาจริง…";
+  const prices = await fetchSeed(curSymbol());   // real anchor when reachable
+  S = freshState(prices);
+  document.getElementById("banner").textContent=`พร้อมเริ่ม · ${curSymbol()} @ ${fmt(S.prices.at(-1))} (${SEEDED})`;
+}
 document.getElementById("step").onclick = cycle;
 document.getElementById("reset").onclick = doReset;
-document.getElementById("symbol").onchange = doReset;  // base price differs per symbol
+document.getElementById("symbol").onchange = doReset;  // re-seed with that symbol's live price
+doReset();  // seed from a live price on first load
 document.getElementById("auto").onclick = (e)=>{
   if(timer){ clearInterval(timer); timer=null; e.target.textContent="⏩ Auto"; }
   else { cycle(); timer=setInterval(cycle,1500); e.target.textContent="⏸ Stop"; } };

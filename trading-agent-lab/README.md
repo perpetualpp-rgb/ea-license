@@ -74,10 +74,14 @@ JavaScript — open it directly (or via GitHub Pages at `/trading-agent-lab/`) t
 watch the 3 agents, the 2-of-3 consensus, P/L and an Obsidian-style session log
 update live. Same logic as the Python version, also paper-trading only.
 
-> The browser dashboard stays on the **simulated feed + indicator rules** on
-> purpose: a static page can't safely hold an API key, so real TradingView data
-> and the real Hermes/LLM agents live only in the Python runner above. Run that
-> (with `NOUS_API_KEY` set) for the genuine AI version.
+> On load / reset / symbol change the dashboard **anchors to a real live price**
+> (BTCUSDT from Binance's public API — real recent candles; XAUUSD from a free
+> gold price API), then simulates movement from there. Decisions still use the
+> **indicator rules**, not an LLM: a static page can't safely hold an API key,
+> so the real TradingView feed and the real Hermes/LLM agents live only in the
+> Python runner above. Run that (with `NOUS_API_KEY` set) for the genuine AI
+> version. If the live fetch is blocked (CORS/offline) it falls back to a
+> synthetic series seeded from a recent price.
 
 ## Components
 
