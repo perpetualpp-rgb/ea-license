@@ -1,0 +1,30 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "3m",
+  "source": "simulated",
+  "vault": "vault",
+  "live_trading": false,
+  "agents": [
+    {
+      "id": "Agent_01",
+      "name": "Trend Following",
+      "strategy": "trend_following",
+      "budget": 33333.0
+    },
+    {
+      "id": "Agent_02",
+      "name": "Mean Reversion",
+      "strategy": "mean_reversion",
+      "budget": 33333.0
+    },
+    {
+      "id": "Agent_03",
+      "name": "AI-based Scalping",
+      "strategy": "scalping",
+      "budget": 33334.0
+    }
+  ],
+  "decision": {
+    "consensus_required": 2
+  }
+}

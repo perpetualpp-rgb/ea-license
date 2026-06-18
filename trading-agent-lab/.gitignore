@@ -1,0 +1,4 @@
+# Generated Obsidian vault / paper-trading state - runtime artifacts, not source.
+vault/
+__pycache__/
+*.pyc
