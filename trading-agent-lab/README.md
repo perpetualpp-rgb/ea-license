@@ -143,6 +143,21 @@ browser dashboard has a matching symbol dropdown.
 * * * * * /usr/bin/python3 /path/to/trading-agent-lab/trading_analyzer.py --mode prod --once
 ```
 
+### Run it automatically in the cloud (GitHub Actions)
+
+`.github/workflows/trading-lab.yml` runs the lab on a schedule (~every 5 minutes,
+GitHub's minimum) with **no machine of your own** — it installs `tradingview-ta`,
+runs one cycle for BTCUSDT and XAUUSD, persists the vault between ticks via the
+Actions cache, and uploads the Obsidian notes as a downloadable artifact.
+
+One-time setup for real AI decisions: add a repository secret **`NOUS_API_KEY`**
+(repo *Settings → Secrets and variables → Actions → New repository secret*).
+Without it the scheduled run still works but falls back to the indicator rules.
+You can also trigger it manually from the *Actions* tab (*Run workflow*).
+
+> Note: GitHub's scheduled cron is best-effort — ticks may be delayed or skipped
+> under load, so this is not a real-time 1-minute feed.
+
 ## Going live (not provided)
 
 `paper_broker.py` is the single seam you would replace with a real exchange

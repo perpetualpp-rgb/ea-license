@@ -1,0 +1,77 @@
+name: Trading Agent Lab (scheduled)
+
+# Runs the *real* Python lab automatically in the cloud — no machine of your own
+# needed. Each tick pulls live TradingView data and asks Hermes (if NOUS_API_KEY
+# is set) for each agent's decision, then writes the Obsidian-style vault notes.
+#
+# SETUP (one time): add a repository secret named NOUS_API_KEY
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+# Without it the lab still runs, but agents fall back to the indicator rules.
+
+on:
+  schedule:
+    # GitHub's minimum granularity is ~5 minutes (and ticks can be delayed or
+    # skipped under load — it is best-effort, not a real-time cron).
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "lab (each agent trades its own budget) or prod (consensus book)"
+        default: "prod"
+        type: choice
+        options: [prod, lab]
+
+# Never run two ticks at once; let an in-flight run finish so state stays consistent.
+concurrency:
+  group: trading-agent-lab
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (enables real TradingView data)
+        run: pip install -r trading-agent-lab/requirements.txt
+
+      # Restore the vault from the most recent run so the price history and
+      # paper portfolios continue across ticks (the runner itself is ephemeral).
+      - name: Restore previous lab state
+        uses: actions/cache/restore@v4
+        with:
+          path: trading-agent-lab/vault
+          key: lab-vault-${{ github.run_id }}
+          restore-keys: |
+            lab-vault-
+
+      - name: Run one cycle for each symbol
+        working-directory: trading-agent-lab
+        env:
+          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+          MODE: ${{ github.event.inputs.mode || 'prod' }}
+        run: |
+          python3 trading_analyzer.py --mode "$MODE" --once --symbol BTCUSDT
+          python3 trading_analyzer.py --mode "$MODE" --once --symbol XAUUSD
+
+      # Persist the updated vault for the next tick (unique key per run; the
+      # restore-keys prefix above always picks up the latest).
+      - name: Save lab state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: trading-agent-lab/vault
+          key: lab-vault-${{ github.run_id }}
+
+      # Download the Obsidian notes from the run's "Artifacts" section to browse them.
+      - name: Upload vault notes as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-${{ github.run_id }}
+          path: trading-agent-lab/vault
+          retention-days: 7
