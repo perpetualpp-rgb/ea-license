@@ -71,10 +71,20 @@ python3 trading_analyzer.py --mode lab --cycles 5 --interval 180
 # Single cycle (intended for cron)
 python3 trading_analyzer.py --mode prod --once
 
+# Trade gold (XAUUSD) instead of BTCUSDT — keeps its own state/history
+python3 trading_analyzer.py --mode prod --once --symbol XAUUSD
+
 # Use real TradingView data instead of the simulated feed
 pip install -r requirements.txt
 python3 trading_analyzer.py --mode prod --once --source tradingview
 ```
+
+### Symbols
+
+Supported symbols live under `markets` in `config.json` (starting price +
+TradingView screener/exchange). `BTCUSDT` and `XAUUSD` ship by default; add more
+by extending that map. Each symbol keeps a separate `state_<SYMBOL>.json`. The
+browser dashboard has a matching symbol dropdown.
 
 ### Cron (every 1 minute, as in the Doc)
 

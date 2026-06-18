@@ -4,6 +4,10 @@
   "source": "simulated",
   "vault": "vault",
   "live_trading": false,
+  "markets": {
+    "BTCUSDT": { "start": 60000, "screener": "crypto", "exchange": "BINANCE" },
+    "XAUUSD":  { "start": 2350,  "screener": "forex",  "exchange": "OANDA" }
+  },
   "agents": [
     {
       "id": "Agent_01",

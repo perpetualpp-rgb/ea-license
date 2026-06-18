@@ -56,8 +56,9 @@ def save_state(path: str, state: Dict) -> None:
 
 def run_cycle(cfg: Dict, state: Dict, vault: str, mode: str) -> Dict:
     """Run a single trading cycle and persist Obsidian notes. Returns a summary."""
+    profile = cfg.get("markets", {}).get(cfg["symbol"])
     snap = market_data.get_snapshot(
-        cfg["symbol"], cfg["timeframe"], state, cfg.get("source", "simulated")
+        cfg["symbol"], cfg["timeframe"], state, cfg.get("source", "simulated"), profile
     )
     price = snap["price"]
     agents = build_agents(cfg["agents"])
@@ -123,6 +124,7 @@ def main(argv=None) -> int:
     p.add_argument("--config", default=os.path.join(HERE, "config.json"))
     p.add_argument("--vault", default=None, help="override vault dir from config")
     p.add_argument("--source", default=None, choices=["simulated", "tradingview"])
+    p.add_argument("--symbol", default=None, help="symbol to trade, e.g. BTCUSDT or XAUUSD")
     p.add_argument("--live", action="store_true", help="(refused) live trading is not supported")
     args = p.parse_args(argv)
 
@@ -135,13 +137,17 @@ def main(argv=None) -> int:
     cfg = load_config(args.config)
     if args.source:
         cfg["source"] = args.source
+    if args.symbol:
+        cfg["symbol"] = args.symbol
     if cfg.get("live_trading"):
         print("ERROR: config has live_trading=true but live trading is not "
               "supported. Set it to false.", file=sys.stderr)
         return 2
 
     vault = args.vault or os.path.join(HERE, cfg.get("vault", "vault"))
-    state_path = os.path.join(vault, "state.json")
+    # Isolate state per symbol so BTCUSDT and XAUUSD keep separate price
+    # histories and portfolios.
+    state_path = os.path.join(vault, f"state_{cfg['symbol']}.json")
 
     def one():
         state = load_state(state_path)
