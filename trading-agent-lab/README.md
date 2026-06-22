@@ -79,16 +79,62 @@ update live. Same logic as the Python version, also paper-trading only.
 > and the real Hermes/LLM agents live only in the Python runner above. Run that
 > (with `NOUS_API_KEY` set) for the genuine AI version.
 
+## Flows Agent (declarative node pipeline)
+
+On top of the fixed `trading_analyzer.py` orchestration there is a **Flows
+Agent** — the *"Flows Agent"* idea (inspired by the [Flows Agent
+clip](https://www.facebook.com/share/r/17qA2JQ68b) and the quant patterns in
+[`javajack/skill-algotrader`](https://github.com/javajack/skill-algotrader)):
+express a strategy as a **wired graph of small, observable nodes** declared in
+`flow.json`, not as hard-coded control flow. Reorder, add, or drop nodes to
+change the strategy without touching Python.
+
+The default flow:
+
+```
+market_data → strategy_agents → fortress → consensus → risk → execute → obsidian_log
+```
+
+1. **market_data** — snapshot + ATR / trend-strength proxies.
+2. **strategy_agents** — the 3 lab agents vote (LLM or rules).
+3. **fortress** — a *multi-factor confirmation* vote ported from
+   `skill-algotrader`'s "Fortress" signal: only act when trend strength **and**
+   RSI zone **and** momentum all agree (its ADX/volume inputs become close-only
+   proxies — see `fortress.py`).
+4. **consensus** — collapse all votes via the N-of-M majority rule.
+5. **risk** — size the order with **regime-aware fractional Kelly** + a
+   consecutive-loss throttle (`risk.py`, also from the skill).
+6. **execute** — paper-trade the sized decision (no real orders, ever).
+7. **obsidian_log** — the usual vault notes, plus a per-run trace under
+   `vault/flow-runs/` so every node's output is auditable.
+
+```bash
+python3 flow.py --once                               # one cycle (cron target)
+python3 flow.py --cycles 5 --interval 180            # local self-loop
+python3 flow.py --once --source simulated --no-llm   # fully offline
+python3 flow.py --once --symbol XAUUSD               # trade gold instead
+python3 flow.py --flow my_flow.json --once           # your own node graph
+```
+
+`flow.py` shares `config.json`, the data feed, the LLM client and the paper
+broker with the analyzer, and refuses `--live` / `live_trading: true` the same
+way. The `fortress` and `risk` blocks in `config.json` tune those two nodes.
+
 ## Components
 
 | File | Role |
 |------|------|
-| `trading_analyzer.py` | Main CLI / orchestrator (the cronjob target) |
-| `config.json` | Agents, symbol, timeframe, data source, consensus threshold |
+| `trading_analyzer.py` | Fixed CLI / orchestrator (the original cronjob target) |
+| `flow.py` | **Flows Agent** — declarative node-pipeline runner |
+| `flow.json` | The node graph the Flows Agent executes |
+| `flow_nodes.py` | Node library (data / agents / fortress / consensus / risk / execute / log) |
+| `fortress.py` | Multi-factor "Fortress" confirmation signal (from `skill-algotrader`) |
+| `risk.py` | Regime detection + fractional-Kelly position sizing |
+| `config.json` | Agents, symbol, timeframe, data source, consensus, fortress, risk |
 | `market_data.py` | Snapshot provider (simulated or `tradingview-ta`) |
-| `indicators.py` | Pure-Python SMA / EMA / RSI / MACD / Bollinger |
+| `indicators.py` | Pure-Python SMA / EMA / RSI / MACD / Bollinger / ATR / trend-strength |
 | `agents.py` | The three strategy agents |
-| `decision.py` | 2-of-3 consensus logic |
+| `decision.py` | N-of-M consensus logic |
 | `paper_broker.py` | Simulated portfolio & order fills (the "go-live" seam) |
 | `obsidian_logger.py` | Writes the vault's Markdown notes |
 

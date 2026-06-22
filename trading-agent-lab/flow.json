@@ -1,0 +1,13 @@
+{
+  "name": "default-algo-flow",
+  "description": "Data -> 3 strategy agents -> Fortress confirmation -> consensus -> regime/Kelly risk -> paper execute -> Obsidian log. Reorder/add/drop nodes to change the strategy without touching code.",
+  "nodes": [
+    { "type": "market_data",    "name": "Market Data" },
+    { "type": "strategy_agents", "name": "Strategy Agents" },
+    { "type": "fortress",        "name": "Fortress Confirmation" },
+    { "type": "consensus",       "name": "Consensus", "params": { "consensus_required": 2 } },
+    { "type": "risk",            "name": "Risk Sizing" },
+    { "type": "execute",         "name": "Paper Execute" },
+    { "type": "obsidian_log",    "name": "Obsidian Log" }
+  ]
+}

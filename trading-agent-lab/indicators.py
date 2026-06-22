@@ -74,3 +74,32 @@ def bollinger(values: List[float], period: int = 20, mult: float = 2.0):
     variance = sum((x - mid) ** 2 for x in window) / period
     std = variance ** 0.5
     return mid + mult * std, mid, mid - mult * std
+
+
+def atr(values: List[float], period: int = 14) -> Optional[float]:
+    """Close-only volatility proxy: average absolute close-to-close move.
+
+    The lab feed is close-only (no high/low), so a true ATR is not available.
+    The average absolute step is a faithful stand-in for sizing/stop math and is
+    what the Flows Agent's risk node consumes.
+    """
+    if len(values) < period + 1:
+        return None
+    moves = [abs(values[i] - values[i - 1]) for i in range(-period, 0)]
+    return sum(moves) / period
+
+
+def trend_strength(values: List[float], fast: int = 12, slow: int = 26) -> Optional[float]:
+    """ADX-style trend-strength proxy in ~[0, 100], normalised by volatility.
+
+    True ADX needs high/low data. With closes only we approximate directional
+    conviction as the EMA-spread measured in units of ATR, then squash it into a
+    0-100 scale so the Fortress signal can threshold it like ADX (e.g. >= 20 =
+    trending). Honest substitute, clearly named so it is not mistaken for ADX.
+    """
+    a = atr(values, 14)
+    ef, es = ema(values, fast), ema(values, slow)
+    if a is None or a == 0 or ef is None or es is None:
+        return None
+    spread_in_atr = abs(ef - es) / a
+    return min(100.0, spread_in_atr * 20.0)
