@@ -6,3 +6,9 @@
 # analysis, mirroring the TradingView MCP server). This is the DEFAULT source
 # in config.json; without this package the lab falls back to its simulated feed.
 tradingview-ta>=3.3.0
+
+# Optional: REAL order execution via the live broker (live_broker.py). Only
+# needed if you opt into live trading (broker.mode=live). ccxt talks to Binance
+# and 100+ exchanges with a uniform API and a testnet/sandbox mode. Without it
+# the lab and the Flows Agent stay paper-only. See README "Going live".
+ccxt>=4.0.0

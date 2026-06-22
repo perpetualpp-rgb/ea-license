@@ -18,10 +18,10 @@ from typing import Dict, List
 import indicators
 import market_data
 from agents import BUY, HOLD, SELL, Signal, build_agents
+from broker import get_broker, record_realized
 from decision import consensus
 from fortress import fortress_signal
 from obsidian_logger import write_dashboards, write_session_log
-from paper_broker import PaperPortfolio
 from risk import size_position
 
 
@@ -127,7 +127,13 @@ class RiskNode(Node):
 
 
 class ExecuteNode(Node):
-    """Apply the decision to the paper portfolio at the risk-sized fraction."""
+    """Apply the decision via the broker (paper by default, live only if armed).
+
+    The broker is chosen by ``broker.get_broker``, which enforces every
+    live-trading gate and the daily-loss kill-switch; an unarmed/ misconfigured
+    live setup transparently falls back to paper. The node logic is identical
+    for both brokers since they share PaperPortfolio's method surface.
+    """
 
     type = "execute"
 
@@ -136,25 +142,30 @@ class ExecuteNode(Node):
         price, decision = snap["price"], ctx.get("decision", HOLD)
         fraction = ctx.get("risk", {}).get("fraction", 1.0)
 
+        broker, mode = get_broker(cfg["symbol"], cfg, state, ctx.get("allow_live", False))
+        ctx["broker_mode"] = mode
         budget = sum(a["budget"] for a in cfg["agents"])
-        pf = PaperPortfolio(budget, state.get("prod"))
-        equity_before = pf.equity(price)
-        order = pf.execute(decision, price, fraction if decision == BUY else 1.0)
-        state["prod"] = pf.to_state()
 
-        # Track a realized-PnL losing streak to drive the risk throttle.
-        if decision == SELL and order != "no-op":
-            if pf.equity(price) < equity_before:
-                state["losing_streak"] = int(state.get("losing_streak", 0)) + 1
-            else:
-                state["losing_streak"] = 0
+        equity_before = broker.equity(price)
+        realized_before = getattr(broker, "realized", 0.0)
+        order = broker.execute(decision, price, fraction if decision == BUY else 1.0)
+        state["prod"] = broker.to_state()
+        equity_after = broker.equity(price)
+
+        # Realised-PnL delta (paper has it exactly; live approximates by equity).
+        realized_delta = (getattr(broker, "realized", 0.0) - realized_before
+                          if hasattr(broker, "realized") else equity_after - equity_before)
+        if decision == SELL and not order.startswith(("no-op", "REFUSED", "DRY")):
+            record_realized(state, realized_delta)
+            state["losing_streak"] = (int(state.get("losing_streak", 0)) + 1
+                                      if realized_delta < 0 else 0)
 
         ctx["order"] = order
-        ctx["prod_pnl"] = pf.pnl(price)
-        ctx["prod_equity"] = pf.equity(price)
+        ctx["prod_pnl"] = broker.pnl(price)
+        ctx["prod_equity"] = equity_after
         ctx["prod_budget"] = budget
-        self._trace(ctx, f"{order} | equity={pf.equity(price):.2f} "
-                         f"P/L={pf.pnl(price):+.2f}")
+        self._trace(ctx, f"[{mode}] {order} | equity={equity_after:.2f} "
+                         f"P/L={broker.pnl(price):+.2f}")
 
 
 class ObsidianLogNode(Node):

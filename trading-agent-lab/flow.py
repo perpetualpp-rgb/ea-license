@@ -58,16 +58,17 @@ def save_state(path: str, state: Dict) -> None:
 class Flow:
     """Builds nodes from a flow spec and runs them over a shared context."""
 
-    def __init__(self, spec: Dict, cfg: Dict, vault: str, llm=None):
+    def __init__(self, spec: Dict, cfg: Dict, vault: str, llm=None, allow_live: bool = False):
         self.name = spec.get("name", "flow")
         self.nodes = [build_node(n) for n in spec["nodes"]]
         self.cfg = cfg
         self.vault = vault
         self.llm = llm
+        self.allow_live = allow_live
 
     def run(self, state: Dict) -> Dict:
         ctx: Dict = {"cfg": self.cfg, "state": state, "vault": self.vault,
-                     "llm": self.llm, "trace": []}
+                     "llm": self.llm, "allow_live": self.allow_live, "trace": []}
         for node in self.nodes:
             node.run(ctx)
         return ctx
@@ -78,7 +79,8 @@ def print_run(flow_name: str, ctx: Dict) -> None:
     risk = ctx.get("risk", {})
     print(f"[{snap['time']}] flow={flow_name} {snap['source']} "
           f"price={snap['price']:.2f} -> {ctx.get('decision')} "
-          f"({risk.get('regime')}, size {risk.get('fraction', 0):.3f})")
+          f"({risk.get('regime')}, size {risk.get('fraction', 0):.3f}) "
+          f"[{ctx.get('broker_mode', 'paper')}]")
     for i, t in enumerate(ctx["trace"], 1):
         print(f"    {i}. {t['node']:<16} {t['summary']}")
 
@@ -95,23 +97,33 @@ def main(argv=None) -> int:
     p.add_argument("--interval", type=int, default=180, help="seconds between cycles")
     p.add_argument("--no-llm", action="store_true", help="force the indicator rules")
     p.add_argument("--model", default=None, help="override the LLM model id")
-    p.add_argument("--live", action="store_true", help="(refused) live trading is not supported")
+    p.add_argument("--live", action="store_true",
+                   help="arm live trading (still requires live_trading + broker.mode=live "
+                        "+ API keys + dry_run:false; otherwise stays paper/dry-run)")
     args = p.parse_args(argv)
-
-    if args.live:
-        print("ERROR: live trading is intentionally NOT implemented. The Flows "
-              "Agent is paper-trading only. See README.md.", file=sys.stderr)
-        return 2
 
     cfg = load_json(args.config)
     if args.source:
         cfg["source"] = args.source
     if args.symbol:
         cfg["symbol"] = args.symbol
-    if cfg.get("live_trading"):
-        print("ERROR: config has live_trading=true but live trading is not "
-              "supported. Set it to false.", file=sys.stderr)
-        return 2
+
+    # Live trading is OFF unless every gate is on. --live (or ALLOW_LIVE=1) only
+    # *arms* it; broker.get_broker still enforces live_trading/broker.mode/keys/
+    # dry_run and the daily-loss kill-switch, falling back to paper otherwise.
+    allow_live = args.live or os.environ.get("ALLOW_LIVE") == "1"
+    if allow_live and cfg.get("live_trading") and cfg.get("broker", {}).get("mode") == "live":
+        bc = cfg.get("broker", {})
+        venue = f"{bc.get('exchange', 'binance')}{' (testnet)' if bc.get('testnet', True) else ' *** REAL VENUE ***'}"
+        dry = bc.get("dry_run", True)
+        print("=" * 70, file=sys.stderr)
+        print(f"!! LIVE TRADING ARMED on {venue} — "
+              f"{'DRY-RUN (orders logged only)' if dry else 'REAL ORDERS WILL BE SENT'}",
+              file=sys.stderr)
+        print(f"!! per-order cap ${bc.get('max_order_usd', 50):.2f} | "
+              f"daily-loss kill-switch ${bc.get('max_daily_loss_usd', 100):.2f}",
+              file=sys.stderr)
+        print("=" * 70, file=sys.stderr)
 
     llm_cfg = dict(cfg.get("llm", {}))
     if args.no_llm:
@@ -124,7 +136,7 @@ def main(argv=None) -> int:
     spec = load_json(args.flow)
     vault = args.vault or os.path.join(HERE, cfg.get("vault", "vault"))
     state_path = os.path.join(vault, f"state_{cfg['symbol']}.json")
-    flow = Flow(spec, cfg, vault, llm)
+    flow = Flow(spec, cfg, vault, llm, allow_live=allow_live)
     print(f"# flow '{flow.name}': {' -> '.join(n.type for n in flow.nodes)}",
           file=sys.stderr)
 

@@ -1,0 +1,19 @@
+# Deploy the Flows Agent as a long-running service.
+#
+#   cp .env.example .env   # then fill in your keys
+#   docker compose up -d    # paper-trades by default; logs to ./vault
+#
+# To go live you must BOTH set the keys/ALLOW_LIVE in .env AND flip
+# broker.mode=live + dry_run=false in config.json (see README). Two independent
+# switches on purpose.
+services:
+  flows-agent:
+    build: .
+    env_file: .env
+    environment:
+      INTERVAL: "180"
+    volumes:
+      - ./vault:/app/vault
+      # Mount your own config to override symbol / risk / broker without rebuild:
+      # - ./config.json:/app/config.json:ro
+    restart: unless-stopped

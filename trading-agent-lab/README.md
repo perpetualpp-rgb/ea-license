@@ -4,12 +4,14 @@ A simulated, AI-agent trading lab inspired by the BoomBigNose video
 *"เทรดอัตโนมัติด้วย AI Agent ใช้ Hermes และ Obsidian เชื่อมต่อ TradingView MCP แบบครบระบบ"*
 and its [Setup Doc](https://docs.google.com/document/d/12n4JWBieXJmx6qbPWaYv70-7HGO-jJAqD6hGnLEoMkM/edit).
 
-> ## ⚠️ PAPER TRADING ONLY
-> This system **never connects to an exchange and never places a real order.**
-> Every "trade" only updates an on-disk simulated portfolio. The `--live` flag
-> and a `live_trading: true` config value are **intentionally refused.** Wiring
-> a real broker is left entirely to you, at your own financial risk — automated
-> live trading can lose money faster than you can react.
+> ## ⚠️ PAPER BY DEFAULT — LIVE IS OPT-IN, AT YOUR OWN RISK
+> Out of the box this system **paper-trades only**: every "trade" just updates
+> an on-disk simulated portfolio. Real-money trading exists (`live_broker.py`)
+> but is **off behind several independent gates** and defaults to
+> *testnet + dry-run*. Turning it on means real orders with real money, which
+> can lose money faster than you can react. **Start on testnet, set hard risk
+> limits, and you are solely responsible for any financial outcome.** See
+> *Going live* below.
 
 ## What it does
 
@@ -135,8 +137,11 @@ way. The `fortress` and `risk` blocks in `config.json` tune those two nodes.
 | `indicators.py` | Pure-Python SMA / EMA / RSI / MACD / Bollinger / ATR / trend-strength |
 | `agents.py` | The three strategy agents |
 | `decision.py` | N-of-M consensus logic |
-| `paper_broker.py` | Simulated portfolio & order fills (the "go-live" seam) |
+| `paper_broker.py` | Simulated portfolio & order fills |
+| `broker.py` | Broker selector + live-trading gates + daily-loss kill-switch |
+| `live_broker.py` | Real-exchange orders via ccxt (opt-in; testnet + dry-run by default) |
 | `obsidian_logger.py` | Writes the vault's Markdown notes |
+| `Dockerfile` / `docker-compose.yml` / `.env.example` | Deploy as a long-running service |
 
 ## Obsidian vault output (`vault/`)
 
@@ -189,10 +194,59 @@ browser dashboard has a matching symbol dropdown.
 * * * * * /usr/bin/python3 /path/to/trading-agent-lab/trading_analyzer.py --mode prod --once
 ```
 
-## Going live (not provided)
+## Run it for real (real data + real AI, still paper)
 
-`paper_broker.py` is the single seam you would replace with a real exchange
-client (e.g. ccxt). Doing so is deliberately out of scope here. If you build
-it: start on a testnet, set hard risk limits, keep API keys in environment
-variables (never in the repo), and require a human confirmation step before any
-order. You are responsible for any real-money outcome.
+The lab is built to run for real, not just demo:
+
+* **Real market data** — the default `source` is `tradingview`; install the
+  feed with `pip install -r requirements.txt` and snapshots come from live
+  TradingView analysis (falls back to the simulated feed if offline).
+* **Real AI agents** — set `NOUS_API_KEY` (or point `llm.base_url` at any
+  OpenAI-compatible endpoint) and the three agents + you get genuine model
+  decisions, with a transparent rule-based fallback.
+* **Deploy it** — run continuously without touching real money:
+
+```bash
+cp .env.example .env            # add NOUS_API_KEY; leave ALLOW_LIVE=0
+docker compose up -d            # paper-trades every 180s, vault persisted to ./vault
+# or, with cron, one cycle per minute:
+* * * * * cd /path/to/trading-agent-lab && /usr/bin/python3 flow.py --once
+```
+
+`config.json` ships with `broker.mode: "paper"`, so all of the above stays
+paper-trading until you deliberately go live.
+
+## Going live (real orders — opt-in, gated)
+
+Live trading is implemented in `live_broker.py` via **ccxt** (Binance + 100+
+exchanges, with testnet/sandbox). It is the single seam that places real
+orders, and it only fires when **every** gate is satisfied — otherwise it falls
+back to paper or dry-run:
+
+| Gate | Where | Default |
+|------|-------|---------|
+| `live_trading: true` | `config.json` (master switch) | `false` |
+| `broker.mode: "live"` | `config.json` | `"paper"` |
+| `--live` flag / `ALLOW_LIVE=1` | per invocation | off |
+| `EXCHANGE_API_KEY` + `EXCHANGE_API_SECRET` | environment | unset |
+| `broker.dry_run: false` | `config.json` | `true` (log-only) |
+| `broker.testnet` | `config.json` | `true` (sandbox venue) |
+| per-order `max_order_usd` cap + `max_daily_loss_usd` kill-switch | `config.json` | `$50` / `$100` |
+
+Recommended path to first real order:
+
+```bash
+# 1) Dry-run on testnet first — proves the wiring, sends nothing.
+#    config.json: live_trading=true, broker.mode=live (keep dry_run=true, testnet=true)
+python3 flow.py --once --live
+
+# 2) Testnet for real — set broker.dry_run=false, use TESTNET keys.
+EXCHANGE_API_KEY=... EXCHANGE_API_SECRET=... ALLOW_LIVE=1 python3 flow.py --once --live
+
+# 3) Live venue — only once you trust it: broker.testnet=false, real keys,
+#    small max_order_usd. The runner prints a loud banner before any real order.
+```
+
+Keep keys in the environment (never the repo — `.env` is git-ignored), keep
+`max_order_usd` small, and watch the daily-loss kill-switch in
+`vault/state_*.json`. **You are responsible for any real-money outcome.**

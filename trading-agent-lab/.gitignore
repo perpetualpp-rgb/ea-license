@@ -2,3 +2,6 @@
 vault/
 __pycache__/
 *.pyc
+
+# Secrets: real exchange / LLM keys. Only .env.example is committed.
+.env
