@@ -44,11 +44,14 @@
 <body>
 <div class="wrap">
   <h1>🤖 Trading Agent Lab — BTCUSDT / XAUUSD</h1>
-  <div class="sub">3 AI agents · decision 2-in-3 · indicators in pure JS · inspired by the
-    <a href="https://youtu.be/scI2NMd6yMk" target="_blank" rel="noopener">BoomBigNose video</a></div>
+  <div class="sub">3 AI agents · 2-in-N consensus · <b>Flows Agent</b> pipeline + Fortress signal +
+    Kelly risk · pure-JS · inspired by the
+    <a href="https://youtu.be/scI2NMd6yMk" target="_blank" rel="noopener">BoomBigNose video</a>
+    &amp; <a href="https://github.com/javajack/skill-algotrader" target="_blank" rel="noopener">skill-algotrader</a></div>
 
   <div class="warn">⚠️ <b>PAPER TRADING ONLY</b> — โหมดจำลองล้วน ทุกอย่างรันในเบราว์เซอร์ ไม่เชื่อมต่อ exchange
-    และไม่มีการยิงออเดอร์เงินจริง ตัวเลขทั้งหมดเป็นเงินสมมติเพื่อการเรียนรู้เท่านั้น</div>
+    และไม่มีการยิงออเดอร์เงินจริง ตัวเลขทั้งหมดเป็นเงินสมมติเพื่อการเรียนรู้เท่านั้น
+    (โหมดเทรดจริงมีเฉพาะใน Python runner — ดู README)</div>
 
   <div class="controls">
     <label>Symbol:
@@ -59,6 +62,7 @@
     </label>
     <label>Mode:
       <select id="mode">
+        <option value="flow">Flows Agent (pipeline + Fortress + Kelly)</option>
         <option value="lab">Lab (แต่ละ agent เทรดงบตัวเอง)</option>
         <option value="prod">Prod (เทรดตาม consensus)</option>
       </select>
@@ -71,6 +75,11 @@
   <div id="banner" class="decision-banner HOLD">รอเริ่มรอบแรก…</div>
 
   <div class="grid" id="snap"></div>
+
+  <h2 id="flow-h" style="display:none">🔁 Flow trace</h2>
+  <table id="flow" style="display:none"><thead><tr>
+    <th>#</th><th>Node</th><th>Output</th>
+  </tr></thead><tbody></tbody></table>
 
   <h2>Agents</h2>
   <table id="agents"><thead><tr>
@@ -99,8 +108,47 @@ const I = {
   bollinger:(v,n=20,m=2)=>{ if(v.length<n) return [null,null,null];
     const w=v.slice(-n), mid=w.reduce((a,b)=>a+b,0)/n;
     const std=Math.sqrt(w.reduce((a,b)=>a+(b-mid)**2,0)/n);
-    return [mid+m*std, mid, mid-m*std]; }
+    return [mid+m*std, mid, mid-m*std]; },
+  // close-only volatility proxy (avg |Δclose|) — see indicators.py:atr
+  atr:(v,n=14)=>{ if(v.length<n+1) return null; let s=0;
+    for(let i=v.length-n;i<v.length;i++) s+=Math.abs(v[i]-v[i-1]); return s/n; },
+  // ADX-style trend-strength proxy in ~[0,100] — see indicators.py:trend_strength
+  trendStrength:(v,f=12,s=26)=>{ const a=I.atr(v,14), ef=I.ema(v,f), es=I.ema(v,s);
+    if(a==null||a===0||ef==null||es==null) return null;
+    return Math.min(100, Math.abs(ef-es)/a*20); }
 };
+
+// ---- Fortress multi-factor signal (ported from fortress.py) ----
+function fortress(s){
+  const {rsi,trend_strength:ts,price,sma20,macd_hist}=s;
+  if([rsi,ts,price,sma20,macd_hist].some(x=>x==null)) return ["HOLD","[Fortress] insufficient data"];
+  if(ts<20) return ["HOLD",`[Fortress] no trend (strength ${ts.toFixed(0)} < 20)`];
+  if(rsi>=45 && rsi<=70 && price>sma20 && macd_hist>0)
+    return ["BUY",`[Fortress] trend ${ts.toFixed(0)} + RSI ${rsi.toFixed(0)} + up-momentum`];
+  if(rsi>=30 && rsi<=55 && price<sma20 && macd_hist<0)
+    return ["SELL",`[Fortress] trend ${ts.toFixed(0)} + RSI ${rsi.toFixed(0)} + down-momentum`];
+  return ["HOLD",`[Fortress] factors disagree (RSI ${rsi.toFixed(0)}, trend ${ts.toFixed(0)})`];
+}
+
+// ---- regime + fractional-Kelly sizing (ported from risk.py) ----
+function detectRegime(s){
+  const atrPct = (s.atr && s.price) ? s.atr/s.price*100 : 0;
+  if(atrPct>=3) return "volatile";
+  if(s.trend_strength!=null && s.trend_strength>=20) return "trend";
+  return "range";
+}
+const REGIME_MULT = {trend:1, range:0.5, volatile:0.25};
+function sizePosition(s, streak=0){
+  const winRate=0.55, payoff=1.5, kHaircut=0.5, maxPos=0.25, throttleBase=0.5, maxStreak=4;
+  const regime=detectRegime(s);
+  if(streak>=maxStreak) return {fraction:0, regime, reason:`stand-down: ${streak} losses ≥ ${maxStreak}`};
+  const kelly=Math.max(0, winRate-(1-winRate)/payoff)*kHaircut;
+  const throttle=Math.pow(throttleBase,streak);
+  const fraction=Math.min(maxPos, kelly*REGIME_MULT[regime]*throttle);
+  let reason=`${regime} ×${REGIME_MULT[regime]} | Kelly ${kelly.toFixed(3)} (W=55%, R=1.5, 0.5×)`;
+  if(streak) reason+=` | throttle ×${throttle}`;
+  return {fraction:+fraction.toFixed(4), regime, reason};
+}
 
 // ---- agents (ported from agents.py) ----
 const AGENTS = [
@@ -128,8 +176,8 @@ const AGENTS = [
 function newPF(budget){ return {budget, cash:budget, qty:0, avg:0, realized:0}; }
 function equity(pf,p){ return pf.cash + pf.qty*p; }
 function pnl(pf,p){ return equity(pf,p) - pf.budget; }
-function execute(pf, action, price){
-  if(action==="BUY" && pf.cash>0){ const spend=pf.cash; const bought=spend/price;
+function execute(pf, action, price, fraction=1){
+  if(action==="BUY" && pf.cash>0){ const spend=pf.cash*fraction; const bought=spend/price;
     const cost=pf.avg*pf.qty+spend; pf.qty+=bought; pf.avg=cost/pf.qty; pf.cash-=spend;
     return `BUY ${bought.toFixed(6)} @ ${price.toFixed(2)}`; }
   if(action==="SELL" && pf.qty>0){ const proceeds=pf.qty*price;
@@ -157,7 +205,7 @@ function nextPrice(prices){ return +Math.max(prices.at(-1)*(1+gauss(0,0.005)),0.
 
 // ---- state ----
 let S = freshState();
-function freshState(){ return { prices: bootstrap(), pf:{}, prod:newPF(100000), n:0, logs:[] }; }
+function freshState(){ return { prices: bootstrap(), pf:{}, prod:newPF(100000), n:0, logs:[], streak:0 }; }
 
 function snapshot(){
   S.prices.push(nextPrice(S.prices));
@@ -167,11 +215,74 @@ function snapshot(){
   const [bb_upper,,bb_lower]=I.bollinger(p);
   return { time:new Date().toLocaleTimeString('en-GB'), price,
     sma20:I.sma(p,20), ema_fast:I.ema(p,12), ema_slow:I.ema(p,26), rsi:I.rsi(p,14),
-    macd, macd_signal, macd_hist, bb_upper, bb_lower };
+    macd, macd_signal, macd_hist, bb_upper, bb_lower,
+    atr:I.atr(p,14), trend_strength:I.trendStrength(p) };
+}
+
+// ---- Flows Agent pipeline (ported from flow.py / flow_nodes.py) ----
+function flowCycle(){
+  const snap=snapshot(); const price=snap.price; S.n++;
+  const trace=[]; const rows=[]; const sigs=[];
+  trace.push(["Market Data", `simulated | price=${fmt(price)} RSI=${fmt(snap.rsi,0)} trend=${fmt(snap.trend_strength,0)}`]);
+
+  for(const ag of AGENTS){ const [action,reason]=ag.decide(snap); sigs.push(action);
+    rows.push({id:ag.id,name:ag.name,action,reason,pnl:0,equity:ag.budget,budget:ag.budget}); }
+  trace.push(["Strategy Agents", AGENTS.map((a,i)=>`${a.id}=${sigs[i]}`).join(" ")]);
+
+  const [fAction,fReason]=fortress(snap); sigs.push(fAction);
+  rows.push({id:"FORTRESS",name:"Fortress",action:fAction,reason:fReason,pnl:0,equity:0,budget:0});
+  trace.push(["Fortress", `${fAction} :: ${fReason}`]);
+
+  const [decision,votes]=consensus(sigs,2);
+  trace.push(["Consensus", `decision=${decision} (≥2 of ${sigs.length}) BUY=${votes.BUY} SELL=${votes.SELL} HOLD=${votes.HOLD}`]);
+
+  const risk=sizePosition(snap, S.streak||0);
+  trace.push(["Risk Sizing", `regime=${risk.regime} fraction=${risk.fraction.toFixed(3)} :: ${risk.reason}`]);
+
+  const eqBefore=equity(S.prod,price);
+  const order=execute(S.prod, decision, price, decision==="BUY"?risk.fraction:1);
+  if(decision==="SELL" && order!=="no-op") S.streak = equity(S.prod,price)<eqBefore ? (S.streak||0)+1 : 0;
+  trace.push(["Paper Execute", `[paper] ${order} | equity=${fmt(equity(S.prod,price))} P/L=${fmt(pnl(S.prod,price))}`]);
+
+  rows.push({id:"PROD",name:"Flows Portfolio",action:decision,reason:risk.reason,
+    order, pnl:pnl(S.prod,price), equity:equity(S.prod,price), budget:S.prod.budget});
+
+  const status = Math.max(...Object.values(votes))>=2 ? "Stable" : "Unstable";
+  renderFlow(snap, rows, decision, votes, risk, status, trace);
+}
+
+function renderFlow(snap, rows, decision, votes, risk, status, trace){
+  document.getElementById("banner").className = "decision-banner "+decision;
+  document.getElementById("banner").textContent =
+    `Flow: ${decision}  ·  BUY ${votes.BUY} / SELL ${votes.SELL} / HOLD ${votes.HOLD}  ·  ${risk.regime} · size ${risk.fraction.toFixed(3)}  ·  ${status}`;
+
+  document.getElementById("snap").innerHTML = [
+    ["Cycle", S.n], ["Price ("+curSymbol()+")", fmt(snap.price)], ["RSI(14)", fmt(snap.rsi,1)],
+    ["Trend strength", fmt(snap.trend_strength,0)], ["Regime", risk.regime],
+    ["Size (Kelly)", risk.fraction.toFixed(3)]
+  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+
+  document.getElementById("flow-h").style.display=""; const ft=document.getElementById("flow"); ft.style.display="";
+  ft.querySelector("tbody").innerHTML = trace.map((t,i)=>`<tr>
+    <td>${i+1}</td><td><b>${t[0]}</b></td><td class="reason">${t[1]}</td></tr>`).join("");
+
+  document.querySelector("#agents tbody").innerHTML = rows.map(r=>`<tr>
+    <td><b>${r.id}</b></td><td>${r.name}</td>
+    <td><span class="tag ${r.action}">${r.action}</span></td>
+    <td class="${cls(r.pnl)}">${r.pnl>=0?"+":""}${fmt(r.pnl)}</td>
+    <td>${fmt(r.equity)}</td><td class="reason">${r.reason}</td></tr>`).join("");
+
+  const entry = `### 🔁 Flow run: ${snap.time}\n`+
+    `- Symbol: ${curSymbol()}  ·  Price: ${fmt(snap.price)}  (simulated)\n`+
+    `- Decision: ${decision} (BUY=${votes.BUY} SELL=${votes.SELL} HOLD=${votes.HOLD})\n`+
+    `- Regime: ${risk.regime}  ·  Size: ${risk.fraction.toFixed(3)}  ·  Status: ${status}\n`;
+  S.logs.unshift(entry); if(S.logs.length>40) S.logs.pop();
+  document.getElementById("log").textContent = S.logs.join("\n");
 }
 
 function cycle(){
   const mode=document.getElementById("mode").value;
+  if(mode==="flow") return flowCycle();
   const snap=snapshot(); const price=snap.price; S.n++;
   const rows=[]; const sigs=[];
   for(const ag of AGENTS){
@@ -195,6 +306,8 @@ function fmt(x,d=2){ return x==null?"—":(+x).toFixed(d); }
 function cls(x){ return x>=0?"pos":"neg"; }
 
 function render(snap, rows, decision, votes, winner, status, mode){
+  document.getElementById("flow-h").style.display="none";
+  document.getElementById("flow").style.display="none";
   document.getElementById("banner").className = "decision-banner "+decision;
   document.getElementById("banner").textContent =
     `Consensus: ${decision}  ·  BUY ${votes.BUY} / SELL ${votes.SELL} / HOLD ${votes.HOLD}  ·  winner: ${winner}  ·  ${status}`;
@@ -230,6 +343,8 @@ function doReset(){ S=freshState();
   document.getElementById("banner").className="decision-banner HOLD";
   document.getElementById("banner").textContent="รอเริ่มรอบแรก…";
   document.getElementById("snap").innerHTML=""; document.querySelector("#agents tbody").innerHTML="";
+  document.getElementById("flow-h").style.display="none";
+  document.getElementById("flow").style.display="none"; document.querySelector("#flow tbody").innerHTML="";
   if(timer){ clearInterval(timer); timer=null; document.getElementById("auto").textContent="⏩ Auto"; } }
 document.getElementById("step").onclick = cycle;
 document.getElementById("reset").onclick = doReset;

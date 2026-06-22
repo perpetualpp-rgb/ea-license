@@ -40,5 +40,30 @@
   ],
   "decision": {
     "consensus_required": 2
+  },
+  "fortress": {
+    "adx_min": 20,
+    "rsi_long_min": 45,
+    "rsi_long_max": 70,
+    "rsi_short_min": 30,
+    "rsi_short_max": 55
+  },
+  "risk": {
+    "win_rate": 0.55,
+    "payoff": 1.5,
+    "kelly_fraction": 0.5,
+    "max_position": 0.25,
+    "loss_throttle": 0.5,
+    "max_losing_streak": 4
+  },
+  "broker": {
+    "mode": "paper",
+    "exchange": "binance",
+    "testnet": true,
+    "dry_run": true,
+    "api_key_env": "EXCHANGE_API_KEY",
+    "api_secret_env": "EXCHANGE_API_SECRET",
+    "max_order_usd": 50.0,
+    "max_daily_loss_usd": 100.0
   }
 }
