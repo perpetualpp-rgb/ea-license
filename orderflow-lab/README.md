@@ -51,6 +51,20 @@ orderflow-lab/
     synth.py          ข้อมูลแท่งเทียนจำลองสำหรับเทสต์
 ```
 
+## Indicator สำหรับ TradingView (`pine/order_flow_lab.pine`)
+
+คัดลอกทั้งไฟล์ไปวางใน Pine Editor ของ TradingView แล้วกด "Add to chart"
+ทำงานบนกราฟในบัญชีของคุณเอง ข้อมูลไม่ออกนอก TradingView
+
+* **CVD ของ session** จาก footprint ของ TradingView (ต้องใช้แผนที่มี Volume Footprint)
+  ถ้าบัญชีไม่มี footprint จะใช้ค่าประมาณจากแท่งเทียนแทน และตารางมุมขวาบอกไว้
+* VWAP ±1σ/±2σ ของ session, POC / โซน 70% / แม่เหล็ก 30% ของ session ก่อน
+* stacked imbalance (โซนลากไปทางขวาจนราคากลับมาแตะ), จุดปริมาณหนาแน่นรายระดับราคา,
+  เลขกลม และสัญญาณ divergence ระหว่างราคากับ CVD
+* ไม่มีกำแพงออเดอร์ เพราะ footprint คือการซื้อขายที่เกิดแล้ว ไม่ใช่ order book
+* ทองคำ GC ใช้ค่าเริ่มต้นได้เลย (ชั้นละ 5 tick = 0.5 ดอลลาร์, เลขกลมทุก 25)
+  BTC ให้เพิ่ม ticks ต่อชั้นและระยะเลขกลม (เช่น 500)
+
 ## หน้าเว็บ dashboard (`web/`)
 
 หน้าเดียว ไม่มี server: เบราว์เซอร์ของผู้ใช้ดึง order book และ trade จาก API สาธารณะ
