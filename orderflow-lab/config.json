@@ -1,0 +1,25 @@
+{
+  "sources": [
+    { "exchange": "okx",      "symbol": "BTC-USDT",  "label": "BTC okx",       "tick": 10.0, "round_step": 500 },
+    { "exchange": "kraken",   "symbol": "XBTUSD",    "label": "BTC kraken",    "tick": 10.0, "round_step": 500 },
+    { "exchange": "coinbase", "symbol": "BTC-USD",   "label": "BTC coinbase",  "tick": 10.0, "round_step": 500 },
+    { "exchange": "okx",      "symbol": "XAUT-USDT", "label": "GOLD-token okx","tick": 0.5,  "round_step": 25 },
+    { "exchange": "kraken",   "symbol": "PAXGUSD",   "label": "GOLD-token krk","tick": 0.5,  "round_step": 25 },
+    { "exchange": "coinbase", "symbol": "PAXG-USD",  "label": "GOLD-token cb", "tick": 0.5,  "round_step": 25 }
+  ],
+  "bars": {
+    "note": "defaults for report.py --bars (gold-style prices); override with --tick / --round-step",
+    "tick": 0.1,
+    "round_step": 25
+  },
+  "collector": { "interval_s": 5, "book_depth": 200 },
+  "engine": {
+    "va_pct": 0.70,
+    "magnet_pct": 0.30,
+    "big_pct": 0.99,
+    "wall_mult": 4.0,
+    "wall_depth": 200,
+    "wall_persist_s": 60,
+    "wall_max_dist_pct": 1.0
+  }
+}

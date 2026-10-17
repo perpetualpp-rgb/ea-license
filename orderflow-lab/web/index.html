@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Flow Lab</title>
+<meta name="description" content="อ่าน order flow ของ BTC และทองคำจากข้อมูลสาธารณะ: CVD, กำแพงออเดอร์, ไม้ใหญ่, volume profile, VWAP — คำนวณในเบราว์เซอร์ของคุณเอง">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --buy: #008300; --sell: #e34948; --vwap: #2a78d6;
+    --band-a: rgba(42,120,214,0.08); --band-b: rgba(42,120,214,0.12);
+    --va: rgba(11,11,11,0.05); --magnet: rgba(11,11,11,0.08);
+    --warn-bg: #fff4e5; --warn-ink: #7a4a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --buy: #008300; --sell: #e66767; --vwap: #3987e5;
+      --band-a: rgba(57,135,229,0.10); --band-b: rgba(57,135,229,0.16);
+      --va: rgba(255,255,255,0.05); --magnet: rgba(255,255,255,0.09);
+      --warn-bg: #3a2a10; --warn-ink: #ffd89a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --buy: #008300; --sell: #e66767; --vwap: #3987e5;
+    --band-a: rgba(57,135,229,0.10); --band-b: rgba(57,135,229,0.16);
+    --va: rgba(255,255,255,0.05); --magnet: rgba(255,255,255,0.09);
+    --warn-bg: #3a2a10; --warn-ink: #ffd89a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.45; }
+  main { max-width: 1240px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 8px; }
+  header h1 { font-size: 1.35rem; margin: 0; }
+  header .sub { color: var(--ink-2); }
+  header .spacer { flex: 1; }
+  button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+  .filters label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-2); }
+  #status { margin-left: auto; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  #status.err { color: var(--warn-ink); }
+  .note { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .stat .k { color: var(--ink-2); font-size: 12px; }
+  .stat .v, .stat .val { font-size: 1.35rem; margin-top: 2px; overflow-wrap: anywhere; }
+  .stat .v.small { font-size: 1rem; }
+  .stat .s { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .val.up::before { content: "▲ "; color: var(--buy); font-size: 0.8em; }
+  .val.down::before { content: "▼ "; color: var(--sell); font-size: 0.8em; }
+  td.up { color: var(--ink); } td.down { color: var(--ink); }
+  td.up::before { content: "▲"; color: var(--buy); margin-right: 4px; font-size: 0.8em; }
+  td.down::before { content: "▼"; color: var(--sell); margin-right: 4px; font-size: 0.8em; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 12px; position: relative; }
+  .card h2 { font-size: 1rem; margin: 0 0 6px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .card h2 .hint { color: var(--muted); font-weight: normal; font-size: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--ink-2); font-size: 12px; margin-bottom: 6px; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+  .legend .buy::before { background: var(--buy); }
+  .legend .sell::before { border: 2px solid var(--sell); box-sizing: border-box; }
+  .legend .vwap::before { background: var(--vwap); height: 3px; border-radius: 2px; vertical-align: 2px; }
+  .legend .band::before { background: var(--band-b); }
+  .legend .round::before { border-top: 2px dashed var(--axis); height: 0; vertical-align: 2px; }
+  .legend .big::before { border-radius: 50%; background: var(--buy); }
+  canvas { display: block; width: 100%; }
+  #cvMain { height: 440px; } #cvCvd { height: 170px; }
+  #tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 6px 8px; border-radius: 8px; font-size: 12px; line-height: 1.4; white-space: nowrap; z-index: 2; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+  .grid2 .wide { grid-column: 1 / -1; }
+  .tbl { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--grid); text-align: left; white-space: nowrap; }
+  th { color: var(--ink-2); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.empty { color: var(--muted); white-space: normal; }
+  footer { color: var(--muted); font-size: 12px; padding: 12px 0 24px; }
+  @media (max-width: 600px) { #cvMain { height: 360px; } .stat .v, .stat .val { font-size: 1.1rem; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Order Flow Lab</h1>
+    <span class="sub">อ่านกระแสคำสั่งซื้อขายจากข้อมูลสาธารณะ · คำนวณในเบราว์เซอร์ของคุณ</span>
+    <span class="spacer"></span>
+    <button id="btnTheme" type="button" aria-label="สลับโหมดสว่าง/มืด">☀ / ☾</button>
+  </header>
+
+  <section class="filters" aria-label="ตัวกรอง">
+    <label>แหล่งข้อมูล <select id="selSource"></select></label>
+    <label>ช่วงเวลา
+      <select id="selWindow"><option value="15">15 นาที</option><option value="30">30 นาที</option><option value="60">60 นาที</option><option value="120">2 ชั่วโมง</option><option value="240">4 ชั่วโมง</option></select>
+    </label>
+    <label>แท่ง
+      <select id="selInterval"><option value="1m">1 นาที</option><option value="5m">5 นาที</option><option value="15m">15 นาที</option></select>
+    </label>
+    <span id="status">กำลังโหลด…</span>
+  </section>
+
+  <p id="proxyNote" class="note" hidden>โทเคนทอง (XAUT/PAXG) เป็น <b>ตัวแทน</b> ของราคาทอง ไม่ใช่สัญญา COMEX และตลาดบางกว่ามาก: กำแพงและไม้ใหญ่ที่เห็นคือของตลาดโทเคนนี้เท่านั้น</p>
+
+  <section class="stats" aria-label="สรุป">
+    <div class="stat"><div class="k">ราคาล่าสุด</div><div class="v" id="tLast">–</div><div class="s"><span id="tBidAsk">–</span> <span id="tSpread"></span></div></div>
+    <div class="stat"><div class="k">CVD ในช่วงที่เลือก</div><div class="val" id="tCvd">–</div><div class="s" id="tCvdSub"></div></div>
+    <div class="stat"><div class="k">Delta แท่งล่าสุด</div><div class="val" id="tDelta">–</div><div class="s" id="tDeltaSub"></div></div>
+    <div class="stat"><div class="k">VWAP</div><div class="v" id="tVwap">–</div><div class="s" id="tVwapSub"></div></div>
+    <div class="stat"><div class="k">กำแพงใกล้ราคาที่สุด</div><div class="v small">BID <span id="tWallBid">–</span></div><div class="v small">ASK <span id="tWallAsk">–</span></div></div>
+    <div class="stat"><div class="k">ช่วงราคาในหน้าต่าง</div><div class="v small" id="tRange">–</div><div class="s" id="tRangeSub"></div></div>
+  </section>
+
+  <section class="card">
+    <h2>ราคา · VWAP ±σ · volume profile · กำแพง · ไม้ใหญ่ <span class="hint">เอาเมาส์ชี้เพื่อดูค่า · ตารางด้านล่างมีตัวเลขเดียวกัน</span></h2>
+    <div class="legend">
+      <span class="buy">แท่งขึ้น / ฝั่งซื้อ / BID (ทึบ)</span><span class="sell">แท่งลง / ฝั่งขาย / ASK (กลวง)</span>
+      <span class="vwap">VWAP</span><span class="band">±1σ, ±2σ</span><span class="round">เลขกลม</span><span class="big">ไม้ใหญ่ (ขนาดตามปริมาณ)</span>
+    </div>
+    <canvas id="cvMain" role="img" aria-label="กราฟแท่งเทียนพร้อม VWAP, volume profile, กำแพง และไม้ใหญ่"></canvas>
+    <div id="tip" hidden></div>
+  </section>
+
+  <section class="card">
+    <h2>CVD (Cumulative Volume Delta) <span class="hint" id="cvdNote"></span></h2>
+    <canvas id="cvCvd" role="img" aria-label="กราฟ CVD"></canvas>
+  </section>
+
+  <div class="grid2">
+    <section class="card tbl wide">
+      <h2>กำแพงที่ยังอยู่ <span class="hint">≥ 4× มัธยฐาน ใน 1% จากราคา · อัปเดตทุกครั้งที่ดึง order book · เรียงตามขนาด</span></h2>
+      <table><thead><tr><th>ฝั่ง</th><th class="num">ราคา</th><th class="num">ขนาด</th><th class="num">×มัธยฐาน</th><th class="num">ห่าง</th><th>สถานะ</th><th class="num">เห็น</th><th class="num">อายุ</th><th class="num">เปลี่ยน</th></tr></thead><tbody id="tblWalls"></tbody></table>
+    </section>
+    <section class="card tbl">
+      <h2>กำแพงที่หายไป <span class="hint">ราคาถึง = ถูกกิน · ถอนก่อน = หายก่อนราคาจะถึง (ระวังกำแพงหลอก)</span></h2>
+      <table><thead><tr><th>ฝั่ง</th><th class="num">ราคา</th><th class="num">ขนาด</th><th>ผล</th><th class="num">อยู่นาน</th><th class="num">เวลา</th></tr></thead><tbody id="tblEvents"></tbody></table>
+    </section>
+    <section class="card tbl">
+      <h2>โซนไม้ใหญ่ <span class="hint" id="bigNote"></span></h2>
+      <table><thead><tr><th class="num">ราคา</th><th class="num">ซื้อ</th><th class="num">ขาย</th><th class="num">delta</th><th class="num">จำนวน</th><th></th></tr></thead><tbody id="tblBig"></tbody></table>
+    </section>
+    <section class="card tbl">
+      <h2>Delta รายแท่ง <span class="hint">ล่าสุด 12 แท่ง</span></h2>
+      <table><thead><tr><th>เวลา</th><th class="num">ซื้อ</th><th class="num">ขาย</th><th class="num">delta</th><th class="num">รายการ</th></tr></thead><tbody id="tblDelta"></tbody></table>
+    </section>
+  </div>
+
+  <footer>
+    ข้อมูล BTC และโทเคนทองดึงจาก API สาธารณะของ OKX, Kraken, Coinbase โดยตรงจากเบราว์เซอร์ของคุณ ไม่มีเซิร์ฟเวอร์ตรงกลาง ·
+    เครื่องมือนี้เพื่อการศึกษาเท่านั้น ไม่ใช่คำแนะนำการลงทุน ค่าที่คำนวณอาจไม่ครบหรือผิดพลาด
+  </footer>
+</main>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
