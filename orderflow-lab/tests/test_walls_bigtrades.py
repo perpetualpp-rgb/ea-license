@@ -59,16 +59,16 @@ class Tracker(unittest.TestCase):
         tr.update(flat_book(30_000, extra={("bid", 99.5): 7.0}))  # -50% -> pulling
         self.assertEqual(tr.active()[0]["status"], "pulling")
 
-    def test_pulled_before_price_arrives(self):
+    def test_removed_before_price_arrives(self):
         tr = walls.WallTracker(tick=0.1, miss_limit=1)
         tr.update(flat_book(0, extra={("bid", 99.5): 10.0}))
         tr.update(flat_book(500, extra={("bid", 99.5): 10.0}))  # seen twice -> a real wall, not flicker
         self.assertEqual(tr.update(flat_book(1_000)), [])      # first miss: still tracked
         ev = tr.update(flat_book(2_000))                        # second miss: resolved
         self.assertEqual(len(ev), 1)
-        self.assertEqual((ev[0]["side"], ev[0]["price"], ev[0]["outcome"]), ("bid", 99.5, "pulled"))
+        self.assertEqual((ev[0]["side"], ev[0]["price"], ev[0]["outcome"]), ("bid", 99.5, "removed"))
         self.assertEqual(tr.active(), [])
-        self.assertEqual(tr.events()[-1]["outcome"], "pulled")
+        self.assertEqual(tr.events()[-1]["outcome"], "removed")
 
     def test_flicker_is_dropped_without_event(self):
         tr = walls.WallTracker(tick=0.1, miss_limit=0, min_seen=2)
@@ -77,18 +77,42 @@ class Tracker(unittest.TestCase):
         self.assertEqual(tr.active(), [])
         self.assertEqual(tr.events(), [])
 
-    def test_filled_when_price_trades_through(self):
+    def test_price_reached_when_price_trades_through(self):
         tr = walls.WallTracker(tick=0.1, miss_limit=0, min_seen=1)
         tr.update(flat_book(0, extra={("bid", 99.5): 10.0}))
-        # price fell through the wall: best bid now below 99.5 and wall gone
+        # price fell through the wall: best bid now below 99.5 and wall gone (filled or cancelled: L2 cannot tell)
         ev = tr.update(flat_book(1_000, best_bid=99.3, best_ask=99.4))
-        self.assertEqual(ev[0]["outcome"], "filled")
+        self.assertEqual(ev[0]["outcome"], "price_reached")
 
-    def test_ask_wall_filled(self):
+    def test_price_reached_on_touch_not_only_through(self):
+        tr = walls.WallTracker(tick=0.1, miss_limit=0, min_seen=1)
+        tr.update(flat_book(0, extra={("bid", 99.5): 10.0}))
+        ev = tr.update(flat_book(1_000, best_bid=99.5, best_ask=99.6, extra={("bid", 99.5): 1.0}))
+        self.assertEqual(ev[0]["outcome"], "price_reached")
+
+    def test_ask_wall_price_reached(self):
         tr = walls.WallTracker(tick=0.1, miss_limit=0, min_seen=1)
         tr.update(flat_book(0, extra={("ask", 100.6): 10.0}))
         ev = tr.update(flat_book(1_000, best_bid=100.7, best_ask=100.8))
-        self.assertEqual(ev[0]["outcome"], "filled")
+        self.assertEqual(ev[0]["outcome"], "price_reached")
+
+    def test_unknown_when_side_of_book_is_empty(self):
+        tr = walls.WallTracker(tick=0.1, miss_limit=0, min_seen=1)
+        tr.update(flat_book(0, extra={("bid", 99.5): 10.0}))
+        empty_bids = book(1_000, [], flat_book(1_000).asks)
+        ev = tr.update(empty_bids)
+        self.assertEqual(ev[0]["outcome"], "unknown")
+
+    def test_book_lost_ends_tracked_walls_as_unknown(self):
+        tr = walls.WallTracker(tick=0.1, miss_limit=2, min_seen=2)
+        tr.update(flat_book(0, extra={("bid", 99.5): 10.0, ("ask", 100.6): 8.0}))
+        tr.update(flat_book(500, extra={("bid", 99.5): 10.0, ("ask", 100.6): 8.0, ("ask", 100.9): 9.0}))
+        ev = tr.book_lost(700)                              # the 100.9 wall was seen once: flicker, no event
+        self.assertEqual(sorted((e["side"], e["price"], e["outcome"], e["ended_ts"]) for e in ev),
+                         [("ask", 100.6, "unknown", 700), ("bid", 99.5, "unknown", 700)])
+        self.assertEqual(tr.active(), [])
+        self.assertEqual(len(tr.events()), 2)
+        self.assertTrue(set(walls.OUTCOMES) >= {e["outcome"] for e in tr.events()})
 
 
 def T(ts, price, size, side):

@@ -207,13 +207,13 @@
   </section>
 
   <section class="card" aria-label="บันทึกผลแผน">
-    <h2>บันทึกผลแผน <span class="tag real">ติดตามอัตโนมัติ</span><span class="hint" id="jHint"></span></h2>
+    <h2>บันทึกผลแผน <span class="tag approx">จำลอง · วิจัยส่วนตัว</span><span class="hint" id="jHint"></span></h2>
     <p class="note" id="jTrack"></p>
     <div class="bar" style="margin:8px 0"><div class="seg" id="segJ" role="group" aria-label="แสดงบันทึก"></div></div>
     <div class="tiles" id="jStats"></div>
-    <div class="tbl" id="jSumBox"><table><thead><tr><th>สินทรัพย์ · สไตล์</th><th class="num">ปิดแล้ว</th><th class="num">เปิดอยู่</th><th class="num">ถึง TP1</th><th class="num">R เฉลี่ย</th><th class="num">R รวม</th></tr></thead><tbody id="tblJSum"></tbody></table></div>
+    <div class="tbl" id="jSumBox"><table><thead><tr><th>สินทรัพย์ · สไตล์</th><th class="num">ปิดแล้ว</th><th class="num">เปิดอยู่</th><th class="num">ไม่ชัด</th><th class="num">TP1 hit rate</th><th class="num">R เฉลี่ย</th><th class="num">R รวม</th></tr></thead><tbody id="tblJSum"></tbody></table></div>
     <div class="tbl"><table><thead><tr><th>เข้าเมื่อ</th><th>สินทรัพย์</th><th>ฝั่ง</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th>ผล</th><th class="num">R</th></tr></thead><tbody id="tblJournal"><tr><td colspan="8" class="empty">รอข้อมูล</td></tr></tbody></table></div>
-    <p class="cotnote">นับไม้เมื่อราคาเข้าโซนแล้วแท่งยืนยันปิดกลับ (เข้าที่ราคาปิดแท่งนั้น) ช่วงข่าวแรงไม่นับ · ถึง TP1 ปิดครึ่งหนึ่งแล้วเลื่อน SL มาที่ทุน ส่วนที่เหลือไป TP2 · แท่งที่แตะทั้ง SL และ TP นับเป็นแพ้ · เก็บในบัญชีของคุณเท่านั้น ต้องเปิดหน้านี้ค้างไว้จึงจะจับจังหวะเข้าได้ ส่วนผลของไม้ที่เปิดแล้วตรวจย้อนจากแท่งเทียนได้เมื่อกลับมาเปิดหน้า</p>
+    <p class="cotnote">ผลจำลองจากแท่งเทียนเพื่อวิจัยส่วนตัว ไม่ใช่ผลเทรดจริง: ไม่มีการส่งคำสั่ง ไม่รวมค่าธรรมเนียม spread slippage และ funding · เงื่อนไขเข้าและยกเลิกตรงกับที่เขียนในตารางแผน (กติการุ่นเดียวกัน บันทึกรุ่นและสภาพตอนเข้าไว้กับทุกไม้) · ถึง TP1 ปิดครึ่ง เลื่อน SL ส่วนที่เหลือมาที่ทุน ไป TP2 · ตัดสินผลเฉพาะแท่งที่ปิดแล้ว ถ้าแท่งเปิดเลย SL จะออกที่ราคาเปิด (เสียเกิน 1R ได้) · แท่งเดียวที่แตะทั้งฝั่งขาดทุนและฝั่งกำไรจนรู้ลำดับจาก OHLC ไม่ได้ บันทึกเป็น "ไม่ชัด" พร้อม R แบบระวังและแบบดี และไม่นับในสถิติหลัก · TP1 hit rate ไม่ใช่ win rate · เก็บในบัญชีของคุณเท่านั้น ต้องเปิดหน้านี้ค้างไว้จึงจะจับจังหวะเข้าได้ ส่วนผลของไม้ที่เปิดแล้วตรวจย้อนจากแท่งเทียนได้เมื่อกลับมาเปิดหน้า</p>
     <button id="btnJClear" type="button" hidden></button>
   </section>
 
@@ -522,17 +522,28 @@
         if (rec.misses > this.missLimit) {
           this.walls.delete(key);
           if (rec.seen < this.minSeen) continue;
-          const ev = { ...rec, outcome: this._outcome(rec, book), ended_ts: book.ts, age_ms: rec.last_ts - rec.first_ts };
-          this._events.push(ev); events.push(ev);
+          events.push(this._end(rec, this._outcome(rec, book), book.ts));
         }
       }
       this.lastBook = book;
       return events;
     }
+    // the book feed broke: what happened to the walls meanwhile cannot be seen
+    bookLost(ts) {
+      const ended = [...this.walls.values()].filter(rec => rec.seen >= this.minSeen).map(rec => this._end(rec, "unknown", ts));
+      this.walls.clear();
+      return ended;
+    }
+    _end(rec, outcome, ts) {
+      const ev = { ...rec, outcome, ended_ts: ts, age_ms: rec.last_ts - rec.first_ts };
+      this._events.push(ev);
+      return ev;
+    }
+    // what the L2 book showed at removal, never whether the size was executed or cancelled
     _outcome(rec, book) {
-      const touched = rec.side === "bid" ? (bestBid(book) !== null && bestBid(book) <= rec.price)
-                                         : (bestAsk(book) !== null && bestAsk(book) >= rec.price);
-      return touched ? "filled" : "pulled";
+      const best = rec.side === "bid" ? bestBid(book) : bestAsk(book);
+      if (best === null) return "unknown";
+      return (rec.side === "bid" ? best <= rec.price : best >= rec.price) ? "price_reached" : "removed";
     }
     active(nowTs) {
       const now = nowTs ?? (this.lastBook ? this.lastBook.ts : 0);
@@ -650,6 +661,201 @@
 });
 
 </script>
+<script>
+/* Order Flow Lab desk journal — the pure rules behind "บันทึกผลแผน".
+ *
+ * Personal research only: every record is a SIMULATION from candles (OHLC), gross
+ * of fees, spread, slippage and funding, with no real fills. desk/build.py inlines
+ * this file into the page (window.OFJ); tests/test_journal.py runs it under node.
+ *
+ *   bar    = {start, end, o, h, l, c}            times in ms, end = start + bar length
+ *   record = {side:"buy"|"sell", entry, stop, tp1, tp2, created, style, rule_version, ...}
+ *
+ * Management: half the position closes at TP1 and the stop of the other half moves
+ * to the entry; that half runs to TP2, the stop, or the style's timeout.
+ */
+(function (root, factory) {
+  const J = factory();
+  if (typeof module !== "undefined" && module.exports) module.exports = J;
+  root.OFJ = J;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  const RULES = {
+    version: "2026-10-18.2",
+    tp1Share: 0.5,            // share closed at TP1
+    minTp1R: 1,               // TP1 must sit at least this many R on the profit side of the fill
+    maxConfirm: 4,            // confirmation candles allowed after the touch
+    armRadius: 1.5,           // a plan locks when price is within this many SL distances of its entry
+    newsPadMs: 30 * 60000,    // no new entries within this distance of a high-impact US release
+    styles: {
+      day: { confSec: 900, conf: "15 นาที", armMs: 4 * 3600000, arm: "4 ชม.", timeoutMs: 24 * 3600000, timeout: "24 ชม." },
+      swing: { confSec: 3600, conf: "1 ชม.", armMs: 24 * 3600000, arm: "24 ชม.", timeoutMs: 72 * 3600000, timeout: "72 ชม." },
+    },
+  };
+  const DETERMINATE = new Set(["sl", "be", "tp2", "timeout"]);
+  const CHECKPOINT_MS = 6 * 3600000;  // save walk progress at least this often, so a short bar history never loses it
+  const STATUS = { open: "เปิดอยู่", sl: "โดน SL", be: "ถึง TP1 แล้วออกที่ทุน", tp2: "ถึง TP2", timeout: "หมดเวลา",
+                   ambiguous: "ไม่ชัด (แท่งเดียวแตะทั้งสองฝั่ง)", nodata: "ข้อมูลไม่พอตรวจ", invalid: "แผนผิดรูป" };
+
+  // ---- text shown in the plan table: generated from RULES, so it says what the runner checks ------
+  function confirmText(style, side, f) {
+    const st = RULES.styles[style], sell = side === "sell";
+    return `ราคา${sell ? "ขึ้น" : "ลง"}มาแตะ ${f.entry} แล้วแท่ง ${st.conf} ปิดกลับ${sell ? "ลงใต้ " + f.zoneLo : "ขึ้นเหนือ " + f.zoneHi} ภายใน ${RULES.maxConfirm} แท่ง`
+      + ` · เข้าที่ราคาปิดแท่งนั้น เมื่อ TP1 อยู่ฝั่งกำไรห่าง ≥ ${RULES.minTp1R}R จากราคาเข้า`
+      + ` · ไม่เข้าภายใน ±${RULES.newsPadMs / 60000} นาทีของข่าวแรง US (ปฏิทินโหลดไม่ได้ = บันทึกว่า "ไม่ทราบข่าว")`
+      + ` · ถึง TP1 ปิดครึ่ง เลื่อน SL ส่วนที่เหลือมาที่ทุน ไป TP2 · ปิดเมื่อครบ ${st.timeout}`;
+  }
+  function cancelText(style, side, f) {
+    const st = RULES.styles[style];
+    return `ราคาแตะ ${f.stop} ก่อนแท่งยืนยัน · ไม่มีแท่งยืนยันใน ${RULES.maxConfirm} แท่ง · ล็อกแล้วราคาไม่แตะ ${f.entry} ใน ${st.arm} หรือห่างออกไปเกิน ${RULES.armRadius} เท่าของระยะ SL`;
+  }
+
+  // ---- news state at a moment: never read a calendar that did not load as "no news" -------------
+  function newsStatus(cal, cover, ts, padMs = RULES.newsPadMs) {
+    if (!cover || !cover.loaded || !(ts - padMs >= cover.from && ts + padMs <= cover.to)) return { status: "unavailable" };
+    const e = (cal || []).find(x => x.importance >= 1 && Math.abs(ts - x.ts) <= padMs);
+    return e ? { status: "news", title: e.title, at: e.ts } : { status: "ok" };
+  }
+
+  // ---- confirmation candles from closed bars ---------------------------------------------------------
+  // bars: [{t (unix s), h, l, c}]; asOf = when the bars were fetched. A candle that had ended by then
+  // holds only bars that had closed, so its close is final; later candles are left out.
+  function candlesOf(bars, sec, asOf) {
+    const m = new Map();
+    for (const b of bars) {
+      const k = Math.floor(b.t / sec) * sec, c = m.get(k);
+      if (!c) m.set(k, { start: k * 1000, end: (k + sec) * 1000, h: b.h, l: b.l, c: b.c, last: b.t });
+      else { c.h = Math.max(c.h, b.h); c.l = Math.min(c.l, b.l); if (b.t > c.last) { c.c = b.c; c.last = b.t; } }
+    }
+    return [...m.values()].filter(c => c.end <= asOf).sort((a, z) => a.start - z.start);
+  }
+
+  // ---- entry: first candle after the touch that closes back beyond the zone, with signed checks ------
+  function confirmEntry(a, candles) {
+    const sell = a.side === "sell", dir = sell ? -1 : 1;
+    const after = candles.filter(c => c.end > a.touchedAt).slice(0, RULES.maxConfirm);
+    const ok = after.find(c => sell ? c.c < a.zoneLo : c.c > a.zoneHi);
+    if (!ok) return after.length >= RULES.maxConfirm ? { done: true, ok: false, reason: "no_confirm" } : { done: false };
+    const entry = ok.c, risk = (entry - a.stop) * dir, r1 = (a.tp1 - entry) * dir / risk, r2 = (a.tp2 - entry) * dir / risk;
+    const no = reason => ({ done: true, ok: false, reason, entry, candle: ok });
+    if (!(risk > 0)) return no("stop_wrong_side");
+    if (!(r1 > 0)) return no("tp1_wrong_side");
+    if (r1 < RULES.minTp1R) return no("tp1_under_min_r");
+    if (!(r2 > r1)) return no("tp2_not_beyond_tp1");
+    return { done: true, ok: true, entry, risk, r1, r2, at: ok.end, candle: { start: ok.start, end: ok.end, c: ok.c } };
+  }
+
+  // ---- resolution over closed bars ------------------------------------------------------------------
+  // Two walks run side by side. When a bar's OHLC cannot tell which of two levels came first, the
+  // "worst" walk takes the unfavourable order and the "best" walk the favourable one; any such bar
+  // makes the record ambiguous, reported with both R values and kept out of headline statistics.
+  function freshWalk(t) { return { phase: t.tp1Hit ? 1 : 0, tp1At: t.tp1At || null, done: null, amb: false }; }
+  function initSim(t) {
+    return { at: t.tp1Hit && t.tp1At ? t.tp1At : t.created, lastC: null, cons: freshWalk(t), opt: freshWalk(t) };
+  }
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+  // prices are mirrored for sells (p -> -p) so one long-side routine covers both
+  function stepBar(w, b, L, best) {
+    if (w.done) return;
+    const R = p => (p - L.E) / L.risk, k = RULES.tp1Share;
+    const fin = (status, p, r) => { w.done = { status, exit: p * L.dir, r, at: b.end }; };
+    const choose = () => { w.amb = true; return best; };
+    const rBe = p => k * R(L.T1) + (1 - k) * R(p), rTp2 = rBe(L.T2);
+    const be = (p = L.E) => fin("be", p, rBe(p)), tp2 = () => fin("tp2", L.T2, rTp2);
+    // the rest of a bar that is wholly after TP1 (h and l both come later)
+    const runner = () => {
+      if (b.o != null && b.o <= L.E) return be(b.o);           // opened through the moved stop
+      if (b.o != null && b.o >= L.T2) return tp2();
+      const hitE = b.l <= L.E, hitT2 = b.h >= L.T2;
+      if (hitE && hitT2) return choose() ? tp2() : be();
+      if (hitE) return be();
+      if (hitT2) return tp2();
+    };
+    if (w.phase === 1) return runner();
+    if (b.o != null && b.o <= L.S) return fin("sl", b.o, R(b.o));   // gap through the stop: out at the open
+    const tp1 = () => { w.phase = 1; w.tp1At = b.end; };
+    if (b.o != null && b.o >= L.T1) { tp1(); return runner(); }      // gap through TP1: filled at TP1
+    const hitS = b.l <= L.S, hitT1 = b.h >= L.T1;
+    if (!hitT1) { if (hitS) fin("sl", L.S, -1); return; }
+    if (hitS) {                                                      // stop and TP1 in one bar
+      if (!choose()) return fin("sl", L.S, -1);
+      tp1();
+      return b.h >= L.T2 ? tp2() : be();                             // TP1 first, then down through entry (l <= stop)
+    }
+    tp1();                                                           // TP1 crossed inside the bar: only the high is surely later
+    const beMaybe = b.l <= L.E, beSure = b.c <= L.E;
+    if (b.h >= L.T2) return beMaybe ? (choose() ? tp2() : be()) : tp2();
+    if (beSure) return be();
+    if (beMaybe && !choose()) return be();                           // the low may have come before TP1
+  }
+
+  function material(sim) { return JSON.stringify([sim.cons.phase, sim.cons.done && sim.cons.done.status, sim.cons.amb, sim.opt.phase, sim.opt.done && sim.opt.done.status, sim.opt.amb]); }
+
+  /**
+   * Advance one record over bars and say what changed.
+   *   bars: [{start, end, o, h, l, c}] sorted; o: {now (ms, bars ending later are ignored), timeoutMs}
+   * Returns {patch, final, material}: write the patch when `material` is true; `final` means closed.
+   */
+  function resolveTrade(t, bars, o) {
+    const dir = t.side === "sell" ? -1 : 1, risk = (t.entry - t.stop) * dir;
+    if (!(risk > 0) || !((t.tp1 - t.entry) * dir > 0) || !((t.tp2 - t.tp1) * dir > 0))
+      return { final: true, material: true, patch: { status: "invalid", r: null, exit: null, closedAt: o.now } };
+    const L = { dir, risk, E: dir * t.entry, S: dir * t.stop, T1: dir * t.tp1, T2: dir * t.tp2 };
+    const lim = t.created + o.timeoutMs, sim = t.sim ? clone(t.sim) : initSim(t), before = material(sim);
+    let pastLimit = sim.at >= lim, nodata = false;
+    const first = bars.find(b => b.end <= o.now);
+    if (first && first.start - sim.at >= first.end - first.start) nodata = true;   // history no longer reaches back
+    for (const b of nodata ? [] : bars) {
+      if (b.start < sim.at) continue;
+      if (b.end > o.now) break;                                      // never decide on a candle that has not closed
+      if (b.start >= lim) { pastLimit = true; break; }
+      const lb = dir > 0 ? b : { start: b.start, end: b.end, o: b.o == null ? null : -b.o, h: -b.l, l: -b.h, c: -b.c };
+      stepBar(sim.cons, lb, L, false);
+      stepBar(sim.opt, lb, L, true);
+      sim.at = b.end; sim.lastC = b.c;
+      if (sim.at >= lim) pastLimit = true;
+      if (sim.cons.done && sim.opt.done) break;
+    }
+    if (pastLimit) {
+      for (const w of [sim.cons, sim.opt]) {
+        if (w.done) continue;
+        if (sim.lastC == null) { nodata = true; break; }
+        const R = p => (p - t.entry) * dir / risk, r = w.phase === 1 ? RULES.tp1Share * R(t.tp1) + (1 - RULES.tp1Share) * R(sim.lastC) : R(sim.lastC);
+        w.done = { status: "timeout", exit: sim.lastC, r, at: lim };
+      }
+    }
+    const c = sim.cons, p = sim.opt, amb = c.amb || p.amb;
+    const patch = { sim, tp1Hit: c.phase === 1, tp1At: c.phase === 1 ? c.tp1At : null };
+    let final = false;
+    if (nodata && !(c.done && p.done)) { Object.assign(patch, { status: "nodata", r: null, exit: null, closedAt: o.now }); final = true; }
+    else if (c.done && p.done) {
+      final = true;
+      Object.assign(patch, amb
+        ? { status: "ambiguous", r: null, rCons: c.done.r, rOpt: p.done.r, exit: null, cons: c.done, opt: p.done, closedAt: Math.max(c.done.at, p.done.at) }
+        : { status: c.done.status, r: c.done.r, exit: c.done.exit, closedAt: c.done.at });
+    }
+    const progressed = sim.at - (t.sim ? t.sim.at : t.created) >= CHECKPOINT_MS;
+    return { patch, final, material: final || progressed || material(sim) !== before };
+  }
+
+  // ---- statistics over records of one rule version ------------------------------------------------------
+  function stats(recs, version = RULES.version) {
+    const cur = recs.filter(t => t.rule_version === version), fin = cur.filter(t => DETERMINATE.has(t.status) && t.r != null);
+    const amb = cur.filter(t => t.status === "ambiguous"), sum = fin.reduce((a, t) => a + t.r, 0), tp1 = fin.filter(t => t.tp1Hit).length;
+    const add = (arr, k) => arr.reduce((a, t) => a + (t[k] || 0), 0);
+    return { version, n: fin.length, tp1, tp1Rate: fin.length ? tp1 / fin.length : null, sum, avg: fin.length ? sum / fin.length : null,
+             open: cur.filter(t => t.status === "open").length, ambiguous: amb.length, ambCons: add(amb, "rCons"), ambOpt: add(amb, "rOpt"),
+             nodata: cur.filter(t => t.status === "nodata" || t.status === "invalid").length,
+             newsUnavailable: fin.filter(t => t.conditions && t.conditions.news === "unavailable").length,
+             otherVersions: recs.length - cur.length };
+  }
+
+  return { RULES, STATUS, DETERMINATE, confirmText, cancelText, newsStatus, candlesOf, confirmEntry, stepBar, resolveTrade, stats };
+});
+
+</script>
 
 <script>
 "use strict";
@@ -674,7 +880,7 @@
   const INTRADAY = new Set(["1m", "5m", "15m", "30m", "1H"]);
   const MODES = [["native", "ราคาตลาดนี้"], ["gc", "เทียบ GC"], ["spot", "เทียบ Spot"], ["thb", "ทองไทย ฿"]];
   const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"]];
-  const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", filled: "ราคาถึง", pulled: "ถอนหนี" };
+  const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
   const ui = { jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
@@ -685,9 +891,9 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, journal: [], armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -1017,7 +1223,7 @@
       `<tr class="mid"><td colspan="4">mid ${fmt(xf.a * mid + xf.b, xf.dec)} · สเปรด ${fmt(S.book.asks[0][0] - S.book.bids[0][0], ins.dec)}</td></tr>${bids.map(l => row("bid", l, sb)).join("")}</tbody></table>`;
     $("obHint").textContent = `รวมเป็นช่วงละ ${ins.bucket} ${ins.key === "btc" ? "USDT" : "ดอลลาร์"} · 2SD/3SD = ใหญ่ผิดปกติเทียบ 200 ช่วงใกล้ราคา · (+/−) = เปลี่ยนจากรอบก่อน · อัปเดต ${fTs(B.ts)}`;
     const ev = S.tracker ? S.tracker.events(8).slice().reverse() : [];
-    $("tblEvents").innerHTML = ev.length ? ev.map(e => `<tr><td>${e.side === "bid" ? "BID" : "ASK"} ${e.outcome === "pulled" ? "✕" : ""}</td><td class="num">${fmt(xf.a * e.price + xf.b, xf.dec)}</td><td class="num">${fmtV(e.size)}</td><td>${STATUS[e.outcome]}</td><td class="num">${fAge(e.age_ms)}</td></tr>`).join("")
+    $("tblEvents").innerHTML = ev.length ? ev.map(e => `<tr><td>${e.side === "bid" ? "BID" : "ASK"} ${e.outcome === "removed" ? "✕" : ""}</td><td class="num">${fmt(xf.a * e.price + xf.b, xf.dec)}</td><td class="num">${fmtV(e.size)}</td><td>${STATUS[e.outcome]}</td><td class="num">${fAge(e.age_ms)}</td></tr>`).join("")
       : `<tr><td colspan="5" class="empty">ยังไม่มีกำแพงที่หายไป (ต้องเห็นอย่างน้อย 2 รอบ)</td></tr>`;
   }
 
@@ -1104,8 +1310,9 @@
   // ---- trade plan: rule-based scenarios from the levels on this page -------------------------
   // day: risk sized by the 1-hour ATR; swing: by the 4-hour ATR with wider targets
   // stops and zones scale with the daily ATR so quiet hours (weekends, Asia) don't shrink them
-  const PLAN = { day: { label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4, conf: "15 นาที", confSec: 900, inval: "1 ชม.", armMs: 4 * 3600000, timeoutMs: 24 * 3600000 },
-                 swing: { label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8, conf: "1 ชม.", confSec: 3600, inval: "4 ชม.", armMs: 24 * 3600000, timeoutMs: 72 * 3600000 } };
+  // confirmation, lock and timeout rules live in journal.js (OFJ.RULES) so the table and the runner share them
+  const PLAN = { day: { ...OFJ.RULES.styles.day, label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4 },
+                 swing: { ...OFJ.RULES.styles.swing, label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8 } };
   function lastPx() { return I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.chart.length ? S.chart[S.chart.length - 1].c : null; }
   function atrDaily(bars) {
     const d = bars.length > 4 ? bars.slice(0, -1) : bars; if (d.length < 3) return null; // drop the forming day
@@ -1144,7 +1351,7 @@
     return best;
   }
   // ---- news, futures positioning, bias ---------------------------------------------------------
-  const NEWS_PAD = 30 * 60000;
+  const NEWS_PAD = OFJ.RULES.newsPadMs;
   function newsWindow(now) { return S.cal.find(e => e.importance >= 1 && now >= e.ts - NEWS_PAD && now <= e.ts + NEWS_PAD) || null; }
   function nextHighNews(now, withinMs) { return S.cal.find(e => e.importance >= 1 && e.ts > now && e.ts - now <= withinMs) || null; }
   function oiRead(hours) {
@@ -1210,17 +1417,19 @@
     S.planShown = [];
     if (M.err) { body.innerHTML = `<tr><td colspan="9" class="empty">${M.err}</td></tr>`; $("planBias").innerHTML = ""; return; }
     const st = M.st, F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
-    const news = newsWindow(now), rows = [];
+    const news = newsWindow(now), ns = OFJ.newsStatus(S.cal, S.calCover, now), rows = [];
+    const newsNote = ns.status === "news" ? `<b>⚠ ช่วงข่าว ${ns.title}: ไม่เปิดไม้ใหม่</b> · ` : ns.status === "unavailable" ? `<b>ปฏิทินข่าวยังไม่พร้อม: ถ้าเข้าไม้จะบันทึกว่า "ไม่ทราบข่าว"</b> · ` : "";
     for (const side of M.score < 0 ? ["sell", "buy"] : ["buy", "sell"]) {
       const a = S.armed[akey(ui.plan, side)], p = a || M.plans[side]; if (!p) continue; S.planShown.push(p);
-      const sell = side === "sell", rr = t => (Math.abs(t - p.entry) / p.risk).toFixed(1), open = openTrade(ins.key, ui.plan, side);
+      const sell = side === "sell", rr = t => ((t - p.entry) * (sell ? -1 : 1) / p.risk).toFixed(1), open = openTrade(ins.key, ui.plan, side);
+      const ft = { entry: F(p.entry), zoneLo: F(p.zoneLo), zoneHi: F(p.zoneHi), stop: F(p.stop) };
       const state = open ? "มีไม้เปิดอยู่ ดูในบันทึกผล" : a ? (a.touchedAt ? `ราคาแตะโซนแล้ว รอแท่ง ${st.conf} ยืนยัน` : "ล็อกแผนแล้ว รอราคาเข้าโซน") : "รอราคาเข้าโซน";
       rows.push(`<tr><td data-l="แผน">${sell ? "▼ ขาย" : "▲ ซื้อ"}${p.trend === null ? "" : p.trend ? " · ตามแรง" : " · สวนแรง"}<span class="why">${state}</span></td>` +
         `<td data-l="โซนเข้า">${F(p.zoneLo)}–${F(p.zoneHi)}<span class="why">${p.names}</span></td><td data-l="เข้า" class="num">${F(p.entry)}</td><td data-l="SL" class="num">${F(p.stop)}<span class="why">${Dd(p.stop - p.entry)}</span></td>` +
         `<td data-l="TP1 / TP2" class="num">${F(p.tp1)} / ${F(p.tp2)}<span class="why">${Dd(p.tp1 - p.entry)} · ${Dd(p.tp2 - p.entry)}</span><span class="why">${p.tp1Name} · ${p.tp2Name}</span></td><td data-l="R:R" class="num">${rr(p.tp1)} / ${rr(p.tp2)}</td>` +
         `<td data-l="ขนาดไม้" class="num">${sizeHtml(p)}</td>` +
-        `<td data-l="เงื่อนไขยืนยัน">${news ? `<b>⚠ ช่วงข่าว ${news.title}: งดเปิดไม้ใหม่</b> · ` : ""}${sell ? `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับลงใต้ ${F(p.zoneLo)}, CVD ไม่ทำจุดสูงใหม่${ins.src === "bin" ? ", กำแพง ASK ในโซนไม่ถูกถอน" : ""}` : `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับขึ้นเหนือ ${F(p.zoneHi)}, CVD ไม่ทำจุดต่ำใหม่${ins.src === "bin" ? ", กำแพง BID ในโซนไม่ถูกถอน" : ""}`} · ถึง TP1 ปิดครึ่งหนึ่งแล้วเลื่อน SL มาที่ทุน${p.trend === false ? " · สวนแรง ใช้ครึ่งไม้" : ""}</td>` +
-        `<td data-l="ยกเลิกเมื่อ">แท่ง ${st.inval} ปิด${sell ? "เหนือ" : "ใต้"} ${F(p.stop)}</td></tr>`);
+        `<td data-l="เงื่อนไขยืนยัน">${newsNote}${OFJ.confirmText(ui.plan, side, ft)}</td>` +
+        `<td data-l="ยกเลิกเมื่อ">${OFJ.cancelText(ui.plan, side, ft)}</td></tr>`);
     }
     body.innerHTML = rows.join("") || `<tr><td colspan="9" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
     const nx = news || nextHighNews(now, 6 * 3600000), tiles = [["ทิศทางตอนนี้", M.bias, M.why.join(" · ") || "ข้อมูลยังน้อย"], ["ราคา", F(M.last), MODES.find(m => m[0] === ui.mode)[1]],
@@ -1230,119 +1439,129 @@
     $("planHint").textContent = `${st.label} · อัปเดต ${fTs(now)} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
   }
 
-  // ---- journal: every confirmed plan entry is recorded and followed to its outcome ------------------
-  // A plan is locked when price comes near, entered at the close of the confirming candle, then
-  // managed as the table says: half off at TP1 with the stop moved to entry, the rest to TP2.
-  const J = { col: null, err: "", busy: false, clearArm: 0, lastTick: 0 };
-  const J_STATUS = { open: "เปิดอยู่", sl: "โดน SL", be: "ถึง TP1 แล้วออกที่ทุน", tp2: "ถึง TP2", timeout: "หมดเวลา", nodata: "ข้อมูลไม่พอตรวจ" };
+  // ---- journal (simulation for personal research): every confirmed plan entry is recorded and ----------
+  // followed to its outcome by the rules in journal.js (OFJ), the same rules the plan table prints.
+  const J = { col: null, err: "", busy: false, clearArm: 0, lastTick: 0, recent: [], older: [], loading: false };
+  const J_LIVE_MS = 7 * 86400000, J_PAGE = 1000; // the live query covers every record that can still be open
   const akey = (style, side) => style + ":" + side;
   const openTrade = (inst, style, side) => S.journal.find(t => t.inst === inst && t.style === style && t.side === side && t.status === "open");
-  function candles(bars, sec) {
-    const m = new Map();
-    for (const b of bars) { const k = Math.floor(b.t / sec) * sec, c = m.get(k); if (!c) m.set(k, { start: k * 1000, end: (k + sec) * 1000, h: b.h, l: b.l, c: b.c }); else { c.h = Math.max(c.h, b.h); c.l = Math.min(c.l, b.l); c.c = b.c; } }
-    return [...m.values()].sort((a, z) => a.start - z.start);
-  }
   async function journalTick() {
     if (!J.col || J.busy || !S.sess.length) return; J.busy = true;
     try {
-      D = derive(); const ins = I(), now = Date.now(), last = lastPx(); if (!D || last == null) return;
-      // price range since the previous tick (the first tick only knows the last price)
+      D = derive(); const ins = I(), now = Date.now(), last = lastPx(), R = OFJ.RULES; if (!D || last == null) return;
+      // price range since the previous tick (the first tick only knows the last price): used to lock, touch and cancel
       let hi = last, lo = last;
       if (S.jCheck) { if (ins.src === "bin") { for (const t of S.trades) if (t.ts > S.jCheck) { hi = Math.max(hi, t.price); lo = Math.min(lo, t.price); } }
                       else for (const b of S.sess) if ((b.t + 60) * 1000 > S.jCheck) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); } }
       S.jCheck = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].ts : now;
-      const news = newsWindow(now), barsDone = S.sess[S.sess.length - 1].t * 1000;
       for (const style of Object.keys(PLAN)) {
         const M = planModel(style), st = PLAN[style]; if (M.err) continue;
         for (const side of ["buy", "sell"]) {
           const key = akey(style, side), sell = side === "sell"; let a = S.armed[key];
           if (openTrade(ins.key, style, side)) { S.armed[key] = null; continue; }
-          if (a && !a.touchedAt && (Math.abs(last - a.entry) > 1.5 * M.slGap || now - a.armedAt > st.armMs)) a = null;
-          if (!a && M.plans[side] && Math.abs(last - M.plans[side].entry) <= 1.5 * M.slGap) a = { ...M.plans[side], armedAt: now, touchedAt: null };
+          if (a && !a.touchedAt && (Math.abs(last - a.entry) > R.armRadius * M.slGap || now - a.armedAt > st.armMs)) a = null;
+          if (!a && M.plans[side] && Math.abs(last - M.plans[side].entry) <= R.armRadius * M.slGap) a = { ...M.plans[side], armedAt: now, touchedAt: null };
           S.armed[key] = a || null; if (!a) continue;
           if (!a.touchedAt && (sell ? hi >= a.entry : lo <= a.entry)) a.touchedAt = now;
           if (!a.touchedAt) continue;
           if (sell ? hi >= a.stop : lo <= a.stop) { S.armed[key] = null; continue; } // ran through the stop before confirming
-          const cs = candles(S.sess, st.confSec).filter(c => c.end <= barsDone && c.end > a.touchedAt), ok = cs.find(c => sell ? c.c < a.zoneLo : c.c > a.zoneHi);
-          if (!ok) { if (cs.length >= 4) S.armed[key] = null; continue; }
+          const ok = OFJ.confirmEntry(a, OFJ.candlesOf(S.sess, st.confSec, S.sessAt));
+          if (!ok.done) continue;
           S.armed[key] = null;
-          if (news) continue; // no new entries around high-impact news
-          const entry = ok.c, risk = Math.abs(entry - a.stop);
-          if (!(risk > 0) || Math.abs(a.tp1 - entry) / risk < 1) continue; // filled too late, TP1 is under 1R away
-          const rec = { inst: a.inst, style, side, created: ok.end, entry, stop: a.stop, risk, tp1: a.tp1, tp2: a.tp2, tp1Name: a.tp1Name, tp2Name: a.tp2Name,
-                        zoneLo: a.zoneLo, zoneHi: a.zoneHi, names: a.names, trend: a.trend, bias: M.bias, status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
-          const id = `${a.inst}-${style}-${side}-${ok.end}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+          if (!ok.ok) continue; // no confirmation in time, or the fill left TP1 on the wrong side / under 1R
+          const news = OFJ.newsStatus(S.cal, S.calCover, ok.at);
+          if (news.status === "news") continue; // no new entries around high-impact news
+          const rec = { kind: "simulation", rule_version: R.version, inst: a.inst, style, side, created: ok.at, entry: ok.entry, stop: a.stop, risk: ok.risk,
+                        tp1: a.tp1, tp2: a.tp2, tp1Name: a.tp1Name, tp2Name: a.tp2Name, zoneLo: a.zoneLo, zoneHi: a.zoneHi, names: a.names, trend: a.trend, bias: M.bias,
+                        conditions: { news: news.status, bias: M.bias, biasScore: M.score, why: M.why, trend: a.trend, src: ins.src, atr: M.atr, atrName: M.atrName, slGap: M.slGap,
+                                      planEntry: a.entry, armedAt: a.armedAt, touchedAt: a.touchedAt, confirm: ok.candle, r1: ok.r1, r2: ok.r2 },
+                        status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
+          const id = `${a.inst}-${style}-${side}-${ok.at}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
         }
       }
-      await resolveTrades(hi, lo, now);
+      await resolveTrades();
       J.err = ""; J.lastTick = now;
     } catch (e) { J.err = e && e.code === "quota_exceeded" ? "ที่เก็บบันทึกเต็ม ลบบันทึกเก่าก่อน" : `บันทึกไม่สำเร็จ (${(e && e.code) || "ไม่ทราบสาเหตุ"})`; }
     finally { J.busy = false; schedule(); }
   }
-  async function resolveTrades(hi, lo, now) {
-    const ins = I(), barMs = ins.src === "bin" ? 300000 : 60000, bars = S.sess;
+  async function resolveTrades() {
+    // only bars that had closed when they were fetched (S.sessAt) can decide an outcome
+    const ins = I(), barSec = ins.src === "bin" ? 300 : 60;
+    const bars = S.sess.map(b => ({ start: b.t * 1000, end: (b.t + barSec) * 1000, o: b.o, h: b.h, l: b.l, c: b.c }));
     for (const t of S.journal.filter(x => x.status === "open" && x.inst === ins.key)) {
-      const st = PLAN[t.style] || PLAN.day, sell = t.side === "sell", dir = sell ? -1 : 1, R = p => (p - t.entry) * dir / t.risk, lim = t.created + st.timeoutMs;
-      let tp1Hit = !!t.tp1Hit, tp1At = t.tp1At || null, out = null;
-      if (bars[0].t * 1000 > t.created + barMs) out = { status: "nodata", r: null, exit: null, closedAt: now };
-      const steps = bars.filter(b => b.t * 1000 >= t.created && b.t * 1000 < lim).map(b => ({ h: b.h, l: b.l, ts: b.t * 1000 + barMs }));
-      if (now <= lim) steps.push({ h: hi, l: lo, ts: now });
-      for (const s of out ? [] : steps) {
-        if (!tp1Hit) {
-          if (sell ? s.h >= t.stop : s.l <= t.stop) { out = { status: "sl", r: -1, exit: t.stop, closedAt: s.ts }; break; } // a bar touching both counts as a loss
-          if (sell ? s.l <= t.tp1 : s.h >= t.tp1) { tp1Hit = true; tp1At = s.ts; }
-        } else if (s.ts > tp1At) {
-          if (sell ? s.h >= t.entry : s.l <= t.entry) { out = { status: "be", r: 0.5 * R(t.tp1), exit: t.entry, closedAt: s.ts }; break; }
-          if (sell ? s.l <= t.tp2 : s.h >= t.tp2) { out = { status: "tp2", r: 0.5 * R(t.tp1) + 0.5 * R(t.tp2), exit: t.tp2, closedAt: s.ts }; break; }
-        }
-      }
-      if (!out && now > lim) { const i = barIndexAt(bars, lim / 1000 - 1), px = i >= 0 ? bars[i].c : lastPx();
-        out = { status: "timeout", r: tp1Hit ? 0.5 * R(t.tp1) + 0.5 * R(px) : R(px), exit: px, closedAt: lim }; }
-      const ref = J.col.doc(t.id);
-      if (out) { Object.assign(t, out, { tp1Hit, tp1At }); await ref.update({ ...out, tp1Hit, tp1At }); }
-      else if (tp1Hit !== !!t.tp1Hit) { Object.assign(t, { tp1Hit, tp1At }); await ref.update({ tp1Hit, tp1At }); }
+      const res = OFJ.resolveTrade(t, bars, { now: S.sessAt, timeoutMs: (PLAN[t.style] || PLAN.day).timeoutMs });
+      if (!res.material) continue;
+      Object.assign(t, res.patch); await J.col.doc(t.id).update(res.patch);
     }
   }
   function renderJournal() {
-    const ins = I(), xf = X(), st = PLAN[ui.plan], box = $("jStats"), body = $("tblJournal"), now = Date.now();
+    const ins = I(), xf = X(), st = PLAN[ui.plan], box = $("jStats"), body = $("tblJournal"), now = Date.now(), V = OFJ.RULES.version;
     const Rs = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}R`, Fp = (t, p) => fmt(p, (INSTR[t.inst] || ins).dec), name = k => (INSTR[k] || { sub: k }).sub;
-    $("jHint").textContent = ui.jAll ? "ทุกสินทรัพย์ · ทุกสไตล์" : `${ins.label} · ${st.label}`;
+    const pct = s => s.n ? `${(s.tp1Rate * 100).toFixed(0)}%` : "–";
+    $("jHint").textContent = `${ui.jAll ? "ทุกสินทรัพย์ · ทุกสไตล์" : `${ins.label} · ${st.label}`} · จำลอง กติการุ่น ${V}`;
     $("segJ").innerHTML = [[false, `${ins.sub} · ${st.label}`], [true, "ทั้งหมด"]].map(([k, t]) => `<button type="button" data-k="${k}" aria-pressed="${k === ui.jAll}">${t}</button>`).join("");
-    $("jTrack").textContent = !J.col ? "" : `กำลังติดตาม ${ins.label} ทั้งเดย์เทรดและสวิง${J.lastTick ? ` · ตรวจล่าสุด ${fTs(J.lastTick)}` : ""} · ต้องเปิดแท็บนี้ไว้ (อยู่เบื้องหลังได้) และคอมต้องไม่ Sleep · ถ้าจะติดตามทองและ BTC พร้อมกัน ให้เปิด 2 แท็บ แท็บละสินทรัพย์`;
+    $("jTrack").textContent = !J.col ? "" : `กำลังติดตาม ${ins.label} ทั้งเดย์เทรดและสวิง${J.lastTick ? ` · ตรวจล่าสุด ${fTs(J.lastTick)}` : ""}${J.loading ? " · กำลังโหลดบันทึกเก่า" : ` · บันทึกทั้งหมด ${S.journal.length} ไม้`} · ต้องเปิดแท็บนี้ไว้ (อยู่เบื้องหลังได้) และคอมต้องไม่ Sleep · ถ้าจะติดตามทองและ BTC พร้อมกัน ให้เปิด 2 แท็บ แท็บละสินทรัพย์`;
     if (!J.col) { box.innerHTML = ""; $("tblJSum").innerHTML = ""; body.innerHTML = `<tr><td colspan="8" class="empty">${J.err || "บันทึกผลใช้ได้เมื่อเปิดหน้านี้ใน claude.ai และอนุญาตที่เก็บข้อมูล"}</td></tr>`; $("btnJClear").hidden = true; return; }
-    const closed = t => t.status !== "open" && t.status !== "nodata" && t.r != null;
-    const stat = arr => { const n = arr.length, w = arr.filter(t => t.tp1Hit).length, sum = arr.reduce((a, t) => a + t.r, 0); return { n, w, sum, avg: n ? sum / n : 0 }; };
-    const mine = ui.jAll ? S.journal : S.journal.filter(t => t.inst === ins.key && t.style === ui.plan), done = mine.filter(closed);
-    const all = stat(done), tr = stat(done.filter(t => t.trend === true)), ct = stat(done.filter(t => t.trend === false));
-    box.innerHTML = [["ไม้ที่ปิดแล้ว", `${all.n}`, `เปิดอยู่ ${mine.filter(t => t.status === "open").length}`], ["ถึง TP1", all.n ? `${(all.w / all.n * 100).toFixed(0)}%` : "–", `${all.w} จาก ${all.n} ไม้`],
-      ["ผลรวม", all.n ? Rs(all.sum) : "–", all.n ? `เฉลี่ย ${Rs(all.avg)} ต่อไม้` : "ยังไม่มีไม้ปิด"], ["ตามแรง / สวนแรง", `${tr.n ? Rs(tr.avg) : "–"} / ${ct.n ? Rs(ct.avg) : "–"}`, `เฉลี่ยต่อไม้ · ${tr.n} / ${ct.n} ไม้`]]
-      .map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("") + (J.err ? `<div class="err">${J.err}</div>` : "");
+    // headline numbers: closed simulated trades of the current rule version, outcome known from the candles
+    const mine = ui.jAll ? S.journal : S.journal.filter(t => t.inst === ins.key && t.style === ui.plan);
+    const all = OFJ.stats(mine), tr = OFJ.stats(mine.filter(t => t.trend === true)), ct = OFJ.stats(mine.filter(t => t.trend === false));
+    const notes = [all.otherVersions ? `ไม่นับ ${all.otherVersions} ไม้ที่บันทึกด้วยกติการุ่นก่อน` : "", all.newsUnavailable ? `${all.newsUnavailable} ไม้เข้าตอนปฏิทินข่าวโหลดไม่ได้` : ""].filter(Boolean);
+    box.innerHTML = [["ไม้จำลองที่ปิดแล้ว", `${all.n}`, `เปิดอยู่ ${all.open} · ไม่ชัด ${all.ambiguous} · ข้อมูลไม่พอ ${all.nodata}`],
+      ["TP1 hit rate", pct(all), all.n ? `${all.tp1} จาก ${all.n} ไม้ · ไม่ใช่ win rate` : "ยังไม่มีไม้ปิด"],
+      ["R รวม ก่อนต้นทุน", all.n ? Rs(all.sum) : "–", all.n ? `เฉลี่ย ${Rs(all.avg)} ต่อไม้` : "ยังไม่มีไม้ปิด"],
+      ["ตามแรง / สวนแรง", `${tr.n ? Rs(tr.avg) : "–"} / ${ct.n ? Rs(ct.avg) : "–"}`, `เฉลี่ยต่อไม้ · ${tr.n} / ${ct.n} ไม้`],
+      ["ไม่ชัด (ไม่นับ)", `${all.ambiguous}`, all.ambiguous ? `R รวมแบบระวัง ${Rs(all.ambCons)} · แบบดี ${Rs(all.ambOpt)}` : "แท่งเดียวแตะทั้งสองฝั่ง"]]
+      .map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("")
+      + (notes.length ? `<p class="note">${notes.join(" · ")}</p>` : "") + (J.err ? `<div class="err">${J.err}</div>` : "");
     // one row per asset and style that has any record
     const groups = new Map(); for (const t of S.journal) { const k = t.inst + "|" + t.style; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
     $("jSumBox").hidden = !groups.size;
-    $("tblJSum").innerHTML = [...groups].map(([k, arr]) => { const [inst, style] = k.split("|"), g = stat(arr.filter(closed));
-      return `<tr><td>${name(inst)} · ${(PLAN[style] || { label: style }).label}</td><td class="num">${g.n}</td><td class="num">${arr.filter(t => t.status === "open").length}</td><td class="num">${g.n ? (g.w / g.n * 100).toFixed(0) + "%" : "–"}</td><td class="num">${g.n ? Rs(g.avg) : "–"}</td><td class="num">${g.n ? Rs(g.sum) : "–"}</td></tr>`; }).join("");
-    const last = lastPx(), liveR = t => { if (t.inst !== ins.key || last == null) return null; const dir = t.side === "sell" ? -1 : 1, R = p => (p - t.entry) * dir / t.risk; return t.tp1Hit ? 0.5 * R(t.tp1) + 0.5 * R(last) : R(last); };
-    body.innerHTML = mine.slice(0, 20).map(t => { const lr = t.status === "open" ? liveR(t) : null;
-      return `<tr><td>${fClock(t.created)}</td><td>${name(t.inst)} · ${(PLAN[t.style] || { label: t.style }).label}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}${t.trend === null ? "" : t.trend ? " · ตามแรง" : " · สวนแรง"}</td>` +
-      `<td class="num">${Fp(t, t.entry)}</td><td class="num">${Fp(t, t.stop)}</td><td class="num">${Fp(t, t.tp1)} / ${Fp(t, t.tp2)}</td><td>${J_STATUS[t.status] || t.status}${t.status === "open" && t.tp1Hit ? " · ถึง TP1 แล้ว" : ""}</td>` +
-      `<td class="num">${t.r != null ? Rs(t.r) : lr != null ? `${Rs(lr)} ตอนนี้` : "–"}</td></tr>`; }).join("")
-      || `<tr><td colspan="8" class="empty">ยังไม่มีไม้ ระบบจะบันทึกเองเมื่อราคาเข้าโซนและแท่งยืนยันปิดกลับ</td></tr>`;
+    $("tblJSum").innerHTML = [...groups].map(([k, arr]) => { const [inst, style] = k.split("|"), g = OFJ.stats(arr);
+      return `<tr><td>${name(inst)} · ${(PLAN[style] || { label: style }).label}</td><td class="num">${g.n}</td><td class="num">${g.open}</td><td class="num">${g.ambiguous}</td><td class="num">${pct(g)}</td><td class="num">${g.n ? Rs(g.avg) : "–"}</td><td class="num">${g.n ? Rs(g.sum) : "–"}</td></tr>`; }).join("");
+    const last = lastPx(), k = OFJ.RULES.tp1Share, liveR = t => { if (t.inst !== ins.key || last == null) return null; const dir = t.side === "sell" ? -1 : 1, R = p => (p - t.entry) * dir / t.risk; return t.tp1Hit ? k * R(t.tp1) + (1 - k) * R(last) : R(last); };
+    const rCell = t => { if (t.status === "ambiguous") return `${Rs(t.rCons)} … ${Rs(t.rOpt)}`; if (t.r != null) return Rs(t.r); const lr = t.status === "open" ? liveR(t) : null; return lr != null ? `${Rs(lr)} ตอนนี้` : "–"; };
+    body.innerHTML = mine.slice(0, 20).map(t => `<tr><td>${fClock(t.created)}</td><td>${name(t.inst)} · ${(PLAN[t.style] || { label: t.style }).label}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}${t.trend === null ? "" : t.trend ? " · ตามแรง" : " · สวนแรง"}</td>` +
+      `<td class="num">${Fp(t, t.entry)}</td><td class="num">${Fp(t, t.stop)}</td><td class="num">${Fp(t, t.tp1)} / ${Fp(t, t.tp2)}</td><td>${OFJ.STATUS[t.status] || t.status}${t.status === "open" && t.tp1Hit ? " · ถึง TP1 แล้ว" : ""}` +
+      `${t.conditions && t.conditions.news === "unavailable" ? " · ไม่ทราบข่าว" : ""}${t.rule_version === V ? "" : " · กติการุ่นก่อน"}</td><td class="num">${rCell(t)}</td></tr>`).join("")
+      || `<tr><td colspan="8" class="empty">ยังไม่มีไม้ ระบบจะบันทึกเองเมื่อครบเงื่อนไขในตารางแผน</td></tr>`;
     $("btnJClear").hidden = ui.jAll || !mine.length; $("btnJClear").textContent = J.clearArm > now ? "กดอีกครั้งเพื่อลบ" : "ลบบันทึกของสินทรัพย์และสไตล์นี้";
   }
   async function clearJournal() {
     if (J.clearArm < Date.now()) { J.clearArm = Date.now() + 5000; renderJournal(); setTimeout(renderJournal, 5100); return; }
-    J.clearArm = 0; const ins = I();
-    for (const t of S.journal.filter(x => x.inst === ins.key && x.style === ui.plan)) { try { await J.col.doc(t.id).delete(); } catch (e) { J.err = `ลบไม่สำเร็จ (${(e && e.code) || ""})`; break; } }
+    J.clearArm = 0; const ins = I(), gone = new Set();
+    for (const t of S.journal.filter(x => x.inst === ins.key && x.style === ui.plan)) { try { await J.col.doc(t.id).delete(); gone.add(t.id); } catch (e) { J.err = `ลบไม่สำเร็จ (${(e && e.code) || ""})`; break; } }
+    J.older = J.older.filter(t => !gone.has(t.id)); mergeJournal();
+  }
+  function mergeJournal() {
+    const ids = new Set(J.recent.map(t => t.id));
+    S.journal = [...J.recent, ...J.older.filter(t => !ids.has(t.id))].sort((a, z) => z.created - a.created);
     schedule();
+  }
+  // every record older than the live window, page by page (the store caps a query at 1000 documents)
+  async function loadOlderJournal(before) {
+    const got = new Map(); let cursor = before;
+    for (;;) {
+      const snap = await J.col.where("created", "<", cursor).orderBy("created", "desc").limit(J_PAGE).get();
+      for (const d of snap.docs) got.set(d.id, { id: d.id, ...d.data() });
+      if (snap.docs.length < J_PAGE) break;
+      const edge = snap.docs[snap.docs.length - 1].data().created;
+      // records sharing the edge time may straddle the page: take them all, then continue strictly below
+      for (const d of (await J.col.where("created", "==", edge).get()).docs) got.set(d.id, { id: d.id, ...d.data() });
+      cursor = edge;
+    }
+    return [...got.values()];
   }
   async function initJournal() {
     const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
     const uid = user ? await user.id() : null;
     if (!db || !uid) { J.err = "บันทึกผลใช้ไม่ได้ในมุมมองนี้ (ต้องเข้าสู่ระบบ claude.ai)"; schedule(); return; }
     J.col = db.doc("data/users/" + uid + "/journal").collection("trades");
-    J.col.orderBy("created", "desc").limit(500).onSnapshot(snap => { S.journal = snap.docs.map(d => ({ id: d.id, ...d.data() })); schedule(); },
+    const since = Date.now() - J_LIVE_MS;
+    J.col.where("created", ">=", since).orderBy("created", "desc").onSnapshot(snap => { J.recent = snap.docs.map(d => ({ id: d.id, ...d.data() })); mergeJournal(); },
       e => { J.err = `อ่านบันทึกไม่สำเร็จ (${e.code})`; schedule(); });
+    J.loading = true; schedule();
+    try { J.older = await loadOlderJournal(since); } catch (e) { J.err = `โหลดบันทึกเก่าไม่สำเร็จ (${(e && e.code) || ""})`; }
+    finally { J.loading = false; mergeJournal(); }
     setTimeout(journalTick, 1500); // settle trades that closed while the page was shut, without waiting for the first timer tick
   }
 
@@ -1409,9 +1628,12 @@
     const ins = I(), T = TOOLS[ins.mkt], sym = ins.symbol;
     S.tracker = new OF.WallTracker(ins.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
     every(30000, g => binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: sym, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = mergeBars(S.chart, kl(rows)); S.liveFrom = Date.now(); liveCandle(); schedule(); }));
-    every(60000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "5m", limit: 1000 }); if (g !== gen) return; S.sess = kl(rows); schedule(); }), true);
+    every(60000, g => binLoop(g, async () => { const at = Date.now(), rows = await bin(T.k, { symbol: sym, interval: "5m", limit: 1000 }); if (g !== gen) return; S.sess = kl(rows); S.sessAt = at; schedule(); }), true);
     every(600000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "1d", limit: 30 }); if (g !== gen) return; S.daily = kl(rows); schedule(); }), true);
-    every(10000, g => binLoop(g, async () => { const p = await bin(T.d, { symbol: sym, limit: 1000 }); if (g !== gen || !p || !p.bids) return;
+    every(10000, g => binLoop(g, async () => {
+      let p; try { p = await bin(T.d, { symbol: sym, limit: 1000 }); S.bookFails = 0; }
+      catch (e) { if (g === gen && ++S.bookFails === 2 && S.tracker) S.tracker.bookLost(Date.now()); throw e; } // walls unseen for 20 s+: outcome unknown
+      if (g !== gen || !p || !p.bids) return;
       const book = { ts: p.T || p.E || Date.now(), symbol: sym, ...OF.sortBook(p.bids.map(l => [+l[0], +l[1]]), p.asks.map(l => [+l[0], +l[1]])) };
       if (S.bucketed) S.prevBuckets = { bid: new Map(S.bucketed.bids), ask: new Map(S.bucketed.asks) };
       S.book = book; S.bucketed = bucketBook(book, ins.bucket); S.tracker.update(S.bucketed); schedule(); }));
@@ -1434,12 +1656,12 @@
     }, { cache: { staleTime: Math.min(every, 300000) / 2 }, refetchInterval: every }));
   }
   function startNews() {
-    const day = ms => new Date(ms).toISOString().slice(0, 10), now = Date.now();
+    const day = ms => new Date(ms).toISOString().slice(0, 10), now = Date.now(), cover = { loaded: true, from: Date.parse(day(now - 86400000)), to: Date.parse(day(now + 2 * 86400000)) + 86400000 };
     tdvWatch(CAL, { countries: "US", date_from: day(now - 86400000), date_to: day(now + 2 * 86400000), min_importance: 0 }, p => {
       const o = asObj(p), rows = o && Array.isArray(o.result) ? o.result : [];
       S.cal = rows.map(e => ({ ts: Date.parse(e.date), title: e.title || e.indicator || "", period: e.period || "", importance: +e.importance, forecast: e.forecast, previous: e.previous, actual: e.actual, scale: e.scale || "", unit: e.unit || "" }))
         .filter(e => isFinite(e.ts)).sort((a, z) => a.ts - z.ts);
-      S.calLoaded = true; schedule();
+      S.calLoaded = true; S.calCover = cover; schedule();
     }, false, 1800000);
   }
   function startFutures(sym) {
@@ -1461,7 +1683,7 @@
   function startTdvChart() {
     const ins = I(), [, cnt] = TF[ui.tf], tvIv = TV_IV[ui.tf];
     tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = mergeBars(S.chart, tvBars(p)); schedule(); }, true);
-    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); schedule(); }, false);
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); S.sessAt = S.stamp.tdv; schedule(); }, false);
     tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false);
   }
   function startQuotes() {

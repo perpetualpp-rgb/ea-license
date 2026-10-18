@@ -9,6 +9,7 @@ import subprocess
 import unittest
 
 from engine.summary import summarize_bars, summarize_trades
+from engine.walls import WallTracker
 from feeds.types import BookSnapshot, Trade
 from tests.synth import synthetic_bars
 
@@ -22,8 +23,9 @@ def run_js(payload: dict) -> dict:
     return json.loads(proc.stdout)
 
 
-def synthetic(seed: int = 7):
-    """Deterministic trades + books with a persistent bid wall and a big print."""
+def synthetic(seed: int = 7, empty_bids_from: int | None = None):
+    """Deterministic trades + books with a persistent bid wall and a big print.
+    ``empty_bids_from``: snapshots from this index on have no bids (wall outcome unknown)."""
     rng = random.Random(seed)
     t0, price, trades = 1_700_000_000_000, 100.0, []
     for i in range(600):
@@ -42,6 +44,8 @@ def synthetic(seed: int = 7):
             bids[20] = (bids[20][0], 40.0 + k)  # wall grows, then disappears before price reaches it
         if 3 <= k <= 7:
             asks[10] = (asks[10][0], 30.0)
+        if empty_bids_from is not None and k >= empty_bids_from:
+            bids = []
         books.append(BookSnapshot(ts, "x", "S", tuple(bids), tuple(asks)))
     return trades, books
 
@@ -85,6 +89,33 @@ class JsParity(unittest.TestCase):
         self.assertClose(py["cvd"]["value"], js["cvd"]["value"])
         self.assertEqual(py["cvd"]["divergence"], js["cvd"]["divergence"])
 
+    def run_trades(self, trades, books):
+        py = summarize_trades(trades, books, 0.1, 1.0, 60_000)
+        js = run_js({"mode": "trades", "trades": [trade_json(t) for t in trades], "books": [book_json(b) for b in books],
+                     "tick": 0.1, "round_step": 1.0, "interval_ms": 60_000})
+        return py, js
+
+    def test_wall_outcome_unknown_without_bids(self):
+        # bids vanish from snapshot 8: the wall ending at snapshot 6 is judged normally, the one ending at 8 cannot be
+        trades, books = synthetic(empty_bids_from=8)
+        py, js = self.run_trades(trades, books)
+        ekey = lambda e: (e["side"], e["price"], round(e["size"], 6), e["outcome"], e["age_ms"], e["ended_ts"])
+        self.assertEqual([ekey(e) for e in py["walls"]["events"]], [ekey(e) for e in js["walls"]["events"]])
+        self.assertEqual([(e["side"], e["outcome"]) for e in py["walls"]["events"] if e["side"] == "bid"],
+                         [("bid", "removed"), ("bid", "unknown")])
+
+    def test_book_lost_parity(self):
+        _, books = synthetic()
+        tracker = WallTracker(0.1, merge_gap=0.1)
+        for b in books[:6]:
+            tracker.update(b)
+        py = tracker.book_lost(books[5].ts + 1)
+        js = run_js({"mode": "book_lost", "books": [book_json(b) for b in books[:6]], "tick": 0.1, "ts": books[5].ts + 1})
+        key = lambda e: (e["side"], e["price"], round(e["size"], 6), e["outcome"], e["age_ms"], e["ended_ts"], e["seen"])
+        self.assertGreaterEqual(len(py), 2)
+        self.assertEqual(sorted(key(e) for e in py), sorted(key(e) for e in js))
+        self.assertEqual({e["outcome"] for e in py}, {"unknown"})
+
     def test_trades_mode_on_synthetic_flow(self):
         trades, books = synthetic()
         py = summarize_trades(trades, books, 0.1, 1.0, 60_000)
@@ -102,7 +133,7 @@ class JsParity(unittest.TestCase):
         self.assertGreaterEqual(py["big_trades"]["count"], 1)
         self.assertEqual([(z["price"], round(z["buy"], 6), round(z["sell"], 6), z["contested"]) for z in py["big_trades"]["zones"]],
                          [(z["price"], round(z["buy"], 6), round(z["sell"], 6), z["contested"]) for z in js["big_trades"]["zones"]])
-        # walls: the bid wall is pulled before price reaches it; the ask wall too
+        # walls: the bid wall disappears before price reaches it; the ask wall too
         self.assertEqual(py["walls"]["snapshots"], js["walls"]["snapshots"])
         key = lambda w: (w["side"], w["price"], round(w["size"], 6), w["status"], w["seen"], w["persistent"], round(w["growth"], 6))
         self.assertEqual([key(w) for w in py["walls"]["bid"]], [key(w) for w in js["walls"]["bid"]])
@@ -110,7 +141,8 @@ class JsParity(unittest.TestCase):
         ekey = lambda e: (e["side"], e["price"], round(e["size"], 6), e["outcome"], e["age_ms"])
         self.assertEqual([ekey(e) for e in py["walls"]["events"]], [ekey(e) for e in js["walls"]["events"]])
         self.assertGreaterEqual(len(py["walls"]["events"]), 2)
-        self.assertTrue({e["outcome"] for e in py["walls"]["events"]} <= {"pulled", "filled"})
+        self.assertTrue({e["outcome"] for e in py["walls"]["events"]} <= {"price_reached", "removed"})
+        self.assertIn("removed", {e["outcome"] for e in py["walls"]["events"]})
 
 
 if __name__ == "__main__":

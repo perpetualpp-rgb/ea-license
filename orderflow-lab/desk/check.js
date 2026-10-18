@@ -3,6 +3,8 @@ const fs = require("fs");
 const path = require("path");
 // stubbed render check: node desk/check.js (needs playwright); screenshots go to data/ (git-ignored)
 const OUT = path.join(__dirname, "..", "data");
+const RULE_VERSION = require("./journal.js").RULES.version;
+const OLD_RECORDS = 1003; // older than the live window: loaded page by page (1000 per query), two share the page-edge time
 (async () => {
   const html = fs.readFileSync(path.join(__dirname, "orderflow-desk.html"), "utf8");
   // stub of window.claude.use("mcp"): Binance tool_execute returns real payload shapes, tdv returns column bars + quotes
@@ -31,19 +33,32 @@ const OUT = path.join(__dirname, "..", "data");
       if (tool === "futures_usds.topTraderLongShortRatioPositions") return Array.from({ length: a.limit }, (_, i) => { const l = 0.7 + i * 0.003; return { symbol: a.symbol, longAccount: String(l), shortAccount: String(1 - l), longShortRatio: String(l / (1 - l)), timestamp: now - (a.limit - i) * 3600000 }; });
       if (tool === "futures_usds.takerBuySellVolume") return Array.from({ length: a.limit }, (_, i) => ({ buyVol: String(400 + r() * 100), sellVol: String(400 + r() * 100), buySellRatio: "1.0", timestamp: now - (a.limit - i) * 3600000 })); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
     const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
-    window.__calls = []; window.__dbWrites = [];
-    // in-memory db with one seeded open trade so the journal resolver has work to do
+    window.__calls = []; window.__dbWrites = []; window.__dbReads = [];
+    // in-memory db (where / orderBy / limit / get / onSnapshot like the real store, pages capped at 1000)
+    // with one seeded open trade so the resolver has work to do, and older closed records for pagination
     const store = new Map(), subs = [];
-    const deliver = () => { for (const [col, next] of subs) { const docs = [...store].filter(([k]) => k.startsWith(col + "/")).map(([k, v]) => ({ id: k.slice(col.length + 1), exists: true, data: () => v }))
-      .sort((a, z) => z.data().created - a.data().created); next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }); } };
-    const colRef = path => { const q = { path, doc: id => ({ id, path: path + "/" + id, set: async d => { window.__dbWrites.push(["set", id, d.status]); store.set(path + "/" + id, d); setTimeout(deliver, 0); },
-        update: async d => { window.__dbWrites.push(["update", id, d.status, d.tp1Hit]); store.set(path + "/" + id, { ...store.get(path + "/" + id), ...d }); setTimeout(deliver, 0); },
-        delete: async () => { store.delete(path + "/" + id); setTimeout(deliver, 0); } }),
-      orderBy: () => q, limit: () => q, onSnapshot: next => { subs.push([path, next]); setTimeout(deliver, 0); return () => {}; } }; return q; };
+    const deliver = () => { for (const f of subs) f(); };
+    const OPS = { "<": (a, b) => a < b, "<=": (a, b) => a <= b, ">": (a, b) => a > b, ">=": (a, b) => a >= b, "==": (a, b) => a === b };
+    const colRef = (path, filters = [], order = null, lim = null) => {
+      const docsOf = () => { let d = [...store].filter(([k]) => k.startsWith(path + "/") && !k.slice(path.length + 1).includes("/")).map(([k, v]) => ({ id: k.slice(path.length + 1), exists: true, data: () => v }));
+        for (const [f, op, v] of filters) d = d.filter(x => OPS[op](x.data()[f], v));
+        if (order) d.sort((a, z) => (order[1] === "desc" ? -1 : 1) * (a.data()[order[0]] - z.data()[order[0]]) || (a.id < z.id ? -1 : 1));
+        return lim ? d.slice(0, lim) : d; };
+      const snap = () => { const docs = docsOf(); return { docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }; };
+      return { path,
+        doc: id => ({ id, path: path + "/" + id, set: async d => { window.__dbWrites.push(["set", id, d.status]); store.set(path + "/" + id, d); setTimeout(deliver, 0); },
+          update: async d => { window.__dbWrites.push(["update", id, d.status, d.tp1Hit]); store.set(path + "/" + id, { ...store.get(path + "/" + id), ...d }); setTimeout(deliver, 0); },
+          delete: async () => { store.delete(path + "/" + id); setTimeout(deliver, 0); } }),
+        where: (f, op, v) => colRef(path, [...filters, [f, op, v]], order, lim), orderBy: (f, dir = "asc") => colRef(path, filters, [f, dir], lim), limit: n => colRef(path, filters, order, n),
+        get: async () => { if (lim > 1000) throw { code: "invalid_argument", message: "page size over 1000" }; const r = snap(); window.__dbReads.push(r.size); return r; },
+        onSnapshot: next => { if (lim > 1000) throw { code: "invalid_argument" }; subs.push(() => next(snap())); setTimeout(deliver, 0); return () => {}; } }; };
     const db = { doc: path => ({ collection: c => colRef(path + "/" + c) }), collection: colRef };
     { const bars = klines("XAUUSDT", "5m", 1000), k = bars.length - 30, entry = +bars[k][4], after = bars.slice(k + 1), H = Math.max(...after.map(b => +b[2])), L = Math.min(...after.map(b => +b[3]));
-      store.set("data/users/u1/journal/trades/seed", { inst: "xau", style: "day", side: "buy", created: bars[k][0] + 300000, entry, stop: L - 0.5, risk: entry - (L - 0.5), tp1: entry + (H - entry) * 0.5, tp2: H + 3,
-        tp1Name: "x", tp2Name: "y", zoneLo: entry - 1, zoneHi: entry, names: "seed", trend: true, bias: "x", status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null }); }
+      store.set("data/users/u1/journal/trades/seed", { kind: "simulation", rule_version: "${RULE_VERSION}", inst: "xau", style: "day", side: "buy", created: bars[k][0] + 300000, entry, stop: L - 0.5, risk: entry - (L - 0.5), tp1: entry + (H - entry) * 0.5, tp2: H + 3,
+        tp1Name: "x", tp2Name: "y", zoneLo: entry - 1, zoneHi: entry, names: "seed", trend: true, bias: "x", conditions: { news: "ok" }, status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null }); }
+    for (let i = 0; i < ${OLD_RECORDS}; i++) { const created = now - 10 * 86400000 - Math.min(i, 999) * 60000 - (i > 1000 ? (i - 1000) * 60000 : 0), win = i % 3 !== 0;
+      store.set("data/users/u1/journal/trades/old" + i, { kind: "simulation", rule_version: "${RULE_VERSION}", inst: "xau", style: "day", side: "buy", created, entry: 100, stop: 90, risk: 10, tp1: 115, tp2: 130,
+        trend: i % 2 === 0, status: win ? "tp2" : "sl", r: win ? 2.25 : -1, tp1Hit: win, tp1At: null, closedAt: created + 3600000, exit: win ? 130 : 90 }); }
     window.claude = { use: async n => n === "db" ? db : n === "user" ? { id: async () => "u1" } : n !== "mcp" ? null : ({
       callTool: async (srv, tool, input) => { window.__calls.push(srv + ":" + tool + ":" + (input.toolName || "") + (input.arguments && input.arguments.endTime ? ":endTime" : "")); if (srv === "Binance" && tool === "tool_execute") return { payload: bin(input.toolName, input.arguments) }; throw { code: "not_in_manifest" }; },
       watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
@@ -87,7 +102,16 @@ const OUT = path.join(__dirname, "..", "data");
       await p.click('#segTf button[data-k="1H"]'); await p.waitForTimeout(400);
       await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(800);
       const calls = await p.evaluate(() => [...new Set(window.__calls)]); console.log("calls", calls.join(" "));
-      console.log("db writes", JSON.stringify(await p.evaluate(() => window.__dbWrites)));
+      const writes = await p.evaluate(() => window.__dbWrites), reads = await p.evaluate(() => window.__dbReads);
+      console.log("db writes", JSON.stringify(writes), "| journal pages read", JSON.stringify(reads));
+      const track = await p.evaluate(() => document.getElementById("jTrack").textContent);
+      const total = +((track.match(/บันทึกทั้งหมด ([\d,]+) ไม้/) || [])[1] || "0").replace(/,/g, "");
+      if (total !== OLD_RECORDS + 1) errs.push(`journal: expected ${OLD_RECORDS + 1} records after pagination, page shows ${total}`);
+      // the seed: stop below every later low, TP2 above every later high, TP1 at half way -> TP1 then break-even, or ambiguous, or still open
+      const seed = writes.filter(w => w[1] === "seed").pop();
+      if (seed && !["be", "ambiguous", undefined].includes(seed[2])) errs.push("journal: seed resolved to " + seed[2]);
+      console.log("journal records", total, "· seed", JSON.stringify(seed || null));
+      await p.locator('section[aria-label="บันทึกผลแผน"]').screenshot({ path: path.join(OUT, "journal.png") });
       console.log("journal", await p.evaluate(() => document.getElementById("jStats").textContent.slice(0, 200)), "|", await p.evaluate(() => document.getElementById("tblJournal").textContent.slice(0, 160)));
       console.log("news banner", await p.evaluate(() => document.getElementById("newsBanner").hidden ? "hidden" : document.getElementById("newsBanner").textContent.slice(0, 120)));
       console.log("fut", await p.evaluate(() => document.getElementById("futTiles").textContent.slice(0, 260)));

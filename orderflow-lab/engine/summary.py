@@ -83,6 +83,7 @@ def summarize_trades(trades: Sequence[Trade], books: Sequence[BookSnapshot], tic
         "snapshots": len(books),
         "bid": [{k: w[k] for k in keep} for w in active if w["side"] == "bid"][:5],
         "ask": [{k: w[k] for k in keep} for w in active if w["side"] == "ask"][:5],
+        # outcome is price_reached / removed / unknown (walls.OUTCOMES): book position at removal, not fill vs cancel
         "events": [{k: e[k] for k in ("side", "price", "size", "outcome", "age_ms", "ended_ts")} for e in tracker.events(10)],
         "book_ts": books[-1].ts if books else None,
         "best_bid": books[-1].best_bid if books else None,

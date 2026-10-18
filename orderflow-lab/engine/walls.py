@@ -2,9 +2,15 @@
 
 A "wall" is a resting level much larger than its neighbours. One snapshot
 cannot say whether it is real; the tracker watches it over time and records
-whether it held, grew, shrank, got filled when price arrived, or was pulled
-before price got there (spoof-like). Those outcomes are what make the wall
-layer trustworthy, so the tracker is the important half of this module.
+whether it held, grew or shrank, and where price was when it disappeared.
+
+Outcomes describe only what the L2 book showed at removal, never why the size
+went away: aggregated levels cannot separate executions from cancellations
+and are not matched against traded volume here.
+
+* ``price_reached``  best price on the wall's side touched or crossed its level
+* ``removed``        it disappeared while price was still away from it
+* ``unknown``        no book to judge by (empty side, or the book lost sync)
 """
 from __future__ import annotations
 
@@ -14,6 +20,8 @@ from typing import Dict, List, Tuple
 from feeds.types import BookSnapshot
 
 from .profile import level_of
+
+OUTCOMES = ("price_reached", "removed", "unknown")
 
 
 def detect_walls(book: BookSnapshot, max_levels: int = 200, min_mult: float = 4.0,
@@ -95,20 +103,29 @@ class WallTracker:
                 del self.walls[key]
                 if rec["seen"] < self.min_seen:
                     continue
-                outcome = self._outcome(rec, book)
-                ev = {**rec, "outcome": outcome, "ended_ts": book.ts, "age_ms": rec["last_ts"] - rec["first_ts"]}
-                self._events.append(ev)
-                new_events.append(ev)
+                new_events.append(self._end(rec, self._outcome(rec, book), book.ts))
         self.last_book = book
         return new_events
 
-    def _outcome(self, rec: dict, book: BookSnapshot) -> str:
-        """Filled if price reached the wall, pulled if it vanished beforehand."""
-        if rec["side"] == "bid":
-            touched = book.best_bid is not None and book.best_bid <= rec["price"]
-        else:
-            touched = book.best_ask is not None and book.best_ask >= rec["price"]
-        return "filled" if touched else "pulled"
+    def book_lost(self, ts: int) -> List[dict]:
+        """The book feed broke (resync, failed fetch): what happened to the walls
+        meanwhile cannot be seen, so every tracked wall ends as ``unknown``."""
+        ended = [self._end(rec, "unknown", ts) for rec in self.walls.values() if rec["seen"] >= self.min_seen]
+        self.walls.clear()
+        return ended
+
+    def _end(self, rec: dict, outcome: str, ts: int) -> dict:
+        ev = {**rec, "outcome": outcome, "ended_ts": ts, "age_ms": rec["last_ts"] - rec["first_ts"]}
+        self._events.append(ev)
+        return ev
+
+    @staticmethod
+    def _outcome(rec: dict, book: BookSnapshot) -> str:
+        best = book.best_bid if rec["side"] == "bid" else book.best_ask
+        if best is None:
+            return "unknown"
+        reached = best <= rec["price"] if rec["side"] == "bid" else best >= rec["price"]
+        return "price_reached" if reached else "removed"
 
     def active(self, now_ts: int | None = None) -> List[dict]:
         now = now_ts if now_ts is not None else (self.last_book.ts if self.last_book else 0)

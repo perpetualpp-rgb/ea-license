@@ -64,6 +64,9 @@ def render(r: dict, label: str) -> str:
                 L.append(f"   {side} {x['price']} size={x['size']:.4f} x{x['mult']:.1f} dist={x['dist_pct']:.2f}% {x['status']} seen={x['seen']} age={x['age_ms']//1000}s growth={x['growth']:+.0%}{p}")
         for e in w["events"][-5:]:
             L.append(f"   event {e['side']} {e['price']} size={e['size']:.4f} -> {e['outcome']} after {e['age_ms']//1000}s")
+        if w["events"]:
+            L.append("   (outcome = where price was when the wall left the book: price_reached / removed / unknown;"
+                     " L2 cannot tell a fill from a cancel)")
     return "\n".join(L)
 
 

@@ -10,16 +10,31 @@ written by ``live.sink.HourlySink`` under ``data_dir``:
 
     trades  [T, aggId, price, qty, takerSold]       every aggTrade (1 = taker sold)
     book    [ts, updateId, mid, [[p, q]...bids], [[p, q]...asks]]
-                                                    local book bucketed within
-                                                    ±window_pct of mid, every second
+                                                    SAMPLED SUMMARY: the local book
+                                                    bucketed within ±window_pct of
+                                                    mid, once a second
     kline   [t, o, h, l, c, v, trades, takerBuyV]   closed 1-minute candles
     mark    [E, mark, index, funding, nextFunding]  futures, every mark_every_s
     oi      [time, openInterest]                    futures, every oi_every_s
     liq     [T, side, price, avgPrice, qty, status] futures liquidation orders
     meta    [ts, event, ...]                         connects, resyncs, gaps, backfills
+    depth   [recv, E, T, U, u, pu, bids, asks]      only with "store_depth_diffs": every
+                                                    raw diff event (prices/sizes as sent)
+    depth_snap [recv, lastUpdateId, bids, asks]     only with "store_depth_diffs": each
+                                                    REST snapshot the book was synced from
 
-Trade ids are continuous per symbol; after a reconnect or restart the missing
-range is fetched over REST so the trade record stays complete.
+The ``book`` stream is a 1 s sample of price buckets: it cannot show what was
+added or cancelled between samples, queue position or single orders. Replaying
+the book at full (100 ms) resolution needs ``store_depth_diffs`` (off by
+default: several GB a day for BTC), which keeps the diffs with their update ids
+and the snapshots they chain from.
+
+Trade ids are continuous per symbol. A missing range goes into a gap ledger
+(saved in state.json with the last trade id) and is fetched over REST; a
+failed request is retried with exponential backoff and the ledger survives a
+restart. Ids that cannot be fetched (beyond BACKFILL_MAX, or absent from the
+exchange's answer) are recorded as unrecoverable, in the ledger and as a
+``trade_gap`` meta row, never skipped silently.
 """
 from __future__ import annotations
 
@@ -32,7 +47,7 @@ import signal
 import sys
 import time
 import urllib.error
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LAB = os.path.dirname(HERE)
@@ -50,7 +65,11 @@ STREAMS = {"spot": ["aggTrade", "depth@100ms", "kline_1m"],
 REST = {"spot": {"depth": "/api/v3/depth", "agg": "/api/v3/aggTrades"},
         "futures": {"depth": "/fapi/v1/depth", "agg": "/fapi/v1/aggTrades", "oi": "/fapi/v1/openInterest"}}
 SNAP_LIMIT = {"spot": 5000, "futures": 1000}
-BACKFILL_MAX = 300_000  # trades recovered per gap; anything beyond is logged as a gap
+BACKFILL_MAX = 300_000  # trades recovered per gap; ids beyond are recorded as unrecoverable
+AGG_PAGE = 1000
+RETRY_BASE_S, RETRY_CAP_S = 1.0, 300.0  # backfill retry delay: base * 2^(attempts-1), capped
+KEEP_UNRECOVERABLE = 50  # ledger entries kept per symbol for the record (the meta stream has all of them)
+BLOCKED = "Binance ปฏิเสธการเชื่อมต่อจากตำแหน่งนี้ (451)"
 
 
 def now_ms() -> int:
@@ -62,14 +81,15 @@ class Blocked(Exception):
 
 
 class Sym:
-    def __init__(self, market: str, symbol: str, book_cfg: dict, last_agg: Optional[int]):
+    def __init__(self, market: str, symbol: str, book_cfg: dict, last_agg: Optional[int], gaps: Optional[list] = None):
         self.market, self.symbol = market, symbol
         self.book = LocalBook(market)
         self.bucket = float(book_cfg.get("bucket", 1.0))
         self.window = float(book_cfg.get("window_pct", 1.0))
         self.last_agg = last_agg
         self.snap_busy = False
-        self.gaps: List[Tuple[int, int]] = []
+        # gap ledger: {lo, hi, next, attempts, status: pending|partial|unrecoverable, last_error, got}
+        self.gaps: List[dict] = [dict(g) for g in gaps or []]
         self.backfilling = False
         self.mark: Optional[list] = None
         self.n = {"trades": 0, "backfilled": 0, "book": 0, "kline": 0, "liq": 0, "lost": 0}
@@ -81,40 +101,57 @@ class Sym:
 
 
 class Collector:
-    def __init__(self, cfg: dict, root: str, state_path: str):
+    def __init__(self, cfg: dict, root: str, state_path: str, clock: Optional[Callable[[], int]] = None):
         self.cfg = cfg
-        self.sink = HourlySink(root)
+        self.clock = clock or now_ms  # every timestamp the collector makes comes from here (tests freeze it)
+        self.sink = HourlySink(root, clock=self.clock)
         self.root = root
         self.state_path = state_path
         state = self._load_state()
+        last, ledger = state.get("last_agg", {}), state.get("gaps", {})
         self.syms: Dict[Tuple[str, str], Sym] = {}
         for market, mc in cfg["markets"].items():
             for s in mc["symbols"]:
-                self.syms[(market, s)] = Sym(market, s, cfg.get("book", {}).get(s, {}), state.get(f"{market}:{s}"))
+                key = f"{market}:{s}"
+                self.syms[(market, s)] = Sym(market, s, cfg.get("book", {}).get(s, {}), last.get(key), ledger.get(key))
+        self.store_depth = bool(cfg.get("store_depth_diffs", False))
         self.stop = asyncio.Event()
         self.reconnects = {m: 0 for m in cfg["markets"]}
         self.connected = {m: False for m in cfg["markets"]}
         self.blocked: Dict[str, str] = {}
-        self.started = time.time()
+        self.started = self.clock()
+        self.retry_base_s, self.retry_cap_s, self.page_pause_s = RETRY_BASE_S, RETRY_CAP_S, 0.25
+        self._tasks: set = set()
 
     # -- state --------------------------------------------------------------------
     def _load_state(self) -> dict:
         try:
             with open(self.state_path, encoding="utf-8") as fh:
-                return json.load(fh).get("last_agg", {})
+                return json.load(fh)
         except (OSError, ValueError):
             return {}
 
     def _save_state(self) -> None:
-        data = {"last_agg": {s.key: s.last_agg for s in self.syms.values() if s.last_agg is not None}, "saved": now_ms()}
+        # checkpoint only what is on disk: the last id and ledger progress must not run ahead of the rows
+        self.sink.sync()
+        data = {"last_agg": {s.key: s.last_agg for s in self.syms.values() if s.last_agg is not None},
+                "gaps": {s.key: s.gaps for s in self.syms.values() if s.gaps}, "saved": self.clock()}
         tmp = self.state_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, self.state_path)
 
     def meta(self, sym: Sym, event: str, *detail) -> None:
-        self.sink.write(sym.market, sym.symbol, "meta", now_ms(), [now_ms(), event, *detail])
+        t = self.clock()
+        self.sink.write(sym.market, sym.symbol, "meta", t, [t, event, *detail])
         log.info("%s %s %s", sym.key, event, " ".join(str(d) for d in detail))
+
+    def _spawn(self, coro) -> None:
+        task = asyncio.get_running_loop().create_task(coro)
+        self._tasks.add(task)  # keep a reference so the task is not garbage-collected mid-run
+        task.add_done_callback(self._tasks.discard)
 
     # -- REST ---------------------------------------------------------------------
     async def rest(self, market: str, name: str, params: dict):
@@ -160,7 +197,7 @@ class Collector:
                 self.reconnects[market] += 1
                 msg = str(e) or type(e).__name__
                 if "451" in msg:
-                    self.blocked[market] = "Binance ปฏิเสธการเชื่อมต่อจากตำแหน่งนี้ (451)"
+                    self.blocked[market] = BLOCKED
                 for s in syms:
                     self.meta(s, "disconnected", msg[:200])
                 await asyncio.sleep(backoff)
@@ -172,16 +209,19 @@ class Collector:
         sym = self.syms.get((market, d.get("s") or (d.get("o") or {}).get("s", "")))
         if sym is None:
             return
-        sym.last_msg = now_ms()
+        sym.last_msg = self.clock()
         e = d.get("e")
         if e == "aggTrade":
             self.on_trade(sym, d)
         elif e == "depthUpdate":
+            if self.store_depth:
+                self.sink.write(market, sym.symbol, "depth", d.get("E") or sym.last_msg,
+                                [sym.last_msg, d.get("E"), d.get("T"), d["U"], d["u"], d.get("pu"), d.get("b", []), d.get("a", [])])
             if not sym.book.on_event(d):
                 self.meta(sym, "book_resync", sym.book.resyncs)
             if not sym.book.synced and not sym.snap_busy:
                 sym.snap_busy = True
-                asyncio.get_running_loop().create_task(self.snapshot(sym))
+                self._spawn(self.snapshot(sym))
         elif e == "kline":
             k = d["k"]
             if k.get("x"):
@@ -201,45 +241,101 @@ class Collector:
             if a <= sym.last_agg:
                 return  # duplicate after a reconnect
             if a > sym.last_agg + 1:
-                sym.gaps.append((sym.last_agg + 1, a - 1))
-                if not sym.backfilling:
-                    sym.backfilling = True
-                    asyncio.get_running_loop().create_task(self.backfill(sym))
+                self.add_gap(sym, sym.last_agg + 1, a - 1)
         self.sink.write(sym.market, sym.symbol, "trades", d.get("E") or d["T"], [d["T"], a, float(d["p"]), float(d["q"]), 1 if d["m"] else 0])
         sym.last_agg = a
         sym.n["trades"] += 1
 
+    # -- trade-id gaps: ledger, REST backfill, retry ----------------------------------
+    def add_gap(self, sym: Sym, lo: int, hi: int) -> None:
+        if hi - lo + 1 > BACKFILL_MAX:
+            self.mark_unrecoverable(sym, lo + BACKFILL_MAX, hi, "beyond BACKFILL_MAX")
+            hi = lo + BACKFILL_MAX - 1
+        sym.gaps.append({"lo": lo, "hi": hi, "next": lo, "attempts": 0, "status": "pending", "last_error": None, "got": 0})
+        self.start_backfill(sym)
+
+    def mark_unrecoverable(self, sym: Sym, lo: int, hi: int, why: str) -> None:
+        sym.n["lost"] += hi - lo + 1
+        sym.gaps.append({"lo": lo, "hi": hi, "next": lo, "attempts": 0, "status": "unrecoverable", "last_error": why, "got": 0})
+        dead = [g for g in sym.gaps if g["status"] == "unrecoverable"]
+        for g in dead[:-KEEP_UNRECOVERABLE]:
+            sym.gaps.remove(g)
+        self.meta(sym, "trade_gap", lo, hi, why)
+
+    def start_backfill(self, sym: Sym) -> None:
+        if not sym.backfilling and any(g["status"] != "unrecoverable" for g in sym.gaps):
+            sym.backfilling = True
+            self._spawn(self.backfill(sym))
+
+    def resume_backfills(self) -> None:
+        """Pick up ranges left in the ledger by an earlier run."""
+        for s in self.syms.values():
+            self.start_backfill(s)
+
+    def retry_delay(self, attempts: int) -> float:
+        return min(self.retry_cap_s, self.retry_base_s * 2 ** max(0, attempts - 1))
+
     async def backfill(self, sym: Sym) -> None:
+        """Work the ledger until every recoverable range is fetched; a failed range is
+        retried after a backoff (other ranges go first) and never dropped."""
+        gap = None
         try:
-            while sym.gaps and not self.stop.is_set():
-                lo, hi = sym.gaps.pop(0)
-                cur, got = lo, 0
-                while cur <= hi and got < BACKFILL_MAX and not self.stop.is_set():
-                    rows = await self.rest(sym.market, "agg", {"symbol": sym.symbol, "fromId": cur, "limit": 1000})
-                    if not rows:
-                        break
-                    for r in rows:
-                        a = int(r["a"])
-                        if a < cur:
-                            continue
-                        if a > hi:
-                            cur = hi + 1
-                            break
-                        self.sink.write(sym.market, sym.symbol, "trades", now_ms(), [r["T"], a, float(r["p"]), float(r["q"]), 1 if r["m"] else 0])
-                        got += 1
-                        cur = a + 1
-                    await asyncio.sleep(0.25)
-                sym.n["backfilled"] += got
-                if cur <= hi:
-                    sym.n["lost"] += hi - cur + 1
-                    self.meta(sym, "trade_gap", cur, hi)
-                self.meta(sym, "backfill", lo, hi, got)
+            while not self.stop.is_set():
+                gap = next((g for g in sym.gaps if g["status"] != "unrecoverable"), None)
+                if gap is None:
+                    return
+                try:
+                    await self._fill(sym, gap)
+                except Blocked:
+                    raise
+                except Exception as e:  # noqa: BLE001 - network, HTTP or an unusable answer: retry later
+                    gap["attempts"] += 1
+                    gap["last_error"] = (str(e) or type(e).__name__)[:200]
+                    self.meta(sym, "backfill_retry", gap["lo"], gap["hi"], gap["next"], gap["attempts"], gap["last_error"])
+                    sym.gaps.remove(gap)
+                    sym.gaps.append(gap)
+                    await self._sleep(self.retry_delay(gap["attempts"]))
         except Blocked:
-            self.blocked[sym.market] = "Binance ปฏิเสธการเชื่อมต่อจากตำแหน่งนี้ (451)"
-        except Exception as e:  # noqa: BLE001
-            self.meta(sym, "backfill_error", str(e)[:200])
+            self.blocked[sym.market] = BLOCKED
+            if gap is not None:
+                gap["last_error"] = "451"  # stays in the ledger; the next start tries again
         finally:
             sym.backfilling = False
+
+    async def _fill(self, sym: Sym, gap: dict) -> None:
+        while gap["next"] <= gap["hi"] and not self.stop.is_set():
+            rows = await self.rest(sym.market, "agg", {"symbol": sym.symbol, "fromId": gap["next"], "limit": AGG_PAGE})
+            if not rows:
+                raise LookupError(f"empty answer from id {gap['next']}")
+            before = gap["next"]
+            self._take_page(sym, gap, rows)
+            if gap["next"] == before:
+                raise LookupError(f"no ids at or after {before} in the answer")
+            if self.page_pause_s:
+                await asyncio.sleep(self.page_pause_s)
+        if gap["next"] > gap["hi"]:
+            sym.gaps.remove(gap)
+            self.meta(sym, "backfill", gap["lo"], gap["hi"], gap["got"])
+
+    def _take_page(self, sym: Sym, gap: dict, rows: list) -> None:
+        for r in rows:
+            if gap["next"] > gap["hi"]:
+                break
+            a = int(r["a"])
+            if a < gap["next"]:
+                continue
+            if a > gap["hi"]:
+                # aggTrade ids are consecutive; ids the exchange skipped cannot be fetched
+                self.mark_unrecoverable(sym, gap["next"], gap["hi"], "missing from exchange answer")
+                gap["next"] = gap["hi"] + 1
+                break
+            if a > gap["next"]:
+                self.mark_unrecoverable(sym, gap["next"], a - 1, "missing from exchange answer")
+            self.sink.write(sym.market, sym.symbol, "trades", self.clock(), [r["T"], a, float(r["p"]), float(r["q"]), 1 if r["m"] else 0])
+            gap["got"] += 1
+            sym.n["backfilled"] += 1
+            gap["next"] = a + 1
+        gap["status"] = "partial" if gap["next"] > gap["lo"] else "pending"
 
     async def snapshot(self, sym: Sym) -> None:
         try:
@@ -249,11 +345,14 @@ class Collector:
                     return
                 snap = await self.rest(sym.market, "depth", {"symbol": sym.symbol, "limit": SNAP_LIMIT[sym.market]})
                 if sym.book.load_snapshot(snap):
+                    if self.store_depth:
+                        t = self.clock()
+                        self.sink.write(sym.market, sym.symbol, "depth_snap", t, [t, int(snap["lastUpdateId"]), snap["bids"], snap["asks"]])
                     self.meta(sym, "book_synced", int(snap["lastUpdateId"]))
                     return
             self.meta(sym, "book_sync_failed")
         except Blocked:
-            self.blocked[sym.market] = "Binance ปฏิเสธการเชื่อมต่อจากตำแหน่งนี้ (451)"
+            self.blocked[sym.market] = BLOCKED
         except Exception as e:  # noqa: BLE001
             self.meta(sym, "snapshot_error", str(e)[:200])
         finally:
@@ -265,7 +364,7 @@ class Collector:
         mark_every = float(self.cfg.get("mark_every_s", 5)) * 1000
         last_mark: Dict[str, int] = {}
         while not self.stop.is_set():
-            t = now_ms()
+            t, started = self.clock(), time.monotonic()
             for s in self.syms.values():
                 if s.book.synced:
                     b = s.book.buckets(s.bucket, s.window)
@@ -277,7 +376,7 @@ class Collector:
                     self.sink.write(s.market, s.symbol, "mark", s.mark[0], s.mark)
                     last_mark[s.key] = t
             self.sink.flush()
-            await self._sleep(every - (time.time() * 1000 - t) / 1000)
+            await self._sleep(every - (time.monotonic() - started))
 
     async def oi_loop(self) -> None:
         every = float(self.cfg.get("oi_every_s", 60))
@@ -289,18 +388,18 @@ class Collector:
                     r = await self.rest("futures", "oi", {"symbol": s.symbol})
                     self.sink.write("futures", s.symbol, "oi", int(r["time"]), [int(r["time"]), float(r["openInterest"])])
                 except Blocked:
-                    self.blocked["futures"] = "Binance ปฏิเสธการเชื่อมต่อจากตำแหน่งนี้ (451)"
+                    self.blocked["futures"] = BLOCKED
                 except Exception as e:  # noqa: BLE001
                     log.warning("oi %s: %s", s.symbol, e)
             await self._sleep(every)
 
     async def status_loop(self) -> None:
-        last_log = 0.0
+        last_log = -60.0
         while not self.stop.is_set():
             self.write_status()
             self._save_state()
-            if time.time() - last_log >= 60:
-                last_log = time.time()
+            if time.monotonic() - last_log >= 60:
+                last_log = time.monotonic()
                 for s in self.syms.values():
                     log.info("%s trades=%d backfilled=%d lost=%d book=%s rows=%d klines=%d liq=%d",
                              s.key, s.n["trades"], s.n["backfilled"], s.n["lost"], "ok" if s.book.synced else "sync…",
@@ -310,12 +409,14 @@ class Collector:
             await self._sleep(10)
 
     def write_status(self) -> None:
-        t = now_ms()
-        status = {"updated": t, "uptime_s": int(time.time() - self.started), "rows_written": self.sink.rows,
+        t = self.clock()
+        status = {"updated": t, "uptime_s": int((t - self.started) / 1000), "rows_written": self.sink.rows,
                   "connected": self.connected, "reconnects": self.reconnects, "blocked": self.blocked,
                   "symbols": {s.key: {"last_msg_age_s": round((t - s.last_msg) / 1000, 1) if s.last_msg else None,
                                       "book_synced": s.book.synced, "book_resyncs": s.book.resyncs,
-                                      "last_agg_id": s.last_agg, "pending_gaps": len(s.gaps), **s.n}
+                                      "last_agg_id": s.last_agg,
+                                      "pending_gaps": sum(g["status"] != "unrecoverable" for g in s.gaps),
+                                      "gaps": s.gaps, **s.n}
                               for s in self.syms.values()}}
         os.makedirs(self.root, exist_ok=True)
         tmp = os.path.join(self.root, "status.json.tmp")
@@ -342,10 +443,12 @@ class Collector:
                 pass  # Windows: Ctrl-C raises KeyboardInterrupt instead
         tasks = [asyncio.create_task(self.market_loop(m)) for m in self.cfg["markets"]]
         tasks += [asyncio.create_task(c) for c in (self.sampler(), self.oi_loop(), self.status_loop())]
+        self.resume_backfills()
         if minutes:
             loop.call_later(minutes * 60, self.stop.set)
         await self.stop.wait()
         await asyncio.sleep(0.5)
+        tasks += list(self._tasks)
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)

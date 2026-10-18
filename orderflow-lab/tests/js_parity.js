@@ -12,6 +12,12 @@ process.stdin.on("end", () => {
   let out;
   if (req.mode === "bars") {
     out = OF.summarizeBars(req.bars, req.tick, req.round_step);
+  } else if (req.mode === "book_lost") {
+    // same tracker settings as tests/test_js_parity.py: defaults with merge gap = tick
+    const tr = new OF.WallTracker(req.tick, { mergeGap: req.tick });
+    for (const b of req.books) tr.update(b);
+    process.stdout.write(JSON.stringify(tr.bookLost(req.ts)));
+    return;
   } else {
     out = OF.summarizeTrades(req.trades, req.books, req.tick, req.round_step, req.interval_ms,
                              0.70, 0.30, 0.99, 0, 4.0, 200, 60000, 1.0);

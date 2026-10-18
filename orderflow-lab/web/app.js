@@ -14,7 +14,7 @@
   ];
   const POLL_MS = 5000, KEEP_MS = 4 * 3600 * 1000, BOOK_DEPTH = 200;
   const TH = {
-    status: { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", filled: "ราคาถึง", pulled: "ถอนก่อน" },
+    status: { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" },
     pos: { above: "เหนือ VWAP", below: "ใต้ VWAP", expensive: "แพง (เกิน +2σ)", cheap: "ถูก (ต่ำกว่า −2σ)", at_vwap: "ที่ VWAP" },
     shape: { flat: "แถบแบน · ตลาดแกว่ง", expanding: "แถบขยายเร็ว · อย่าสวน", widening: "แถบกว้างขึ้น" },
     div: { bearish: "ราคาทำจุดสูงใหม่ แต่ CVD ไม่ตาม", bullish: "ราคาทำจุดต่ำใหม่ แต่ CVD ไม่ตาม" },

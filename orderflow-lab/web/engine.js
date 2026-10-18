@@ -249,17 +249,28 @@
         if (rec.misses > this.missLimit) {
           this.walls.delete(key);
           if (rec.seen < this.minSeen) continue;
-          const ev = { ...rec, outcome: this._outcome(rec, book), ended_ts: book.ts, age_ms: rec.last_ts - rec.first_ts };
-          this._events.push(ev); events.push(ev);
+          events.push(this._end(rec, this._outcome(rec, book), book.ts));
         }
       }
       this.lastBook = book;
       return events;
     }
+    // the book feed broke: what happened to the walls meanwhile cannot be seen
+    bookLost(ts) {
+      const ended = [...this.walls.values()].filter(rec => rec.seen >= this.minSeen).map(rec => this._end(rec, "unknown", ts));
+      this.walls.clear();
+      return ended;
+    }
+    _end(rec, outcome, ts) {
+      const ev = { ...rec, outcome, ended_ts: ts, age_ms: rec.last_ts - rec.first_ts };
+      this._events.push(ev);
+      return ev;
+    }
+    // what the L2 book showed at removal, never whether the size was executed or cancelled
     _outcome(rec, book) {
-      const touched = rec.side === "bid" ? (bestBid(book) !== null && bestBid(book) <= rec.price)
-                                         : (bestAsk(book) !== null && bestAsk(book) >= rec.price);
-      return touched ? "filled" : "pulled";
+      const best = rec.side === "bid" ? bestBid(book) : bestAsk(book);
+      if (best === null) return "unknown";
+      return (rec.side === "bid" ? best <= rec.price : best >= rec.price) ? "price_reached" : "removed";
     }
     active(nowTs) {
       const now = nowTs ?? (this.lastBook ? this.lastBook.ts : 0);
