@@ -10,8 +10,8 @@ const OUT = path.join(__dirname, "..", "data");
     let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     const now = Date.now(), IV = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400 };
     const base = sym => sym === "XAUUSDT" ? 4167.5 : 81900, stepOf = sym => sym === "XAUUSDT" ? 1.2 : 60;
-    const kc = {}, klines = (sym, iv, n) => kc[sym + iv + n] || (kc[sym + iv + n] = klinesGen(sym, iv, n));
-    const klinesGen = (sym, iv, n) => { const sec = IV[iv], st = stepOf(sym) * Math.sqrt(sec / 300); let p = base(sym) - st * 3; const out = []; const t0 = Math.floor(now / 1000 / sec) * sec - (n - 1) * sec;
+    const kc = {}, klines = (sym, iv, n, end) => kc[sym + iv + n + (end || "")] || (kc[sym + iv + n + (end || "")] = klinesGen(sym, iv, n, end));
+    const klinesGen = (sym, iv, n, end) => { const sec = IV[iv], st = stepOf(sym) * Math.sqrt(sec / 300); let p = base(sym) - st * 3; const out = []; const t0 = Math.floor((end ? end + 1 : now) / 1000 / sec) * sec - (end ? n : n - 1) * sec;
       for (let i = 0; i < n; i++) { const o = p, c = o + (r() - 0.5) * st * 2, h = Math.max(o, c) + r() * st * 0.6, l = Math.min(o, c) - r() * st * 0.6, v = (sym === "XAUUSDT" ? 40 : 15) * (0.3 + r() * 2 + (r() < 0.04 ? 6 : 0)), bv = v * (0.25 + r() * 0.5);
         out.push([(t0 + i * sec) * 1000, o, h, l, c, v.toFixed(3), (t0 + i * sec + sec) * 1000 - 1, "0", 100, bv.toFixed(3), "0", "0"]); p = c; }
       const d = base(sym) - out[out.length - 1][4]; for (const k of out) for (const j of [1, 2, 3, 4]) k[j] = (k[j] + d).toFixed(2);
@@ -24,7 +24,7 @@ const OUT = path.join(__dirname, "..", "data");
     const agg = (sym, a) => { const out = [], n = 150; let start = a.fromId != null ? a.fromId : id[sym] - 999; const end = Math.min(start + (a.limit || 500), id[sym] + n);
       for (let k = start; k < end; k++) { const big = r() < 0.03; out.push({ a: k, p: (base(sym) + (r() - 0.5) * stepOf(sym) * 4).toFixed(2), q: (big ? (sym === "XAUUSDT" ? 5 + r() * 40 : 0.5 + r() * 4) : r() * 0.3).toFixed(3), f: k, l: k, T: Date.now() - (end - k) * 40, m: r() < 0.5 }); }
       id[sym] = Math.max(id[sym], end); return out; };
-    const bin = (tool, a) => { if (/klines|klineCandlestick/i.test(tool)) return klines(a.symbol, a.interval, a.limit); if (/depth|orderBook/.test(tool)) return depth(a.symbol);
+    const bin = (tool, a) => { if (/klines|klineCandlestick/i.test(tool)) return klines(a.symbol, a.interval, a.limit, a.endTime); if (/depth|orderBook/.test(tool)) return depth(a.symbol);
       if (/ggTrades|AggregateTrades/.test(tool)) return agg(a.symbol, a);
       if (tool === "futures_usds.openInterestStatistics") return Array.from({ length: a.limit }, (_, i) => ({ symbol: a.symbol, sumOpenInterest: String(131000 + i * 3 + r() * 50), sumOpenInterestValue: String(5.4e8 + i * 1e4), timestamp: now - (a.limit - 1 - i) * 300000 }));
       if (tool === "futures_usds.markPrice") return { symbol: a.symbol, markPrice: "4167.9", lastFundingRate: "0.00010000", nextFundingTime: now + 3 * 3600000, time: now };
@@ -45,7 +45,7 @@ const OUT = path.join(__dirname, "..", "data");
       store.set("data/users/u1/journal/trades/seed", { inst: "xau", style: "day", side: "buy", created: bars[k][0] + 300000, entry, stop: L - 0.5, risk: entry - (L - 0.5), tp1: entry + (H - entry) * 0.5, tp2: H + 3,
         tp1Name: "x", tp2Name: "y", zoneLo: entry - 1, zoneHi: entry, names: "seed", trend: true, bias: "x", status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null }); }
     window.claude = { use: async n => n === "db" ? db : n === "user" ? { id: async () => "u1" } : n !== "mcp" ? null : ({
-      callTool: async (srv, tool, input) => { window.__calls.push(srv + ":" + tool + ":" + (input.toolName || "")); if (srv === "Binance" && tool === "tool_execute") return { payload: bin(input.toolName, input.arguments) }; throw { code: "not_in_manifest" }; },
+      callTool: async (srv, tool, input) => { window.__calls.push(srv + ":" + tool + ":" + (input.toolName || "") + (input.arguments && input.arguments.endTime ? ":endTime" : "")); if (srv === "Binance" && tool === "tool_execute") return { payload: bin(input.toolName, input.arguments) }; throw { code: "not_in_manifest" }; },
       watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
           { date: new Date(now + 50 * 60000).toISOString(), title: "Core Inflation Rate MoM", importance: 1, forecast: 0.3, previous: 0.3, actual: null, unit: "%", period: "Sep" },
           { date: new Date(now + 5 * 3600000).toISOString(), title: "Housing Starts", importance: 0, forecast: 1.3, previous: 1.275, actual: null, scale: "M" }] } } });
@@ -59,6 +59,7 @@ const OUT = path.join(__dirname, "..", "data");
     const ctx = await b.newContext(o); const p = await ctx.newPage();
     p.on("pageerror", e => errs.push(name + ": " + e.message)); p.on("console", m => { if (m.type() === "error" && !/ERR_FAILED/.test(m.text())) errs.push(name + ": " + m.text()); });
     await p.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    if (process.env.LWC_FILE) await p.route(/unpkg\.com\/lightweight-charts/, r => r.fulfill({ path: process.env.LWC_FILE, contentType: "application/javascript" }));
     await p.goto("file://" + path.join(OUT, "desk-preview.html"));
     // advance through several depth/trade polls so walls become persistent
     await p.waitForTimeout(3500);
@@ -68,6 +69,15 @@ const OUT = path.join(__dirname, "..", "data");
     if (name === "light") {
       await p.click('#segMode button[data-k="gc"]'); await p.waitForTimeout(300); console.log("mode gc last:", await p.textContent("#strip .q.hl .v"));
       await p.click('#segMode button[data-k="native"]'); await p.waitForTimeout(200);
+      // drag the chart right and zoom out until the left edge asks for older candles
+      await p.locator("#lwMain").scrollIntoViewIfNeeded(); await p.waitForTimeout(200);
+      const box = await p.locator("#lwMain").boundingBox(), cx = box.x + box.width / 2, cy = box.y + box.height * 0.35;
+      const legend0 = await p.textContent("#lwLegend");
+      await p.mouse.move(cx, cy); for (let k = 0; k < 6; k++) await p.mouse.wheel(0, 400);
+      for (let k = 0; k < 3; k++) { await p.mouse.move(box.x + 100, cy); await p.mouse.down(); await p.mouse.move(box.x + box.width - 120, cy, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(500); }
+      await p.mouse.move(box.x + 120, cy); await p.waitForTimeout(200);
+      console.log("legend", legend0.slice(0, 60), "->", (await p.textContent("#lwLegend")).slice(0, 60));
+      console.log("history calls", await p.evaluate(() => window.__calls.filter(c => c.endsWith(":endTime")).length));
       await p.screenshot({ path: path.join(OUT, "desk-xau.png"), fullPage: true });
       await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-day.png") });
       await p.click('#segPlan button[data-k="swing"]'); await p.waitForTimeout(200); await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-swing.png") });

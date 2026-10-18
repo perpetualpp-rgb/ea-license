@@ -100,8 +100,11 @@
   .tg button { padding: 3px 9px; font-size: 0.76rem; border-radius: 999px; color: var(--ink-2); }
   .tg button[aria-pressed="true"] { border-color: var(--assist-line); color: var(--ink); background: var(--raised); }
   canvas { display: block; width: 100%; }
-  #cvMain { height: 480px; } #cvVol, #cvBig { height: 300px; } #cvCvd { height: 150px; } #cvCot { height: 260px; }
-  @media (max-width: 600px) { #cvMain { height: 360px; } }
+  #cvVol, #cvBig { height: 300px; } #cvCot { height: 260px; }
+  .lw { position: relative; height: 600px; } @media (max-width: 600px) { .lw { height: 470px; } }
+  .lwleg { position: absolute; left: 8px; top: 6px; z-index: 3; pointer-events: none; font: 12px/1.45 var(--f-data); color: var(--ink-2); background: color-mix(in srgb, var(--surface) 82%, transparent); padding: 2px 6px; border-radius: 6px; max-width: calc(100% - 90px); }
+  .lwleg b { color: var(--ink); font-weight: 600; }
+  @media (max-width: 600px) { .lwleg { font-size: 10.5px; max-width: calc(100% - 80px); } .lwleg .l2 { display: none; } }
   .overlay { position: absolute; inset: 64px 14px 14px; display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 12px; background: var(--surface); }
   .overlay p { max-width: 52ch; margin: 0 0 10px; }
   .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 6px 9px; border-radius: 8px; font-size: 12px; line-height: 1.45; white-space: nowrap; z-index: 2; font-family: var(--f-data); }
@@ -180,20 +183,16 @@
     <h2><span id="mainTitle">Wall + Order</span><span class="hint" id="mainHint"></span></h2>
     <div class="legend">
       <span class="tg" id="tgLayers"></span>
-      <span><i class="sw up"></i>ขึ้น</span><span><i class="sw down"></i>ลง</span>
-      <span><i class="sw wall"></i>Wall (ทึบ = BID, กลวง = ASK, จาง = ยังใหม่)</span>
-      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ–3σ</span>
-      <span><i class="sw ztop"></i>Top</span><span><i class="sw magnet"></i>Magnet + POC</span><span><i class="sw zbot"></i>Bottom</span>
-      <span><i class="sw round"></i>เลขกลม</span><span><i class="sw bub"></i>ไม้ใหญ่ (ทึบ = ซื้อ, กลวง = ขาย)</span>
+      <button type="button" id="btnLive">⇥ แท่งล่าสุด</button><button type="button" id="btnFit">รีเซ็ตมุมมอง</button>
+      <span class="hint">ลากเพื่อเลื่อน · ล้อเมาส์หรือบีบนิ้วเพื่อซูม · ลากแกนราคาเพื่อยืดหด · ลากเส้นคั่นเพื่อปรับขนาดแผง CVD · เลื่อนไปซ้ายสุดเพื่อโหลดแท่งเก่า</span>
     </div>
-    <canvas id="cvMain" role="img" aria-label="กราฟราคาพร้อมกำแพงออเดอร์ ไม้ใหญ่ Assist และ Range ตัวเลขอยู่ในบันไดราคาและ Order Book"></canvas>
+    <div class="legend">
+      <span><i class="sw wall"></i>Wall (ทึบ = ยืนนาน, ประ = ใหม่, หนา = ใหญ่)</span><span><i class="sw bub"></i>ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย)</span>
+      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span>
+    </div>
+    <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
+    <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span></div>
     <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
-    <div class="tip" id="tip" hidden></div>
-  </section>
-
-  <section class="card">
-    <h2>CVD <span class="tag" id="tagCvd"></span><span class="hint" id="cvdHint"></span></h2>
-    <canvas id="cvCvd" role="img" aria-label="กราฟ Cumulative Volume Delta"></canvas>
   </section>
 
   <section class="card" aria-label="แผนเทรด">
@@ -263,9 +262,10 @@
   </section>
 
   <p class="note" id="noteSrc"></p>
-  <footer>Binance และ TradingView ถูกเรียกผ่าน connector ในบัญชีของคุณตอนเปิดหน้า หน้าเรียกเฉพาะข้อมูลตลาด (แท่งเทียน, order book, รายการซื้อขาย, ราคา) ไม่มีคำสั่งซื้อขายหรือโอนเงิน และไม่เก็บข้อมูลไว้ในหน้า · ข้อมูล TradingView ใช้ดูส่วนตัวเท่านั้น อย่าแชร์หน้านี้ · ราคาทองไทยเป็นค่าประมาณจากสปอต × USDTHB × 0.4729 (96.5%, 15.244 กรัม) ไม่รวมพรีเมียม · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</footer>
+  <footer>Binance และ TradingView ถูกเรียกผ่าน connector ในบัญชีของคุณตอนเปิดหน้า หน้าเรียกเฉพาะข้อมูลตลาด (แท่งเทียน, order book, รายการซื้อขาย, ราคา) ไม่มีคำสั่งซื้อขายหรือโอนเงิน และไม่เก็บข้อมูลไว้ในหน้า · ข้อมูล TradingView ใช้ดูส่วนตัวเท่านั้น อย่าแชร์หน้านี้ · ราคาทองไทยเป็นค่าประมาณจากสปอต × USDTHB × 0.4729 (96.5%, 15.244 กรัม) ไม่รวมพรีเมียม · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน · กราฟโดย <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a> (Apache-2.0)</footer>
 </div>
 
+<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 /* Order Flow Lab engine — JavaScript port of orderflow-lab/engine/*.py.
  *
@@ -666,23 +666,24 @@
   };
   const TF = { "1m": ["1m", 600], "5m": ["5m", 576], "15m": ["15m", 400], "30m": ["30m", 300], "1H": ["1h", 300], "4H": ["4h", 240], "1D": ["1D", 180] };
   const TF_SEC = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "4H": 14400, "1D": 86400 };
+  const TV_IV = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" };
   const INTRADAY = new Set(["1m", "5m", "15m", "30m", "1H"]);
   const MODES = [["native", "ราคาตลาดนี้"], ["gc", "เทียบ GC"], ["spot", "เทียบ Spot"], ["thb", "ทองไทย ฿"]];
-  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"]];
+  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"]];
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", filled: "ราคาถึง", pulled: "ถอนหนี" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
   const ui = { size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
-               layers: Object.assign({ wall: true, big: true, assist: true, range: true, round: true }, store.get("layers", {})), hover: null };
+               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true }, store.get("layers", {})), hover: null };
   const $ = id => document.getElementById(id);
   const I = () => INSTR[ui.inst] || INSTR.xau;
   const bigMin = () => { const ins = I(); return ins.src === "bin" ? (ui.big[ins.key] ?? ins.bigDef) : null; };
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { cal: [], calLoaded: false, journal: [], armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, journal: [], armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -694,7 +695,7 @@
   const fClock = ms => new Date(ms).toLocaleString("th-TH", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const fAge = ms => ms >= 3600000 ? (ms / 3600000).toFixed(1) + " ชม." : ms >= 60000 ? Math.round(ms / 60000) + " นาที" : Math.round(ms / 1000) + " วิ";
   function tok() { const c = getComputedStyle(document.documentElement), g = n => c.getPropertyValue(n).trim();
-    return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), buy: g("--buy"), sell: g("--sell"), vwap: g("--vwap"),
+    return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), buy: g("--buy"), sell: g("--sell"), vwap: g("--vwap"), assistLine: g("--assist-line"),
              assist: g("--assist"), ztop: g("--zone-top"), zbot: g("--zone-bot"), brass: g("--brass"), brassSoft: g("--brass-soft"), profile: g("--profile"), profileVa: g("--profile-va") }; }
   const FONT = "11px 'IBM Plex Mono', ui-monospace, monospace";
   function setTag(id, real) { const el = $(id); el.className = "tag " + (real ? "real" : "approx"); el.textContent = real ? "ข้อมูลจริง" : "ประมาณจากแท่ง"; }
@@ -808,80 +809,135 @@
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bars[m].t <= tsSec) lo = m; else hi = m - 1; } return lo; }
   function vwapSeries(bs, ins) { if (!INTRADAY.has(ui.tf)) return OF.vwapBands(bs, [1, 2, 3]); const out = []; for (const seg of sessions(bs, ins)) out.push(...OF.vwapBands(seg, [1, 2, 3])); return out; }
 
-  // ---- main chart: Wall + Order -------------------------------------------------------------
-  function drawMain() {
-    const cv = $("cvMain"), { ctx, w, h } = sized(cv); if (!S.chart.length) return;
-    const T = tok(), ins = I(), xf = X(), bs = visBars(), n = bs.length, intraday = INTRADAY.has(ui.tf), narrow = w < 560;
-    const walls = ins.src === "bin" && ui.layers.wall && S.tracker ? S.tracker.active() : [];
-    const wallW = walls.length ? (narrow ? 44 : Math.min(150, Math.max(100, w * 0.13))) : 0;
-    const padL = narrow ? 58 : 70, plot = { l: padL, r: w - (narrow ? 40 : 64) - wallW, t: 10, b: h - 24 }, ws = { l: plot.r + 6, r: plot.r + 6 + wallW - 8 };
-    let lo = Math.min(...bs.map(b => b.l)), hi = Math.max(...bs.map(b => b.h)); const span = hi - lo || 1;
-    const inView = walls.filter(x => x.price >= lo - span * 0.35 && x.price <= hi + span * 0.35);
-    for (const x of inView) { lo = Math.min(lo, x.price); hi = Math.max(hi, x.price); }
-    const pad = (hi - lo || 1) * 0.05; lo -= pad; hi += pad;
-    const yOf = yAxis(ctx, lo, hi, plot.t, plot.b, padL - 8, "right", xf, [plot.l, plot.r]);
-    const bw = (plot.r - plot.l) / n, xOf = i => plot.l + (i + 0.5) * bw;
-    ctx.save(); ctx.beginPath(); ctx.rect(plot.l, plot.t, plot.r - plot.l, plot.b - plot.t); ctx.clip();
-    const pr = D && D.pr;
-    if (ui.layers.range && pr) {
-      const i0 = intraday && D ? bs.findIndex(b => b.t >= D.cur[0].t) : 0, x0 = i0 > 0 ? xOf(i0) - bw / 2 : plot.l;
-      band(ctx, x0, plot.r, yOf(pr.vah), yOf(pr.yhi), T.ztop); band(ctx, x0, plot.r, yOf(pr.ylo), yOf(pr.val), T.zbot);
-      band(ctx, x0, plot.r, yOf(pr.mlo), yOf(pr.mhi), T.brassSoft); hl(ctx, x0, plot.r, yOf(pr.poc), T.brass, 1.5, [6, 4]);
-      hl(ctx, x0, plot.r, yOf(pr.yhi), T.sell, 1); hl(ctx, x0, plot.r, yOf(pr.ylo), T.buy, 1);
-    }
-    const vsAll = vwapSeries(S.chart, ins), vs = vsAll.length === S.chart.length ? vsAll.slice(-n) : [];
-    if (ui.layers.assist && vs.length === n) {
-      for (const up of [true, false]) { ctx.fillStyle = T.assist; ctx.beginPath();
-        vs.forEach((p, i) => { const y = yOf(up ? p.bands[3][1] : p.bands[3][0]); i ? ctx.lineTo(xOf(i), y) : ctx.moveTo(xOf(i), y); });
-        for (let i = n - 1; i >= 0; i--) ctx.lineTo(xOf(i), yOf(up ? vs[i].bands[2][1] : vs[i].bands[2][0])); ctx.closePath(); ctx.fill(); }
-      ctx.strokeStyle = T.vwap; ctx.lineWidth = 1.6; ctx.beginPath();
-      vs.forEach((p, i) => (i && !(intraday && sessStart(bs, i, ins))) ? ctx.lineTo(xOf(i), yOf(p.vwap)) : ctx.moveTo(xOf(i), yOf(p.vwap))); ctx.stroke();
-    }
-    if (ui.layers.round) { const dlo = xf.a * lo + xf.b, dhi = xf.a * hi + xf.b;
-      for (let d = Math.ceil(Math.min(dlo, dhi) / xf.step) * xf.step; d <= Math.max(dlo, dhi); d += xf.step) hl(ctx, plot.l, plot.r, yOf((d - xf.b) / xf.a), T.axis, 1, [5, 4]); }
-    const body = Math.max(1, Math.min(9, bw * 0.66));
-    bs.forEach((b, i) => { const x = xOf(i), up = b.c >= b.o, col = up ? T.buy : T.sell;
-      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, yOf(b.h)); ctx.lineTo(Math.round(x) + 0.5, yOf(b.l)); ctx.stroke();
-      if (body < 3) return; const y0 = yOf(Math.max(b.o, b.c)), y1 = Math.max(y0 + 1, yOf(Math.min(b.o, b.c)));
-      if (up) { ctx.fillStyle = col; ctx.fillRect(x - body / 2, y0, body, y1 - y0); } else { ctx.fillStyle = T.surface; ctx.fillRect(x - body / 2, y0, body, y1 - y0); ctx.lineWidth = 1.2; ctx.strokeRect(x - body / 2 + 0.5, y0 + 0.5, body - 1, Math.max(1, y1 - y0 - 1)); } });
-    // walls extend across the plot as faint lines so price can be read against them
-    if (walls.length) for (const x of inView) hl(ctx, plot.l, plot.r, yOf(x.price), x.side === "bid" ? T.buy : T.sell, 1, x.persistent ? null : [2, 4]);
-    // big trades (exact, from the trade tape)
-    if (ui.layers.big && ins.src === "bin") {
-      const thr = bigMin(), big = S.trades.filter(t => t.size >= thr), mx = Math.max(thr, ...big.map(t => t.size));
-      for (const t of big) { const i = barIndexAt(bs, t.ts / 1000); if (i < 0) continue; const r = 3 + 9 * Math.sqrt(t.size / mx), x = xOf(i), y = yOf(t.price);
-        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, 7); ctx.fillStyle = T.surface; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
-        if (t.side === "buy") { ctx.globalAlpha = 0.8; ctx.fillStyle = T.buy; ctx.fill(); ctx.globalAlpha = 1; } else { ctx.strokeStyle = T.sell; ctx.lineWidth = 2; ctx.stroke(); } }
-    } else if (ui.layers.big) {
-      const thr = p95(bs.map(b => b.v)), mx = Math.max(1e-9, ...bs.map(b => b.v));
-      bs.forEach((b, i) => { if (b.v < thr || b.v <= 0) return; const d = delta(b), r = 3 + 9 * Math.sqrt(b.v / mx), x = xOf(i), y = yOf((b.h + b.l + b.c) / 3);
-        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, 7); ctx.fillStyle = T.surface; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
-        if (d >= 0) { ctx.globalAlpha = 0.8; ctx.fillStyle = T.buy; ctx.fill(); ctx.globalAlpha = 1; } else { ctx.strokeStyle = T.sell; ctx.lineWidth = 2; ctx.stroke(); } });
-    }
-    ctx.restore();
-    // walls strip on the right
-    if (walls.length) {
-      const mx = Math.max(...inView.map(x => x.size), 1e-9); ctx.font = FONT; ctx.textBaseline = "middle";
-      for (const x of inView) { const y = yOf(x.price), len = Math.max(4, (ws.r - ws.l - (narrow ? 0 : 52)) * x.size / mx), bh = 7, col = x.side === "bid" ? T.buy : T.sell;
-        ctx.globalAlpha = x.persistent ? 1 : 0.5;
-        if (x.side === "bid") { ctx.fillStyle = col; ctx.fillRect(ws.l, y - bh / 2, len, bh); } else { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(ws.l + 0.5, y - bh / 2 + 0.5, len - 1, bh - 1); }
-        ctx.globalAlpha = 1; ctx.fillStyle = T.ink2; ctx.textAlign = "left";
-        if (!narrow) ctx.fillText(`${x.side === "bid" ? "Bid" : "Ask"} ${fmtV(x.size)}`, ws.l + len + 4, y); }
-    }
-    // range labels
-    ctx.font = FONT; ctx.textBaseline = "middle"; ctx.textAlign = "left";
-    if (ui.layers.range && pr) for (const [p, t, c] of [[pr.yhi, "Y-Hi", T.sell], [pr.vah, "Top", T.muted], [pr.poc, "POC", T.brass], [pr.val, "Bottom", T.muted], [pr.ylo, "Y-Lo", T.buy]]) {
-      const y = yOf(p); if (y > plot.t && y < plot.b) { ctx.fillStyle = c; ctx.fillText(t, plot.r + 4 + wallW, y); } }
-    const last = bs[n - 1].c, yl = yOf(last); hl(ctx, plot.l, plot.r, yl, T.ink2, 1);
-    const tag = fmt(xf.a * last + xf.b, narrow ? Math.min(1, xf.dec) : xf.dec), tw = ctx.measureText(tag).width + 10; ctx.fillStyle = T.ink; ctx.fillRect(padL - tw - 4, yl - 9, tw, 18);
-    ctx.fillStyle = T.surface; ctx.textAlign = "right"; ctx.fillText(tag, padL - 9, yl);
-    ctx.fillStyle = T.muted; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; const every = Math.max(1, Math.ceil(84 / bw));
-    for (let i = n - 1; i >= 0; i -= every) ctx.fillText(intraday ? fT(bs[i].t) : new Date(bs[i].t * 1000).toLocaleDateString("th-TH", { day: "numeric", month: "short" }), Math.min(plot.r - 18, Math.max(plot.l + 18, xOf(i))), h - 6);
-    if (ui.hover) { const x = xOf(ui.hover.i); ctx.save(); ctx.strokeStyle = T.axis; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, plot.t); ctx.lineTo(x, plot.b); ctx.stroke(); ctx.restore(); hl(ctx, plot.l, plot.r, ui.hover.y, T.axis, 1, [3, 3]); }
-    cv._L = { plot, bw, n, lo, hi, xf, vs, walls: inView, ws };
+  // ---- interactive chart: TradingView Lightweight Charts (drag, zoom, crosshair, panes) ----------
+  const LW = window.LightweightCharts, TZ = -new Date().getTimezoneOffset() * 60; // the time axis shows local time
+  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, markers: null, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
+  const lt = t => t + TZ;
+  function alpha(hex, a) { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+  function initChart() {
+    if (!LW) { $("lwMain").innerHTML = `<p class="empty">โหลดไลบรารีกราฟไม่สำเร็จ ลองรีเฟรชหน้า</p>`; return; }
+    C.chart = LW.createChart($("lwMain"), { autoSize: true,
+      layout: { fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: 11, attributionLogo: true },
+      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7, shiftVisibleRangeOnNewBar: true },
+      crosshair: { mode: LW.CrosshairMode.Normal }, handleScroll: { vertTouchDrag: false } });
+    const price = { type: "custom", minMove: 0.01, formatter: p => fmt(p, X().dec) }, quiet = { lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false };
+    C.candles = C.chart.addSeries(LW.CandlestickSeries, { priceFormat: price });
+    C.candles.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.2 } });
+    C.vol = C.chart.addSeries(LW.HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, ...quiet });
+    C.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+    C.vwap = C.chart.addSeries(LW.LineSeries, { lineWidth: 2, priceFormat: price, ...quiet });
+    C.bands = [LW.LineStyle.Solid, LW.LineStyle.Solid, LW.LineStyle.Dashed, LW.LineStyle.Dashed].map(s => C.chart.addSeries(LW.LineSeries, { lineWidth: 1, lineStyle: s, priceFormat: price, ...quiet }));
+    C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
+    C.markers = LW.createSeriesMarkers(C.candles, []);
+    const pane = C.chart.panes()[1]; if (pane) pane.setHeight(window.innerWidth < 600 ? 100 : 140);
+    C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r && r.from < 15 && !C.loadingOld && !C.noMore && S.chart.length) loadOlder(); });
+    C.chart.subscribeCrosshairMove(legend);
+    $("btnLive").onclick = () => C.chart.timeScale().scrollToRealTime();
+    $("btnFit").onclick = () => { const n = S.chart.length; C.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - viewBars()), to: n + 8 }); C.candles.priceScale().applyOptions({ autoScale: true }); };
   }
-  // bars that fit the chart width; indicators are computed on the full series and then sliced
-  function visBars() { const w = $("cvMain").clientWidth || 800; return S.chart.slice(-Math.max(60, Math.floor((w - 150) / 2))); }
+  const viewBars = () => $("lwMain").clientWidth < 600 ? 60 : 160;
+  function chartTheme(T) {
+    if (C.theme === T.surface + T.ink + T.buy) return; C.theme = T.surface + T.ink + T.buy;
+    C.chart.applyOptions({ layout: { background: { type: "solid", color: T.surface }, textColor: T.muted, panes: { separatorColor: T.axis, separatorHoverColor: alpha(T.vwap, 0.25) } },
+      grid: { vertLines: { color: T.grid }, horzLines: { color: T.grid } }, rightPriceScale: { borderColor: T.axis }, timeScale: { borderColor: T.axis },
+      crosshair: { vertLine: { color: T.muted, labelBackgroundColor: T.ink }, horzLine: { color: T.muted, labelBackgroundColor: T.ink } } });
+    C.candles.applyOptions({ upColor: T.buy, downColor: "rgba(0,0,0,0)", borderUpColor: T.buy, borderDownColor: T.sell, wickUpColor: T.buy, wickDownColor: T.sell });
+    C.vwap.applyOptions({ color: T.vwap }); for (const s of C.bands) s.applyOptions({ color: T.assistLine });
+    C.cvd.applyOptions({ topLineColor: T.buy, bottomLineColor: T.sell, topFillColor1: alpha(T.buy, 0.28), topFillColor2: alpha(T.buy, 0.04), bottomFillColor1: alpha(T.sell, 0.04), bottomFillColor2: alpha(T.sell, 0.28) });
+  }
+  function syncChart() {
+    if (!C.chart) return; const T = tok(); chartTheme(T);
+    const ins = I(), xf = X(), bs = S.chart, key = ins.key + "|" + ui.tf, ts = C.chart.timeScale();
+    if (key !== C.key) { C.noMore = false; C.n = 0; }
+    if (!bs.length) { for (const s of [C.candles, C.vol, C.vwap, C.cvd, ...C.bands]) s.setData([]); C.markers.setMarkers([]); C.key = key; C.n = 0; return; }
+    const V = v => xf.a * v + xf.b, intraday = INTRADAY.has(ui.tf), prevRange = ts.getVisibleLogicalRange(), prevN = C.n, prevFirst = C.first;
+    C.candles.setData(bs.map(b => ({ time: lt(b.t), open: V(b.o), high: V(b.h), low: V(b.l), close: V(b.c) })));
+    C.vol.setData(bs.map(b => ({ time: lt(b.t), value: b.v, color: alpha(delta(b) >= 0 ? T.buy : T.sell, 0.35) })));
+    // VWAP and Assist bands restart each session; a point's colour paints the segment after it,
+    // so the last point of a session is made transparent to hide the jump into the next one
+    const vmap = new Map(vwapSeries(bs, ins).map(p => [p.t, p])), brk = i => i > 0 && i < bs.length && intraday && sessStart(bs, i, ins), CLEAR = "rgba(0,0,0,0)";
+    const line = f => ui.layers.assist ? bs.map((b, i) => { const p = vmap.get(b.t); if (!p) return { time: lt(b.t) };
+      const pt = { time: lt(b.t), value: V(f(p)) }; if (brk(i + 1)) pt.color = CLEAR; return pt; }) : [];
+    C.vwap.setData(line(p => p.vwap));
+    [p => p.bands[2][1], p => p.bands[2][0], p => p.bands[3][1], p => p.bands[3][0]].forEach((f, k) => C.bands[k].setData(line(f)));
+    let acc = 0; C.cvd.setData(bs.map((b, i) => { acc = brk(i) ? delta(b) : acc + delta(b); const pt = { time: lt(b.t), value: acc };
+      if (brk(i + 1)) Object.assign(pt, { topLineColor: CLEAR, bottomLineColor: CLEAR, topFillColor1: CLEAR, topFillColor2: CLEAR, bottomFillColor1: CLEAR, bottomFillColor2: CLEAR }); return pt; }));
+    // big trades as markers: below the bar = buyers, above = sellers
+    const mk = [];
+    if (ui.layers.big && ins.src === "bin") { const thr = bigMin(), agg = new Map();
+      for (const t of S.trades) { if (t.size < thr) continue; const i = barIndexAt(bs, t.ts / 1000); if (i < 0) continue; const k = bs[i].t + "|" + t.side; agg.set(k, (agg.get(k) || 0) + t.size); }
+      const mx = Math.max(1e-9, ...agg.values());
+      for (const [k, v] of agg) { const [t, side] = k.split("|"), buy = side === "buy";
+        mk.push({ time: lt(+t), position: buy ? "belowBar" : "aboveBar", shape: "circle", color: buy ? T.buy : T.sell, size: 0.6 + 1.6 * Math.sqrt(v / mx), text: v >= 0.4 * mx ? fmtV(v) : "" }); } }
+    else if (ui.layers.big) { const thr = p95(bs.map(b => b.v));
+      for (const b of bs) if (b.v >= thr && b.v > 0) { const up = delta(b) >= 0; mk.push({ time: lt(b.t), position: up ? "belowBar" : "aboveBar", shape: "circle", color: up ? T.buy : T.sell, size: 1 }); } }
+    C.markers.setMarkers(mk.sort((a, z) => a.time - z.time));
+    // levels as price lines with labels on the price axis
+    for (const l of C.lines) C.candles.removePriceLine(l); C.lines = [];
+    // phones keep only the axis labels; titles inside the pane would cover the candles
+    const St = LW.LineStyle, narrow = $("lwMain").clientWidth < 600, pl = (p, title, color, style, width, axis = true) => { if (p != null && isFinite(p)) C.lines.push(C.candles.createPriceLine({ price: V(p), title: narrow ? "" : title, color, lineStyle: style, lineWidth: width, axisLabelVisible: axis })); };
+    const pr = D && D.pr;
+    if (ui.layers.range && pr) { pl(pr.yhi, "Y-Hi", T.sell, St.Solid, 1); pl(pr.vah, "Top", T.muted, St.Dashed, 1); pl(pr.mhi, "", T.brass, St.Dotted, 1, false); pl(pr.poc, "POC", T.brass, St.Dashed, 2);
+      pl(pr.mlo, "", T.brass, St.Dotted, 1, false); pl(pr.val, "Bottom", T.muted, St.Dashed, 1); pl(pr.ylo, "Y-Lo", T.buy, St.Solid, 1); }
+    if (ui.layers.round) { const recent = bs.slice(-400), lo = V(Math.min(...recent.map(b => b.l))), hi = V(Math.max(...recent.map(b => b.h))); let step = xf.step;
+      while ((Math.max(lo, hi) - Math.min(lo, hi)) / step > 24) step *= 2;
+      for (let d = Math.ceil(Math.min(lo, hi) / step) * step; d <= Math.max(lo, hi); d += step) pl((d - xf.b) / xf.a, "", T.axis, St.SparseDotted, 1, false); }
+    if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
+      for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
+    if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
+      pl(p.entry, buy ? "▲ เข้า" : "▼ เข้า", T.ink, St.Solid, 2); pl(p.stop, "SL", T.sell, St.Dashed, 1); pl(p.tp1, "TP1", T.buy, St.Dashed, 1); pl(p.tp2, "TP2", T.buy, St.Dotted, 1); }
+    // keep the user's view: prepended history shifts it, new bars follow only when it sits at the live edge
+    if (!prevN || !prevRange) ts.setVisibleLogicalRange({ from: Math.max(0, bs.length - viewBars()), to: bs.length + 8 });
+    else { const added = bs[0].t < prevFirst ? Math.max(0, barIndexAt(bs, prevFirst)) : 0, grew = bs.length - prevN - added, follow = prevRange.to >= prevN - 2 ? grew : 0;
+      if (added || follow) ts.setVisibleLogicalRange({ from: prevRange.from + added + follow, to: prevRange.to + added + follow }); }
+    C.key = key; C.n = bs.length; C.first = bs[0].t;
+    legend(null);
+  }
+  function legend(p) {
+    const ins = I(), xf = X(), bs = S.chart, el = $("lwLegend"); if (!bs.length) { el.textContent = ""; return; }
+    let i = bs.length - 1; if (p && p.time != null) { const k = barIndexAt(bs, p.time - TZ); if (k >= 0) i = k; }
+    const b = bs[i], F = v => fmt(xf.a * v + xf.b, xf.dec), [bu, se] = split(b), ex = exact(b) ? "" : "≈";
+    let html = `<b>${ins.sub} · ${ui.tf}</b> O ${F(b.o)} H ${F(b.h)} L ${F(b.l)} C <span class="${b.c >= b.o ? "up" : "down"}">${F(b.c)}</span><span class="l2"><br>V ${fmtV(b.v)} · ซื้อ${ex} ${fmtV(bu)} · ขาย${ex} ${fmtV(se)} · Δ ${sgn(bu - se)}</span>`;
+    if (p && p.point && S.tracker && ins.src === "bin") { const y = C.candles.coordinateToPrice(p.point.y);
+      if (y != null) { const raw = (y - xf.b) / xf.a, w = S.tracker.active().filter(x => Math.abs(x.price - raw) <= ins.bucket * 2).sort((a, z) => Math.abs(a.price - raw) - Math.abs(z.price - raw))[0];
+        if (w) html += `<br>Wall ${w.side.toUpperCase()} ${F(w.price)} · ${fmtV(w.size)} · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
+    el.innerHTML = html;
+  }
+  async function loadOlder() {
+    // scrolling to the left edge pulls the previous page of candles, like TradingView
+    const ins = I(), g = gen, first = S.chart[0], key = C.key; if (!first || S.chart.length >= 20000) { C.noMore = true; return; }
+    C.loadingOld = true; $("mainHint").textContent = "กำลังโหลดแท่งเก่า…";
+    try {
+      let older;
+      if (ins.src === "bin") { const T = TOOLS[ins.mkt], [iv] = TF[ui.tf]; older = kl(await bin(T.k, { symbol: ins.symbol, interval: iv === "1D" ? "1d" : iv, limit: T.kmax, endTime: first.t * 1000 - 1 })); }
+      else older = tvBars((await mcp.callTool(TDV, OHLCV, { symbol: ins.sym, interval: TV_IV[ui.tf], count: 2000, date_to: new Date((first.t - 1) * 1000).toISOString(), format: "columns" })).payload);
+      if (g !== gen || key !== C.key || S.chart[0] !== first) return;
+      older = older.filter(b => b.t < first.t); if (!older.length) { C.noMore = true; return; }
+      S.chart = older.concat(S.chart);
+    } catch (e) { C.noMore = true; noteErr(ins.src === "bin" ? BIN : TDV, e); }
+    finally { C.loadingOld = false; schedule(); }
+  }
+  function mergeBars(old, fresh) {
+    // a refresh replaces the recent bars and keeps history loaded by scrolling
+    if (!fresh.length) return old; const f0 = fresh[0].t, f1 = fresh[fresh.length - 1].t;
+    return old.filter(b => b.t < f0).concat(fresh, old.filter(b => b.t > f1));
+  }
+  function liveCandle() {
+    // move the forming candle with each trade between kline refreshes
+    const bs = S.chart, sec = TF_SEC[ui.tf]; if (!bs.length) return;
+    for (const t of S.trades) { if (t.ts <= S.liveFrom) continue;
+      const ts = t.ts / 1000; let b = bs[bs.length - 1]; if (ts < b.t) continue;
+      if (ts >= b.t + sec) { b = { t: Math.floor(ts / sec) * sec, o: b.c, h: t.price, l: t.price, c: t.price, v: 0, bv: 0 }; bs.push(b); }
+      b.c = t.price; b.h = Math.max(b.h, t.price); b.l = Math.min(b.l, t.price); b.v += t.size; if (isFinite(b.bv) && t.side === "buy") b.bv += t.size; }
+    if (S.trades.length) S.liveFrom = S.trades[S.trades.length - 1].ts;
+  }
+  function cvdInfo() {
+    const ins = I(), bs = S.chart, intraday = INTRADAY.has(ui.tf), real = bs.length > 0 && bs.every(exact);
+    setTag("tagCvd", real); setTag("tagDelta", real); if (!bs.length) return;
+    let acc = 0; const vals = bs.map((b, i) => { if (intraday && i && sessStart(bs, i, ins)) acc = 0; acc += delta(b); return acc; }), dv = OF.divergence(bs.map(b => b.c), vals, 20);
+    $("cvdHint").textContent = `${real ? "จากปริมาณผู้กดซื้อ/ขายจริงในแต่ละแท่ง" : "ประมาณจากตำแหน่งราคาปิด"}${intraday ? " · เริ่มใหม่ทุก session" : ""} · ล่าสุด ${sgn(vals[vals.length - 1])} ${ins.unit}` +
+      (dv === "bearish" ? " · ราคาทำจุดสูงใหม่แต่ CVD ไม่ตาม" : dv === "bullish" ? " · ราคาทำจุดต่ำใหม่แต่ CVD ไม่ตาม" : "");
+  }
   function sessStart(bs, i, ins) { if (ins.src === "bin") return Math.floor((bs[i].t - ins.sessOff) / 86400) !== Math.floor((bs[i - 1].t - ins.sessOff) / 86400); return bs[i].t - bs[i - 1].t >= 2400; }
 
   // ---- Volume (session profile) -------------------------------------------------------------
@@ -937,27 +993,6 @@
       else if (z.contested) label("⚔", mid, mid, y, false); }
     hl(ctx, plot.l, plot.r, yOf(last), T.ink2, 1, [3, 3]);
     ctx.fillStyle = T.muted; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.fillText("← ผู้กดขาย (Ask)        ผู้กดซื้อ (Bid) →", mid, h - 6);
-  }
-
-  // ---- CVD ---------------------------------------------------------------------------------
-  function drawCvd() {
-    const cv = $("cvCvd"), { ctx, w, h } = sized(cv); if (!S.chart.length) return;
-    const M = $("cvMain")._L, T = tok(), ins = I(), all = S.chart, intraday = INTRADAY.has(ui.tf), real = all.every(exact);
-    const padL = M ? M.plot.l : 70, plot = { l: padL, r: M ? M.plot.r : w - 64, t: 8, b: h - 20 };
-    setTag("tagCvd", real); setTag("tagDelta", real);
-    let acc = 0; const full = all.map((b, i) => { if (intraday && i && sessStart(all, i, ins)) acc = 0; acc += delta(b); return acc; });
-    const bs = visBars(), n = bs.length, vals = full.slice(-n);
-    let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); const pad = (hi - lo || 1) * 0.1; lo -= pad; hi += pad;
-    const yOf = v => plot.b - (v - lo) / (hi - lo) * (plot.b - plot.t), bw = (plot.r - plot.l) / n, xOf = i => plot.l + (i + 0.5) * bw, y0 = yOf(0);
-    ctx.font = FONT; ctx.textBaseline = "middle"; for (const v of nice(lo, hi, 4)) { hl(ctx, plot.l, plot.r, yOf(v), T.grid); ctx.fillStyle = T.muted; ctx.textAlign = "right"; ctx.fillText(fmtV(v), padL - 8, yOf(v)); }
-    for (const [up, col] of [[true, T.buy], [false, T.sell]]) { ctx.save(); ctx.beginPath(); ctx.rect(plot.l, up ? plot.t : y0, plot.r - plot.l, up ? y0 - plot.t : plot.b - y0); ctx.clip();
-      ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(xOf(0), y0); vals.forEach((v, i) => ctx.lineTo(xOf(i), yOf(v))); ctx.lineTo(xOf(n - 1), y0); ctx.closePath(); ctx.fill(); ctx.restore(); }
-    hl(ctx, plot.l, plot.r, y0, T.axis); ctx.strokeStyle = T.ink2; ctx.lineWidth = 1.8; ctx.beginPath();
-    vals.forEach((v, i) => (i && !(intraday && sessStart(bs, i, ins))) ? ctx.lineTo(xOf(i), yOf(v)) : ctx.moveTo(xOf(i), yOf(v))); ctx.stroke();
-    if (ui.hover) { const x = xOf(ui.hover.i); ctx.save(); ctx.strokeStyle = T.axis; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, plot.t); ctx.lineTo(x, plot.b); ctx.stroke(); ctx.restore(); }
-    const prices = bs.map(b => b.c), dv = OF.divergence(prices, vals, 20);
-    $("cvdHint").textContent = `${real ? "จากปริมาณผู้กดซื้อ/ขายจริงในแต่ละแท่ง" : "ประมาณจากตำแหน่งราคาปิด"}${intraday ? " · เริ่มใหม่ทุก session" : ""} · ล่าสุด ${sgn(vals[n - 1])} ${ins.unit}` +
-      (dv === "bearish" ? " · ราคาทำจุดสูงใหม่แต่ CVD ไม่ตาม" : dv === "bullish" ? " · ราคาทำจุดต่ำใหม่แต่ CVD ไม่ตาม" : "");
   }
 
   // ---- Order Book (bucketed) ---------------------------------------------------------------
@@ -1034,7 +1069,7 @@
   function renderLadder() {
     if (!D || !S.chart.length) return; const xf = X(), last = S.chart[S.chart.length - 1].c, rows = [], add = (label, p) => { if (p != null && isFinite(p)) rows.push({ label, p }); };
     if (D.pr) { add("Y-Hi (สูงสุด session ก่อน)", D.pr.yhi); add("Top zone (ขอบบน 70% ก่อน)", D.pr.vah); add("Magnet บน", D.pr.mhi); add("POC session ก่อน", D.pr.poc); add("Magnet ล่าง", D.pr.mlo); add("Bottom zone (ขอบล่าง 70% ก่อน)", D.pr.val); add("Y-Lo (ต่ำสุด session ก่อน)", D.pr.ylo); }
-    const L = $("cvMain")._L, v = L && L.vs && L.vs[L.vs.length - 1];
+    const vs = S.chart.length ? vwapSeries(S.chart, I()) : [], v = vs[vs.length - 1];
     if (v) { add("VWAP", v.vwap); add("Assist +2σ", v.bands[2][1]); add("Assist +3σ", v.bands[3][1]); add("Assist −2σ", v.bands[2][0]); add("Assist −3σ", v.bands[3][0]); }
     add("POC session นี้", D.rng.poc);
     if (S.tracker) { const act = S.tracker.active().filter(w => w.persistent); const bw = act.filter(w => w.side === "bid")[0], aw = act.filter(w => w.side === "ask")[0];
@@ -1168,11 +1203,12 @@
   function renderPlan() {
     const ins = I(), xf = X(), body = $("tblPlan"), M = planModel(ui.plan), now = Date.now();
     setTag("tagPlan", ins.src === "bin"); $("tagPlan").textContent = ins.src === "bin" ? "จาก order flow จริง" : "จากแท่งเทียน";
+    S.planShown = [];
     if (M.err) { body.innerHTML = `<tr><td colspan="9" class="empty">${M.err}</td></tr>`; $("planBias").innerHTML = ""; return; }
     const st = M.st, F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
     const news = newsWindow(now), rows = [];
     for (const side of M.score < 0 ? ["sell", "buy"] : ["buy", "sell"]) {
-      const a = S.armed[akey(ui.plan, side)], p = a || M.plans[side]; if (!p) continue;
+      const a = S.armed[akey(ui.plan, side)], p = a || M.plans[side]; if (!p) continue; S.planShown.push(p);
       const sell = side === "sell", rr = t => (Math.abs(t - p.entry) / p.risk).toFixed(1), open = openTrade(ins.key, ui.plan, side);
       const state = open ? "มีไม้เปิดอยู่ ดูในบันทึกผล" : a ? (a.touchedAt ? `ราคาแตะโซนแล้ว รอแท่ง ${st.conf} ยืนยัน` : "ล็อกแผนแล้ว รอราคาเข้าโซน") : "รอราคาเข้าโซน";
       rows.push(`<tr><td data-l="แผน">${sell ? "▼ ขาย" : "▲ ซื้อ"}${p.trend === null ? "" : p.trend ? " · ตามแรง" : " · สวนแรง"}<span class="why">${state}</span></td>` +
@@ -1336,7 +1372,7 @@
     rafPending = false; D = derive();
     const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
     $("lblBig").hidden = ins.src !== "bin"; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
-    renderStrip(); drawMain(); drawVol(); drawBig(); drawCvd(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); renderFut(); renderNews(); renderJournal(); renderStatus();
+    renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
     $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
@@ -1355,7 +1391,7 @@
   function startBinance() {
     const ins = I(), T = TOOLS[ins.mkt], sym = ins.symbol;
     S.tracker = new OF.WallTracker(ins.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
-    every(30000, g => binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: sym, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = kl(rows); schedule(); }));
+    every(30000, g => binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: sym, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = mergeBars(S.chart, kl(rows)); S.liveFrom = Date.now(); liveCandle(); schedule(); }));
     every(60000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "5m", limit: 1000 }); if (g !== gen) return; S.sess = kl(rows); schedule(); }));
     every(600000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "1d", limit: 30 }); if (g !== gen) return; S.daily = kl(rows); schedule(); }));
     every(10000, g => binLoop(g, async () => { const p = await bin(T.d, { symbol: sym, limit: 1000 }); if (g !== gen || !p || !p.bids) return;
@@ -1371,7 +1407,7 @@
         for (const r of rows) { const id = +r.a; if (S.lastId != null && id <= S.lastId) continue; S.trades.push({ ts: +r.T, price: +r.p, size: +r.q, side: r.m ? "sell" : "buy", exchange: "binance", symbol: sym, trade_id: String(id) }); S.lastId = id; }
         if (S.lastId == null || rows.length < 1000 || args.fromId == null) break;
       }
-      const cut = S.trades[S.trades.length - 1].ts - 4 * 3600000; if (S.trades[0].ts < cut) S.trades = S.trades.filter(t => t.ts >= cut); schedule(); }));
+      const cut = S.trades[S.trades.length - 1].ts - 4 * 3600000; if (S.trades[0].ts < cut) S.trades = S.trades.filter(t => t.ts >= cut); liveCandle(); schedule(); }));
   }
   function startXauTicker() { every(15000, g => binLoop(g, async () => { const p = await bin("futures_usds.symbolPriceTicker", { symbol: "XAUUSDT" }); if (g !== gen) return; const px = +(Array.isArray(p) ? p[0] && p[0].price : p && p.price); if (isFinite(px)) { S.xauPx = px; schedule(); } })); }
   function tdvWatch(tool, input, onData, critical, every = 60000) {
@@ -1406,8 +1442,8 @@
       S.fut.mark = { rate: +m.lastFundingRate || 0, next: +m.nextFundingTime }; schedule(); }));
   }
   function startTdvChart() {
-    const ins = I(), [, cnt] = TF[ui.tf], tvIv = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" }[ui.tf];
-    tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = tvBars(p); schedule(); }, true);
+    const ins = I(), [, cnt] = TF[ui.tf], tvIv = TV_IV[ui.tf];
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = mergeBars(S.chart, tvBars(p)); schedule(); }, true);
     tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); schedule(); }, false);
     tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false);
   }
@@ -1425,7 +1461,7 @@
   }
   function restartChartOnly() {
     // timeframe change: keep book/trades/tracker, refetch chart only
-    const ins = I(); S.chart = []; ui.hover = null; $("tip").hidden = true; overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false);
+    const ins = I(); S.chart = []; S.liveFrom = 0; overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false);
     if (ins.src === "bin") { const T = TOOLS[ins.mkt], g = gen; binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: ins.symbol, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = kl(rows); schedule(); }); }
     else start();
   }
@@ -1434,22 +1470,6 @@
     try { if (src === TDV) await mcp.callTool(TDV, QUOTE, { symbol: "COMEX:GC1!", columns: ["close"] }); else await bin(I().src === "bin" ? TOOLS[I().mkt].k : "futures_usds.symbolPriceTicker", I().src === "bin" ? { symbol: I().symbol, interval: "5m", limit: 5 } : { symbol: "XAUUSDT" });
       delete S.errs[src]; S.approve = null; start(); }
     catch (e) { noteErr(src, e); } finally { $("btnApprove").disabled = false; }
-  }
-
-  // ---- hover --------------------------------------------------------------------------------
-  function onHover(ev) {
-    const cv = $("cvMain"), L = cv._L; if (!L) return;
-    const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
-    if (x < L.plot.l || x > L.ws.r || y < L.plot.t || y > L.plot.b) { if (ui.hover) { ui.hover = null; $("tip").hidden = true; drawMain(); drawCvd(); } return; }
-    const i = Math.max(0, Math.min(L.n - 1, Math.floor((Math.min(x, L.plot.r - 1) - L.plot.l) / L.bw))), b = visBars()[i], xf = L.xf, [bu, se] = split(b), v = L.vs[i];
-    ui.hover = { i, y }; const p = L.lo + (L.plot.b - y) / (L.plot.b - L.plot.t) * (L.hi - L.lo), F = q => fmt(xf.a * q + xf.b, xf.dec);
-    let html = `${fDT(b.t)} · เมาส์ ${F(p)}<br>O ${F(b.o)}  H ${F(b.h)}<br>L ${F(b.l)}  C ${F(b.c)}<br>ปริมาณ ${fmtV(b.v)} · ซื้อ${exact(b) ? "" : "≈"} ${fmtV(bu)} ขาย${exact(b) ? "" : "≈"} ${fmtV(se)}` + (v ? `<br>VWAP ${F(v.vwap)}` : "");
-    const near = L.walls.slice().sort((a, z) => Math.abs(a.price - p) - Math.abs(z.price - p))[0];
-    if (near && Math.abs(near.price - p) <= (L.hi - L.lo) * 0.03) html += `<br>Wall ${near.side.toUpperCase()} ${F(near.price)} · ${fmtV(near.size)} · ${STATUS[near.status]} · ${fAge(near.age_ms)}`;
-    const tip = $("tip"); tip.innerHTML = html; tip.hidden = false;
-    const card = $("cardMain").getBoundingClientRect(), cx = ev.clientX - card.left, cy = ev.clientY - card.top;
-    tip.style.left = Math.max(8, Math.min(card.width - tip.offsetWidth - 8, cx + 14)) + "px"; tip.style.top = Math.max(8, cy - tip.offsetHeight - 12) + "px";
-    drawMain(); drawCvd();
   }
 
   // ---- controls -------------------------------------------------------------------------------
@@ -1481,8 +1501,7 @@
     const sizeIn = () => { ui.size.cap = Math.max(0, +$("inCap").value || 0); ui.size.pct = Math.min(10, Math.max(0, +$("inPct").value || 0)); ui.size.unit[ui.inst] = $("selUnit").value; store.set("size", ui.size); schedule(); };
     for (const id of ["inCap", "inPct", "selUnit"]) $(id).addEventListener("change", sizeIn);
     $("btnJClear").addEventListener("click", clearJournal);
-    $("cvMain").addEventListener("mousemove", onHover);
-    $("cvMain").addEventListener("mouseleave", () => { ui.hover = null; $("tip").hidden = true; if (S.chart.length) { drawMain(); drawCvd(); } });
+    initChart();
     let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(schedule, 120); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden && mcp) schedule(); });
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
