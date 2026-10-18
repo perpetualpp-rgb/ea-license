@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { ApiSource, mapBars, mapInstrument, type ApiBars } from "../data/api";
+import { ApiSource, freshnessOf, mapBars, mapInstrument, mapObservations, mapQuote, type ApiBars } from "../data/api";
 import instrumentsFx from "./fixtures/instruments.json";
 import barsFx from "./fixtures/bars.json";
 import specRaw from "../../../server/openapi.json?raw";
@@ -94,5 +94,33 @@ describe("responses recorded from the real API", () => {
     expect(s.bars.filter((b) => b.buyV === null)).toHaveLength(1);
     expect(s.freshness.kind).toBe("approximate"); // open kline gap in range
     expect(s.freshness.asOf).toBe(Date.parse("2026-01-05T10:47:00Z")); // forming bucket: data only up to `to`, not 10:50
+  });
+});
+
+describe("market mapping rules", () => {
+  const rt = { level: "realtime" as const, delay_minutes: 0, data_until: null, valid_until: null };
+  const now = Date.parse("2026-10-18T09:00:00Z");
+  it("freshness: live only for realtime data from the last two minutes", () => {
+    expect(freshnessOf(rt, now - 30_000, now).kind).toBe("live");
+    expect(freshnessOf(rt, now - 121_000, now).kind).toBe("stale");
+    expect(freshnessOf({ ...rt, level: "delayed", delay_minutes: 15 }, now - 900_000, now)).toMatchObject({ kind: "delayed", delayMin: 15 });
+    expect(freshnessOf(rt, null, now).kind).toBe("unavailable");
+  });
+  it("quote keeps a missing 24h change as null instead of a shorter window", () => {
+    const q = mapQuote("1", { instrument_id: 1, access: rt, last_trade: { price: "81700.03", at: "2026-10-18T08:59:50Z", source: "trade" }, mark: null, change_24h: null,
+      spark: [{ t: "2026-10-18T08:30:00Z", close: "81650" }] }, now);
+    expect(q).toMatchObject({ price: 81700.03, changePct: null, priceType: "last_trade", spark: [81650] });
+    expect(q.freshness.kind).toBe("live");
+  });
+  it("observations are worded with units and window, and unknown kinds are skipped", () => {
+    const ins = mapInstrument(instrumentsFx.items[0] as never)!;
+    const obs = mapObservations("1", ins, { instrument_id: 1, access: rt, at: "2026-10-18T09:00:00Z", items: [
+      { kind: "cvd", at: "2026-10-18T09:00:00Z", window_s: 300, evidence: "chart", values: { cvd_change: "-12.5", price_change_pct: "0.12" }, units: { cvd_change: "BTC" } },
+      { kind: "funding", at: "2026-10-18T09:00:00Z", window_s: null, evidence: "oi", values: { rate_pct: "0.0100", kind: "estimated" }, units: {} },
+      { kind: "mystery" as never, at: "2026-10-18T09:00:00Z", window_s: null, evidence: "chart", values: {}, units: {} },
+    ] });
+    expect(obs.map((o) => o.title)).toEqual(["CVD ลดลง", "Funding (ประมาณการ)"]);
+    expect(obs[0].measured).toBe("CVD −12.50 BTC ใน 5 นาที · ราคา +0.12%");
+    expect(obs[1].measured).toBe("+0.0100% ต่อรอบ");
   });
 });
