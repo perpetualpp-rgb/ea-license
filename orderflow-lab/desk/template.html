@@ -133,6 +133,16 @@
   .cotnote { color: var(--muted); font-size: 0.78rem; margin: 8px 0 0; }
   #tblPlan td { white-space: normal; vertical-align: top; } #tblPlan td.num { white-space: nowrap; } #tblPlan td:first-child { white-space: nowrap; font-weight: 600; }
   #tblPlan .why { display: block; font-size: 0.74rem; color: var(--muted); }
+  @media (max-width: 700px) {
+    #tblPlan { display: block; } #tblPlan tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+    #tblPlan td { display: block; border: 0; padding: 0; text-align: left !important; white-space: normal !important; }
+    #tblPlan td::before { content: attr(data-l); display: block; font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+    #tblPlan td[data-l="แผน"], #tblPlan td[data-l="โซนเข้า"], #tblPlan td[data-l="เงื่อนไขยืนยัน"] { grid-column: 1 / -1; }
+    #planTable thead { display: none; }
+  }
+  input[type=number] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; width: 7.5em; }
+  #tblNews tr.hi td { font-weight: 600; } #tblNews td:nth-child(2) { white-space: normal; }
+  #newsBanner { font-weight: 500; }
   footer { color: var(--muted); font-size: 0.76rem; max-width: 120ch; }
 </style>
 
@@ -153,6 +163,7 @@
 
   <section class="strip" id="strip" aria-label="ราคา"></section>
   <div class="err" id="errTop" hidden></div>
+  <p class="note" id="newsBanner" hidden></p>
 
   <div class="row2">
     <section class="card">
@@ -187,11 +198,28 @@
 
   <section class="card" aria-label="แผนเทรด">
     <h2>แผนเทรด <span class="tag" id="tagPlan"></span><span class="hint" id="planHint"></span></h2>
-    <div class="bar" style="margin-bottom:8px"><div class="seg" id="segPlan" role="group" aria-label="สไตล์แผน"></div></div>
+    <div class="bar" style="margin-bottom:8px"><div class="seg" id="segPlan" role="group" aria-label="สไตล์แผน"></div>
+      <label for="inCap">ทุน $ <input id="inCap" type="number" min="0" step="100" inputmode="decimal"></label>
+      <label for="inPct">เสี่ยงต่อไม้ % <input id="inPct" type="number" min="0.1" max="10" step="0.1" inputmode="decimal"></label>
+      <label for="selUnit">หน่วย <select id="selUnit"></select></label></div>
     <div class="tiles" id="planBias"></div>
-    <div class="tbl"><table><thead><tr><th>แผน</th><th>โซนเข้า</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th class="num">R:R</th><th>เงื่อนไขยืนยัน</th><th>ยกเลิกเมื่อ</th></tr></thead><tbody id="tblPlan"><tr><td colspan="8" class="empty">รอข้อมูล</td></tr></tbody></table></div>
+    <div class="tbl"><table id="planTable"><thead><tr><th>แผน</th><th>โซนเข้า</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th class="num">R:R</th><th class="num">ขนาดไม้</th><th>เงื่อนไขยืนยัน</th><th>ยกเลิกเมื่อ</th></tr></thead><tbody id="tblPlan"><tr><td colspan="9" class="empty">รอข้อมูล</td></tr></tbody></table></div>
     <p class="cotnote">ระบบเลือกโซนที่มีหลายระดับซ้อนกัน (กำแพงที่ยืนนาน, Range ของ session ก่อน, สูง/ต่ำหลายวัน, Assist, โซนไม้ใหญ่, เลขกลม) · SL = ขอบโซน + ATR รายวัน × 0.25 (เดย์เทรด) หรือ × 0.5 (สวิง) ไม่ต่ำกว่า 0.2% / 0.4% ของราคา · TP = แนวถัดไปที่ได้อย่างน้อย 1.5R / 2.5R (สวิง 2R / 3.5R) ถ้าไม่มีแนวจะใช้ระยะ R แทน · แผนเปลี่ยนตามข้อมูลสด ใช้ประกอบการตัดสินใจเท่านั้น</p>
   </section>
+
+  <div class="row2">
+    <section class="card" aria-label="Futures">
+      <h2>Futures · OI / Funding / Long-Short <span class="tag real">ข้อมูลจริง</span><span class="hint" id="futHint"></span></h2>
+      <div class="tiles" id="futTiles"><p class="empty">รอข้อมูล</p></div>
+      <div class="legend"><span><i class="sw c1"></i>Open Interest 24 ชม.</span><span><i class="sw" style="height:3px;background:var(--ink-2)"></i>ราคา</span></div>
+      <canvas id="cvOi" style="height:110px" role="img" aria-label="Open Interest เทียบราคาใน 24 ชั่วโมง"></canvas>
+      <p class="cotnote">ราคาขึ้น + OI เพิ่ม = Long ใหม่เข้า · ราคาลง + OI เพิ่ม = Short ใหม่เข้า · ราคาขึ้น + OI ลด = Short ปิดหนี · ราคาลง + OI ลด = Long ปิดหนี</p>
+    </section>
+    <section class="card tbl" aria-label="ข่าวเศรษฐกิจ">
+      <h2>ข่าวเศรษฐกิจ US <span class="hint">เวลาไทย · ข่าวแรงจะเตือนบนหน้าก่อน 2 ชม.</span></h2>
+      <table><thead><tr><th>เวลา</th><th>ข่าว</th><th class="num">คาด</th><th class="num">ก่อนหน้า</th><th class="num">จริง</th><th class="num">อีก</th></tr></thead><tbody id="tblNews"><tr><td colspan="6" class="empty">รอข้อมูล</td></tr></tbody></table>
+    </section>
+  </div>
 
   <div class="row2">
     <section class="card" aria-label="Order Book">
@@ -217,6 +245,14 @@
     </section>
   </div>
 
+  <section class="card" aria-label="บันทึกผลแผน">
+    <h2>บันทึกผลแผน <span class="tag real">ติดตามอัตโนมัติ</span><span class="hint" id="jHint"></span></h2>
+    <div class="tiles" id="jStats"></div>
+    <div class="tbl"><table><thead><tr><th>เข้าเมื่อ</th><th>ฝั่ง</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th>ผล</th><th class="num">R</th></tr></thead><tbody id="tblJournal"><tr><td colspan="7" class="empty">รอข้อมูล</td></tr></tbody></table></div>
+    <p class="cotnote">นับไม้เมื่อราคาเข้าโซนแล้วแท่งยืนยันปิดกลับ (เข้าที่ราคาปิดแท่งนั้น) ช่วงข่าวแรงไม่นับ · ถึง TP1 ปิดครึ่งหนึ่งแล้วเลื่อน SL มาที่ทุน ส่วนที่เหลือไป TP2 · แท่งที่แตะทั้ง SL และ TP นับเป็นแพ้ · เก็บในบัญชีของคุณเท่านั้น ต้องเปิดหน้านี้ค้างไว้จึงจะจับจังหวะเข้าได้ ส่วนผลของไม้ที่เปิดแล้วตรวจย้อนจากแท่งเทียนได้เมื่อกลับมาเปิดหน้า</p>
+    <button id="btnJClear" type="button" hidden></button>
+  </section>
+
 <!--COT_SECTION-->
 
   <p class="note" id="noteSrc"></p>
@@ -228,10 +264,11 @@
 <script>
 "use strict";
 (() => {
-  const BIN = "Binance", TDV = "tdv", OHLCV = "mcp-tv-get-ohlcv", QUOTE = "mcp-tv-get-symbol-data", THB_K = 15.244 * 0.965 / 31.1035;
+  const BIN = "Binance", TDV = "tdv", OHLCV = "mcp-tv-get-ohlcv", QUOTE = "mcp-tv-get-symbol-data", CAL = "mcp-tv-get-economic-calendar", THB_K = 15.244 * 0.965 / 31.1035;
   // the only Binance endpoints this page may call; all are public market data
   const BIN_ALLOW = new Set(["futures_usds.klineCandlestickData", "futures_usds.orderBook", "futures_usds.compressedAggregateTradesList",
-                             "futures_usds.symbolPriceTicker", "spot.klines", "spot.depth", "spot.aggTrades"]);
+                             "futures_usds.symbolPriceTicker", "spot.klines", "spot.depth", "spot.aggTrades",
+                             "futures_usds.openInterestStatistics", "futures_usds.markPrice", "futures_usds.topTraderLongShortRatioPositions", "futures_usds.takerBuySellVolume"]);
   const TOOLS = { fut: { k: "futures_usds.klineCandlestickData", d: "futures_usds.orderBook", t: "futures_usds.compressedAggregateTradesList", kmax: 1500 },
                   spot: { k: "spot.klines", d: "spot.depth", t: "spot.aggTrades", kmax: 1000 } };
   const INSTR = {
@@ -249,7 +286,7 @@
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", filled: "ราคาถึง", pulled: "ถอนหนี" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
-  const ui = { plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+  const ui = { size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
                layers: Object.assign({ wall: true, big: true, assist: true, range: true, round: true }, store.get("layers", {})), hover: null };
   const $ = id => document.getElementById(id);
   const I = () => INSTR[ui.inst] || INSTR.xau;
@@ -257,9 +294,9 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { cal: [], calLoaded: false, journal: [], armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { armed: {}, jCheck: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -268,6 +305,7 @@
   const fT = s => new Date(s * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   const fTs = ms => new Date(ms).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const fDT = s => new Date(s * 1000).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fClock = ms => new Date(ms).toLocaleString("th-TH", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const fAge = ms => ms >= 3600000 ? (ms / 3600000).toFixed(1) + " ชม." : ms >= 60000 ? Math.round(ms / 60000) + " นาที" : Math.round(ms / 1000) + " วิ";
   function tok() { const c = getComputedStyle(document.documentElement), g = n => c.getPropertyValue(n).trim();
     return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), buy: g("--buy"), sell: g("--sell"), vwap: g("--vwap"),
@@ -641,8 +679,8 @@
   // ---- trade plan: rule-based scenarios from the levels on this page -------------------------
   // day: risk sized by the 1-hour ATR; swing: by the 4-hour ATR with wider targets
   // stops and zones scale with the daily ATR so quiet hours (weekends, Asia) don't shrink them
-  const PLAN = { day: { label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4, conf: "15 นาที", inval: "1 ชม." },
-                 swing: { label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8, conf: "1 ชม.", inval: "4 ชม." } };
+  const PLAN = { day: { label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4, conf: "15 นาที", confSec: 900, inval: "1 ชม.", armMs: 4 * 3600000, timeoutMs: 24 * 3600000 },
+                 swing: { label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8, conf: "1 ชม.", confSec: 3600, inval: "4 ชม.", armMs: 24 * 3600000, timeoutMs: 72 * 3600000 } };
   function lastPx() { return I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.chart.length ? S.chart[S.chart.length - 1].c : null; }
   function atrDaily(bars) {
     const d = bars.length > 4 ? bars.slice(0, -1) : bars; if (d.length < 3) return null; // drop the forming day
@@ -680,47 +718,239 @@
     }
     return best;
   }
-  function renderPlan() {
-    const ins = I(), xf = X(), last = lastPx(), body = $("tblPlan"), st = PLAN[ui.plan] || PLAN.day;
-    setTag("tagPlan", ins.src === "bin"); $("tagPlan").textContent = ins.src === "bin" ? "จาก order flow จริง" : "จากแท่งเทียน";
-    if (!D || last == null) { body.innerHTML = `<tr><td colspan="8" class="empty">รอข้อมูล</td></tr>`; $("planBias").innerHTML = ""; return; }
-    const dAtr = atrDaily(S.daily), hAtr = atrOf(S.sess, 3600), atr = dAtr || (hAtr ? hAtr * 4 : null), atrName = dAtr ? "ATR รายวัน" : "ATR รายวัน ≈ (ATR 1 ชม. × 4)";
-    if (!atr) { body.innerHTML = `<tr><td colspan="8" class="empty">ข้อมูลย้อนหลังยังไม่พอคำนวณ ATR</td></tr>`; $("planBias").innerHTML = ""; return; }
-    const slGap = Math.max(st.slK * atr, last * st.floor), win = st.clK * atr, gap2 = Math.max(win, 0.25 * atr), { L, v } = planLevels(last, st), F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
-    // bias: price vs session VWAP, session CVD, recent pressure
-    const cvd = D.cur.reduce((a, b) => a + delta(b), 0); let score = 0; const why = [];
+  // ---- news, futures positioning, bias ---------------------------------------------------------
+  const NEWS_PAD = 30 * 60000;
+  function newsWindow(now) { return S.cal.find(e => e.importance >= 1 && now >= e.ts - NEWS_PAD && now <= e.ts + NEWS_PAD) || null; }
+  function nextHighNews(now, withinMs) { return S.cal.find(e => e.importance >= 1 && e.ts > now && e.ts - now <= withinMs) || null; }
+  function oiRead(hours) {
+    // price change vs open-interest change over the same window
+    const oi = S.fut.oi; if (oi.length < 2) return null;
+    const lastO = oi[oi.length - 1], ref = [...oi].reverse().find(o => o.ts <= lastO.ts - hours * 3600000); if (!ref) return null;
+    const px = ts => { const i = barIndexAt(S.sess, ts / 1000); return i >= 0 ? S.sess[i].c : null; }, p1 = px(lastO.ts), p0 = px(ref.ts);
+    const dOi = (lastO.v - ref.v) / ref.v * 100, dPx = p0 && p1 ? (p1 - p0) / p0 * 100 : null;
+    let label = "ทรงตัว", sign = 0;
+    if (dPx != null && Math.abs(dOi) >= 0.3) {
+      if (dPx > 0.05) [label, sign] = dOi > 0 ? ["Long ใหม่เข้า", 1] : ["Short ปิดหนี", 0];
+      else if (dPx < -0.05) [label, sign] = dOi > 0 ? ["Short ใหม่เข้า", -1] : ["Long ปิดหนี", 0];
+      else label = dOi > 0 ? "OI เพิ่ม ราคานิ่ง" : "OI ลด ราคานิ่ง";
+    }
+    return { dOi, dPx, label, sign };
+  }
+  function biasModel(last, v) {
+    const ins = I(), cvd = D.cur.reduce((a, b) => a + delta(b), 0); let score = 0; const why = [];
     if (v) { if (last > v.vwap) { score++; why.push("ราคาเหนือ VWAP"); } else { score--; why.push("ราคาใต้ VWAP"); } }
     if (cvd > 0) { score++; why.push("CVD วันนี้เป็นบวก"); } else if (cvd < 0) { score--; why.push("CVD วันนี้เป็นลบ"); }
     if (ins.src === "bin" && S.trades.length) { const now = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => now - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0), pr = tot ? b / tot * 100 : 50;
       if (pr >= 55) { score++; why.push(`แรงซื้อ 5 นาที ${pr.toFixed(0)}%`); } else if (pr <= 45) { score--; why.push(`แรงขาย 5 นาที ${(100 - pr).toFixed(0)}%`); } }
-    const bias = score >= 2 ? "เอียงซื้อ" : score <= -2 ? "เอียงขาย" : "สองทาง รอราคาเข้าโซน";
-    const res = cluster(L, "res", last, win), sup = cluster(L, "sup", last, win), rows = [];
-    const mk = (side, z) => {
-      if (!z) return null; const sell = side === "sell", dir = sell ? -1 : 1, entry = sell ? z.lo : z.hi, stop = sell ? z.hi + slGap : z.lo - slGap, risk = Math.abs(entry - stop);
+    const o = oiRead(1); if (o && o.sign) { score += o.sign; why.push(`OI 1 ชม.: ${o.label}`); }
+    return { score, why, bias: score >= 2 ? "เอียงซื้อ" : score <= -2 ? "เอียงขาย" : "สองทาง รอราคาเข้าโซน" };
+  }
+
+  // ---- plan model (shared by the table and the journal) ------------------------------------------
+  function planModel(styleKey) {
+    const ins = I(), st = PLAN[styleKey], last = lastPx();
+    if (!D || last == null) return { err: "รอข้อมูล" };
+    const dAtr = atrDaily(S.daily), hAtr = atrOf(S.sess, 3600), atr = dAtr || (hAtr ? hAtr * 4 : null);
+    if (!atr) return { err: "ข้อมูลย้อนหลังยังไม่พอคำนวณ ATR" };
+    const slGap = Math.max(st.slK * atr, last * st.floor), win = st.clK * atr, gap2 = Math.max(win, 0.25 * atr), { L, v } = planLevels(last, st);
+    const B = biasModel(last, v), plans = {};
+    for (const [side, z] of [["sell", cluster(L, "res", last, win)], ["buy", cluster(L, "sup", last, win)]]) {
+      if (!z) continue; const sell = side === "sell", dir = sell ? -1 : 1, entry = sell ? z.lo : z.hi, stop = sell ? z.hi + slGap : z.lo - slGap, risk = Math.abs(entry - stop);
       const ahead = L.filter(l => (l.p - entry) * dir > 0).sort((a, b) => Math.abs(a.p - entry) - Math.abs(b.p - entry));
       const pick = (minR, after) => ahead.find(l => Math.abs(l.p - entry) >= minR * risk && (after == null || Math.abs(l.p - entry) >= Math.abs(after - entry) + gap2))
         || { p: entry + dir * Math.max(minR * risk, after == null ? 0 : Math.abs(after - entry) + gap2), name: `${minR}R (ไม่มีแนวถัดไป)` };
-      const t1 = pick(st.minR[0], null), t2 = pick(st.minR[1], t1.p), rr = t => (Math.abs(t.p - entry) / risk).toFixed(1);
-      const trend = score === 0 ? null : (sell ? score < 0 : score > 0);
-      return `<tr><td>${sell ? "▼ ขาย" : "▲ ซื้อ"}${trend === null ? "" : trend ? " · ตามแรง" : " · สวนแรง"}</td><td>${F(z.lo)}–${F(z.hi)}<span class="why">${[...new Set(z.mem.map(l => l.name))].join(" + ")}</span></td>` +
-        `<td class="num">${F(entry)}</td><td class="num">${F(stop)}<span class="why">${Dd(stop - entry)}</span></td>` +
-        `<td class="num">${F(t1.p)} / ${F(t2.p)}<span class="why">${Dd(t1.p - entry)} · ${Dd(t2.p - entry)}</span><span class="why">${t1.name} · ${t2.name}</span></td><td class="num">${rr(t1)} / ${rr(t2)}</td>` +
-        `<td>${sell ? `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับลงใต้ ${F(z.lo)}, CVD ไม่ทำจุดสูงใหม่${ins.src === "bin" ? ", กำแพง ASK ในโซนไม่ถูกถอน" : ""}` : `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับขึ้นเหนือ ${F(z.hi)}, CVD ไม่ทำจุดต่ำใหม่${ins.src === "bin" ? ", กำแพง BID ในโซนไม่ถูกถอน" : ""}`} · ถึง TP1 แล้วเลื่อน SL มาที่ทุน${trend === false ? " · สวนแรง ใช้ครึ่งไม้" : ""}</td>` +
-        `<td>แท่ง ${st.inval} ปิด${sell ? "เหนือ" : "ใต้"} ${F(stop)}</td></tr>`;
-    };
-    const order = score < 0 ? [["sell", res], ["buy", sup]] : [["buy", sup], ["sell", res]];
-    for (const [side, z] of order) { const r = mk(side, z); if (r) rows.push(r); }
-    body.innerHTML = rows.join("") || `<tr><td colspan="8" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
-    $("planBias").innerHTML = [["ทิศทางตอนนี้", bias, why.join(" · ") || "ข้อมูลยังน้อย"], ["ราคา", F(last), MODES.find(m => m[0] === ui.mode)[1]],
-      [atrName, fmt(atr * xf.a, Math.max(0, xf.dec - 1)), `SL ห่างขอบโซน ${fmt(slGap * xf.a, Math.max(0, xf.dec - 1))} (${st.slK} × ATR) · TP ≥ ${st.minR[0]}R / ${st.minR[1]}R`]]
-      .map(([k, val, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`).join("");
-    $("planHint").textContent = `${st.label} · อัปเดต ${fTs(Date.now())} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
+      const t1 = pick(st.minR[0], null), t2 = pick(st.minR[1], t1.p);
+      plans[side] = { inst: ins.key, style: styleKey, side, zoneLo: z.lo, zoneHi: z.hi, entry, stop, risk, tp1: t1.p, tp1Name: t1.name, tp2: t2.p, tp2Name: t2.name,
+                      names: [...new Set(z.mem.map(l => l.name))].join(" + "), trend: B.score === 0 ? null : (sell ? B.score < 0 : B.score > 0) };
+    }
+    return { st, atr, atrName: dAtr ? "ATR รายวัน" : "ATR รายวัน ≈ (ATR 1 ชม. × 4)", slGap, last, ...B, plans };
   }
+
+  // ---- position size -----------------------------------------------------------------------------
+  const UNITS = { xau: [["oz", "oz (Binance)", 1], ["lot", "lot XAUUSD (100 oz)", 100], ["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10]],
+                  gc: [["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10], ["lot", "lot XAUUSD (100 oz)", 100]], btc: [["btc", "BTC", 1]] };
+  function unitOf() { const list = UNITS[ui.inst] || UNITS.xau; return list.find(u => u[0] === ui.size.unit[ui.inst]) || list[0]; }
+  function sizeHtml(p) {
+    const cap = +ui.size.cap, pct = +ui.size.pct; if (!(cap > 0 && pct > 0)) return `<span class="why">ใส่ทุนและ % เสี่ยง</span>`;
+    const [k, , mult] = unitOf(), riskUsd = cap * pct / 100, base = riskUsd / p.risk, n = base / mult, whole = k === "gc" || k === "mgc";
+    const shown = whole ? Math.floor(n) : n, unit = k === "oz" ? "oz" : k === "btc" ? "BTC" : k.toUpperCase(), baseU = ui.inst === "btc" ? "BTC" : "oz";
+    const head = whole && shown < 1 ? `ต่ำกว่า 1 ${unit}` : `${whole ? shown : fmtV(shown)} ${unit}`;
+    return `${head}<span class="why">${fmtV(base)} ${baseU} · เสี่ยง $${fmtV(riskUsd)}</span><span class="why">TP1 +$${fmtV(base * Math.abs(p.tp1 - p.entry))} · TP2 +$${fmtV(base * Math.abs(p.tp2 - p.entry))}</span>`;
+  }
+
+  // ---- plan table ------------------------------------------------------------------------------------
+  function renderPlan() {
+    const ins = I(), xf = X(), body = $("tblPlan"), M = planModel(ui.plan), now = Date.now();
+    setTag("tagPlan", ins.src === "bin"); $("tagPlan").textContent = ins.src === "bin" ? "จาก order flow จริง" : "จากแท่งเทียน";
+    if (M.err) { body.innerHTML = `<tr><td colspan="9" class="empty">${M.err}</td></tr>`; $("planBias").innerHTML = ""; return; }
+    const st = M.st, F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
+    const news = newsWindow(now), rows = [];
+    for (const side of M.score < 0 ? ["sell", "buy"] : ["buy", "sell"]) {
+      const a = S.armed[akey(ui.plan, side)], p = a || M.plans[side]; if (!p) continue;
+      const sell = side === "sell", rr = t => (Math.abs(t - p.entry) / p.risk).toFixed(1), open = openTrade(ins.key, ui.plan, side);
+      const state = open ? "มีไม้เปิดอยู่ ดูในบันทึกผล" : a ? (a.touchedAt ? `ราคาแตะโซนแล้ว รอแท่ง ${st.conf} ยืนยัน` : "ล็อกแผนแล้ว รอราคาเข้าโซน") : "รอราคาเข้าโซน";
+      rows.push(`<tr><td data-l="แผน">${sell ? "▼ ขาย" : "▲ ซื้อ"}${p.trend === null ? "" : p.trend ? " · ตามแรง" : " · สวนแรง"}<span class="why">${state}</span></td>` +
+        `<td data-l="โซนเข้า">${F(p.zoneLo)}–${F(p.zoneHi)}<span class="why">${p.names}</span></td><td data-l="เข้า" class="num">${F(p.entry)}</td><td data-l="SL" class="num">${F(p.stop)}<span class="why">${Dd(p.stop - p.entry)}</span></td>` +
+        `<td data-l="TP1 / TP2" class="num">${F(p.tp1)} / ${F(p.tp2)}<span class="why">${Dd(p.tp1 - p.entry)} · ${Dd(p.tp2 - p.entry)}</span><span class="why">${p.tp1Name} · ${p.tp2Name}</span></td><td data-l="R:R" class="num">${rr(p.tp1)} / ${rr(p.tp2)}</td>` +
+        `<td data-l="ขนาดไม้" class="num">${sizeHtml(p)}</td>` +
+        `<td data-l="เงื่อนไขยืนยัน">${news ? `<b>⚠ ช่วงข่าว ${news.title}: งดเปิดไม้ใหม่</b> · ` : ""}${sell ? `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับลงใต้ ${F(p.zoneLo)}, CVD ไม่ทำจุดสูงใหม่${ins.src === "bin" ? ", กำแพง ASK ในโซนไม่ถูกถอน" : ""}` : `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับขึ้นเหนือ ${F(p.zoneHi)}, CVD ไม่ทำจุดต่ำใหม่${ins.src === "bin" ? ", กำแพง BID ในโซนไม่ถูกถอน" : ""}`} · ถึง TP1 ปิดครึ่งหนึ่งแล้วเลื่อน SL มาที่ทุน${p.trend === false ? " · สวนแรง ใช้ครึ่งไม้" : ""}</td>` +
+        `<td data-l="ยกเลิกเมื่อ">แท่ง ${st.inval} ปิด${sell ? "เหนือ" : "ใต้"} ${F(p.stop)}</td></tr>`);
+    }
+    body.innerHTML = rows.join("") || `<tr><td colspan="9" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
+    const nx = news || nextHighNews(now, 6 * 3600000), tiles = [["ทิศทางตอนนี้", M.bias, M.why.join(" · ") || "ข้อมูลยังน้อย"], ["ราคา", F(M.last), MODES.find(m => m[0] === ui.mode)[1]],
+      [M.atrName, fmt(M.atr * xf.a, Math.max(0, xf.dec - 1)), `SL ห่างขอบโซน ${fmt(M.slGap * xf.a, Math.max(0, xf.dec - 1))} (${st.slK} × ATR) · TP ≥ ${st.minR[0]}R / ${st.minR[1]}R`]];
+    tiles.push(["ข่าวแรงถัดไป", nx ? (nx.ts > now ? `อีก ${fAge(nx.ts - now)}` : "กำลังออก") : "ไม่มีใน 6 ชม.", nx ? `${nx.title} · ${fClock(nx.ts)}` : "ปฏิทินข่าว US"]);
+    $("planBias").innerHTML = tiles.map(([k, val, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`).join("");
+    $("planHint").textContent = `${st.label} · อัปเดต ${fTs(now)} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
+  }
+
+  // ---- journal: every confirmed plan entry is recorded and followed to its outcome ------------------
+  // A plan is locked when price comes near, entered at the close of the confirming candle, then
+  // managed as the table says: half off at TP1 with the stop moved to entry, the rest to TP2.
+  const J = { col: null, err: "", busy: false, clearArm: 0 };
+  const J_STATUS = { open: "เปิดอยู่", sl: "โดน SL", be: "ถึง TP1 แล้วออกที่ทุน", tp2: "ถึง TP2", timeout: "หมดเวลา", nodata: "ข้อมูลไม่พอตรวจ" };
+  const akey = (style, side) => style + ":" + side;
+  const openTrade = (inst, style, side) => S.journal.find(t => t.inst === inst && t.style === style && t.side === side && t.status === "open");
+  function candles(bars, sec) {
+    const m = new Map();
+    for (const b of bars) { const k = Math.floor(b.t / sec) * sec, c = m.get(k); if (!c) m.set(k, { start: k * 1000, end: (k + sec) * 1000, h: b.h, l: b.l, c: b.c }); else { c.h = Math.max(c.h, b.h); c.l = Math.min(c.l, b.l); c.c = b.c; } }
+    return [...m.values()].sort((a, z) => a.start - z.start);
+  }
+  async function journalTick() {
+    if (!J.col || J.busy || !S.sess.length) return; J.busy = true;
+    try {
+      D = derive(); const ins = I(), now = Date.now(), last = lastPx(); if (!D || last == null) return;
+      // price range since the previous tick (the first tick only knows the last price)
+      let hi = last, lo = last;
+      if (S.jCheck) { if (ins.src === "bin") { for (const t of S.trades) if (t.ts > S.jCheck) { hi = Math.max(hi, t.price); lo = Math.min(lo, t.price); } }
+                      else for (const b of S.sess) if ((b.t + 60) * 1000 > S.jCheck) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); } }
+      S.jCheck = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].ts : now;
+      const news = newsWindow(now), barsDone = S.sess[S.sess.length - 1].t * 1000;
+      for (const style of Object.keys(PLAN)) {
+        const M = planModel(style), st = PLAN[style]; if (M.err) continue;
+        for (const side of ["buy", "sell"]) {
+          const key = akey(style, side), sell = side === "sell"; let a = S.armed[key];
+          if (openTrade(ins.key, style, side)) { S.armed[key] = null; continue; }
+          if (a && !a.touchedAt && (Math.abs(last - a.entry) > 1.5 * M.slGap || now - a.armedAt > st.armMs)) a = null;
+          if (!a && M.plans[side] && Math.abs(last - M.plans[side].entry) <= 1.5 * M.slGap) a = { ...M.plans[side], armedAt: now, touchedAt: null };
+          S.armed[key] = a || null; if (!a) continue;
+          if (!a.touchedAt && (sell ? hi >= a.entry : lo <= a.entry)) a.touchedAt = now;
+          if (!a.touchedAt) continue;
+          if (sell ? hi >= a.stop : lo <= a.stop) { S.armed[key] = null; continue; } // ran through the stop before confirming
+          const cs = candles(S.sess, st.confSec).filter(c => c.end <= barsDone && c.end > a.touchedAt), ok = cs.find(c => sell ? c.c < a.zoneLo : c.c > a.zoneHi);
+          if (!ok) { if (cs.length >= 4) S.armed[key] = null; continue; }
+          S.armed[key] = null;
+          if (news) continue; // no new entries around high-impact news
+          const entry = ok.c, risk = Math.abs(entry - a.stop);
+          if (!(risk > 0) || Math.abs(a.tp1 - entry) / risk < 1) continue; // filled too late, TP1 is under 1R away
+          const rec = { inst: a.inst, style, side, created: ok.end, entry, stop: a.stop, risk, tp1: a.tp1, tp2: a.tp2, tp1Name: a.tp1Name, tp2Name: a.tp2Name,
+                        zoneLo: a.zoneLo, zoneHi: a.zoneHi, names: a.names, trend: a.trend, bias: M.bias, status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
+          const id = `${a.inst}-${style}-${side}-${ok.end}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+        }
+      }
+      await resolveTrades(hi, lo, now);
+      J.err = "";
+    } catch (e) { J.err = e && e.code === "quota_exceeded" ? "ที่เก็บบันทึกเต็ม ลบบันทึกเก่าก่อน" : `บันทึกไม่สำเร็จ (${(e && e.code) || "ไม่ทราบสาเหตุ"})`; }
+    finally { J.busy = false; schedule(); }
+  }
+  async function resolveTrades(hi, lo, now) {
+    const ins = I(), barMs = ins.src === "bin" ? 300000 : 60000, bars = S.sess;
+    for (const t of S.journal.filter(x => x.status === "open" && x.inst === ins.key)) {
+      const st = PLAN[t.style] || PLAN.day, sell = t.side === "sell", dir = sell ? -1 : 1, R = p => (p - t.entry) * dir / t.risk, lim = t.created + st.timeoutMs;
+      let tp1Hit = !!t.tp1Hit, tp1At = t.tp1At || null, out = null;
+      if (bars[0].t * 1000 > t.created + barMs) out = { status: "nodata", r: null, exit: null, closedAt: now };
+      const steps = bars.filter(b => b.t * 1000 >= t.created && b.t * 1000 < lim).map(b => ({ h: b.h, l: b.l, ts: b.t * 1000 + barMs }));
+      if (now <= lim) steps.push({ h: hi, l: lo, ts: now });
+      for (const s of out ? [] : steps) {
+        if (!tp1Hit) {
+          if (sell ? s.h >= t.stop : s.l <= t.stop) { out = { status: "sl", r: -1, exit: t.stop, closedAt: s.ts }; break; } // a bar touching both counts as a loss
+          if (sell ? s.l <= t.tp1 : s.h >= t.tp1) { tp1Hit = true; tp1At = s.ts; }
+        } else if (s.ts > tp1At) {
+          if (sell ? s.h >= t.entry : s.l <= t.entry) { out = { status: "be", r: 0.5 * R(t.tp1), exit: t.entry, closedAt: s.ts }; break; }
+          if (sell ? s.l <= t.tp2 : s.h >= t.tp2) { out = { status: "tp2", r: 0.5 * R(t.tp1) + 0.5 * R(t.tp2), exit: t.tp2, closedAt: s.ts }; break; }
+        }
+      }
+      if (!out && now > lim) { const i = barIndexAt(bars, lim / 1000 - 1), px = i >= 0 ? bars[i].c : lastPx();
+        out = { status: "timeout", r: tp1Hit ? 0.5 * R(t.tp1) + 0.5 * R(px) : R(px), exit: px, closedAt: lim }; }
+      const ref = J.col.doc(t.id);
+      if (out) { Object.assign(t, out, { tp1Hit, tp1At }); await ref.update({ ...out, tp1Hit, tp1At }); }
+      else if (tp1Hit !== !!t.tp1Hit) { Object.assign(t, { tp1Hit, tp1At }); await ref.update({ tp1Hit, tp1At }); }
+    }
+  }
+  function renderJournal() {
+    const ins = I(), xf = X(), F = p => fmt(xf.a * p + xf.b, xf.dec), st = PLAN[ui.plan], box = $("jStats"), body = $("tblJournal");
+    $("jHint").textContent = `${ins.label} · ${st.label}`;
+    if (!J.col) { box.innerHTML = ""; body.innerHTML = `<tr><td colspan="7" class="empty">${J.err || "บันทึกผลใช้ได้เมื่อเปิดหน้านี้ใน claude.ai และอนุญาตที่เก็บข้อมูล"}</td></tr>`; $("btnJClear").hidden = true; return; }
+    const mine = S.journal.filter(t => t.inst === ins.key && t.style === ui.plan), done = mine.filter(t => t.status !== "open" && t.status !== "nodata" && t.r != null);
+    const stat = arr => { const n = arr.length, w = arr.filter(t => t.tp1Hit).length, sum = arr.reduce((a, t) => a + t.r, 0); return { n, w, sum, avg: n ? sum / n : 0 }; };
+    const all = stat(done), tr = stat(done.filter(t => t.trend === true)), ct = stat(done.filter(t => t.trend === false)), Rs = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}R`;
+    box.innerHTML = [["ไม้ที่ปิดแล้ว", `${all.n}`, `เปิดอยู่ ${mine.filter(t => t.status === "open").length}`], ["ถึง TP1", all.n ? `${(all.w / all.n * 100).toFixed(0)}%` : "–", `${all.w} จาก ${all.n} ไม้`],
+      ["ผลรวม", all.n ? Rs(all.sum) : "–", all.n ? `เฉลี่ย ${Rs(all.avg)} ต่อไม้` : "ยังไม่มีไม้ปิด"], ["ตามแรง / สวนแรง", `${tr.n ? Rs(tr.avg) : "–"} / ${ct.n ? Rs(ct.avg) : "–"}`, `เฉลี่ยต่อไม้ · ${tr.n} / ${ct.n} ไม้`]]
+      .map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("") + (J.err ? `<div class="err">${J.err}</div>` : "");
+    body.innerHTML = mine.slice(0, 15).map(t => `<tr><td>${fClock(t.created)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}${t.trend === null ? "" : t.trend ? " · ตามแรง" : " · สวนแรง"}</td>` +
+      `<td class="num">${F(t.entry)}</td><td class="num">${F(t.stop)}</td><td class="num">${F(t.tp1)} / ${F(t.tp2)}</td><td>${J_STATUS[t.status] || t.status}${t.status === "open" && t.tp1Hit ? " · ถึง TP1 แล้ว" : ""}</td>` +
+      `<td class="num">${t.r == null ? "–" : Rs(t.r)}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">ยังไม่มีไม้ ระบบจะบันทึกเองเมื่อราคาเข้าโซนและแท่ง ${st.conf} ยืนยัน (ต้องเปิดหน้านี้ค้างไว้)</td></tr>`;
+    $("btnJClear").hidden = !mine.length; $("btnJClear").textContent = J.clearArm > Date.now() ? "กดอีกครั้งเพื่อลบ" : "ลบบันทึกของสินทรัพย์และสไตล์นี้";
+  }
+  async function clearJournal() {
+    if (J.clearArm < Date.now()) { J.clearArm = Date.now() + 5000; renderJournal(); setTimeout(renderJournal, 5100); return; }
+    J.clearArm = 0; const ins = I();
+    for (const t of S.journal.filter(x => x.inst === ins.key && x.style === ui.plan)) { try { await J.col.doc(t.id).delete(); } catch (e) { J.err = `ลบไม่สำเร็จ (${(e && e.code) || ""})`; break; } }
+    schedule();
+  }
+  async function initJournal() {
+    const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+    const uid = user ? await user.id() : null;
+    if (!db || !uid) { J.err = "บันทึกผลใช้ไม่ได้ในมุมมองนี้ (ต้องเข้าสู่ระบบ claude.ai)"; schedule(); return; }
+    J.col = db.doc("data/users/" + uid + "/journal").collection("trades");
+    J.col.orderBy("created", "desc").limit(500).onSnapshot(snap => { S.journal = snap.docs.map(d => ({ id: d.id, ...d.data() })); schedule(); },
+      e => { J.err = `อ่านบันทึกไม่สำเร็จ (${e.code})`; schedule(); });
+    setTimeout(journalTick, 1500); // settle trades that closed while the page was shut, without waiting for the first timer tick
+  }
+
+  // ---- futures positioning panel -------------------------------------------------------------------
+  function renderFut() {
+    const f = S.fut, box = $("futTiles"), ins = I(), u = ins.key === "btc" ? "BTC" : "oz", pct = v => v == null ? "–" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`;
+    $("futHint").textContent = `Binance ${f.sym} perp · ${ins.key === "gc" ? "ใช้แทน COMEX ที่ไม่มีข้อมูลนี้ฟรี" : "อัปเดตทุก 5 นาที"}`;
+    if (!f.oi.length && !f.mark) { box.innerHTML = `<p class="empty">รอข้อมูล</p>`; return; }
+    const o = f.oi[f.oi.length - 1], r1 = oiRead(1), r4 = oiRead(4), r24 = oiRead(24), tiles = [];
+    if (o) tiles.push(["Open Interest", `${fmtV(o.v)} ${u}`, `$${fmtV(o.usd)} · 1 ชม. ${pct(r1 && r1.dOi)} · 24 ชม. ${pct(r24 && r24.dOi)}`]);
+    tiles.push(["OI + ราคา 1 ชม.", r1 ? r1.label : "–", r1 ? `ราคา ${pct(r1.dPx)} · OI ${pct(r1.dOi)}` : "รอข้อมูล"], ["OI + ราคา 4 ชม.", r4 ? r4.label : "–", r4 ? `ราคา ${pct(r4.dPx)} · OI ${pct(r4.dOi)}` : "รอข้อมูล"]);
+    if (f.mark) tiles.push(["Funding", `${(f.mark.rate * 100).toFixed(4)}%`, `${f.mark.rate > 0 ? "Long จ่าย Short" : f.mark.rate < 0 ? "Short จ่าย Long" : "เป็นกลาง"} · รอบถัดไป ${fClock(f.mark.next)}`]);
+    const ls = f.ls[f.ls.length - 1], ls0 = f.ls.length > 24 ? f.ls[f.ls.length - 25] : f.ls[0];
+    if (ls) tiles.push(["Top trader Long / Short", `${(ls.long * 100).toFixed(0)}% / ${(ls.short * 100).toFixed(0)}%`, `อัตราส่วน ${ls.ratio.toFixed(2)}${ls0 && ls0 !== ls ? ` · 24 ชม. ก่อน ${ls0.ratio.toFixed(2)}` : ""}`]);
+    const tk = f.taker.slice(-4); if (tk.length) { const b = tk.reduce((a, x) => a + x.buy, 0), s = tk.reduce((a, x) => a + x.sell, 0);
+      tiles.push(["Taker ซื้อ / ขาย 4 ชม.", (b / (s || 1)).toFixed(2), `ซื้อ ${fmtV(b)} · ขาย ${fmtV(s)} ${u}`]); }
+    box.innerHTML = tiles.map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+    drawOi();
+  }
+  function drawOi() {
+    const cv = $("cvOi"), { ctx, w, h } = sized(cv), oi = S.fut.oi; if (oi.length < 3) return;
+    const T = tok(), plot = { l: 8, r: w - 8, t: 8, b: h - 16 }, t0 = oi[0].ts, t1 = oi[oi.length - 1].ts, xOf = ts => plot.l + (ts - t0) / ((t1 - t0) || 1) * (plot.r - plot.l);
+    const line = (pts, col, wd) => { const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), yOf = v => plot.b - (v - lo) / ((hi - lo) || 1) * (plot.b - plot.t);
+      ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.beginPath(); pts.forEach(([ts, v], i) => i ? ctx.lineTo(xOf(ts), yOf(v)) : ctx.moveTo(xOf(ts), yOf(v))); ctx.stroke(); };
+    line(S.sess.filter(b => b.t * 1000 >= t0).map(b => [b.t * 1000, b.c]), T.ink2, 1.2); line(oi.map(o => [o.ts, o.v]), T.vwap, 2);
+    ctx.font = FONT; ctx.fillStyle = T.muted; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.fillText(fClock(t0), plot.l, h - 3); ctx.textAlign = "right"; ctx.fillText(fClock(t1), plot.r, h - 3);
+  }
+
+  // ---- economic calendar -----------------------------------------------------------------------------
+  function renderNews() {
+    const now = Date.now(), ev = S.cal.filter(e => e.ts >= now - 3 * 3600000).slice(0, 12), banner = $("newsBanner");
+    const hot = newsWindow(now) || nextHighNews(now, 2 * 3600000);
+    banner.hidden = !hot;
+    if (hot) banner.textContent = hot.ts > now ? `⚠ ข่าวแรง: ${hot.title} เวลา ${fClock(hot.ts)} (อีก ${fAge(hot.ts - now)}) · งดเปิดไม้ใหม่ 30 นาทีก่อนและหลังข่าว ไม้ที่ถืออยู่ให้ลดขนาดหรือเลื่อน SL`
+      : `⚠ ข่าวแรงเพิ่งออก: ${hot.title} เมื่อ ${fAge(now - hot.ts)} ก่อน · รอให้ราคานิ่งก่อนเข้าไม้ใหม่`;
+    const val = (v, e) => v == null ? "–" : `${v}${e.scale || ""}${e.unit || ""}`;
+    $("tblNews").innerHTML = ev.map(e => `<tr class="${e.importance >= 1 ? "hi" : ""}"><td>${fClock(e.ts)}</td><td>${e.importance >= 1 ? '<span class="sd s3">แรง</span> ' : ""}${e.title}${e.period ? ` (${e.period})` : ""}</td>` +
+      `<td class="num">${val(e.forecast, e)}</td><td class="num">${val(e.previous, e)}</td><td class="num">${val(e.actual, e)}</td><td class="num">${e.ts > now ? fAge(e.ts - now) : "ออกแล้ว"}</td></tr>`).join("")
+      || `<tr><td colspan="6" class="empty">${S.calLoaded ? "ไม่มีข่าว US ระดับกลางขึ้นไปใน 2 วันนี้" : "รอข้อมูล"}</td></tr>`;
+  }
+
   function renderAll() {
     rafPending = false; D = derive();
     const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
     $("lblBig").hidden = ins.src !== "bin"; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
-    renderStrip(); drawMain(); drawVol(); drawBig(); drawCvd(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); renderStatus();
+    renderStrip(); drawMain(); drawVol(); drawBig(); drawCvd(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
     $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
@@ -758,11 +988,36 @@
       const cut = S.trades[S.trades.length - 1].ts - 4 * 3600000; if (S.trades[0].ts < cut) S.trades = S.trades.filter(t => t.ts >= cut); schedule(); }));
   }
   function startXauTicker() { every(15000, g => binLoop(g, async () => { const p = await bin("futures_usds.symbolPriceTicker", { symbol: "XAUUSDT" }); if (g !== gen) return; const px = +(Array.isArray(p) ? p[0] && p[0].price : p && p.price); if (isFinite(px)) { S.xauPx = px; schedule(); } })); }
-  function tdvWatch(tool, input, onData, critical) {
+  function tdvWatch(tool, input, onData, critical, every = 60000) {
     unsubs.push(mcp.watchTool(TDV, tool, input, ev => {
       if (ev.type === "data") { S.stamp.tdv = ev.result.cache ? ev.result.cache.storedAt : Date.now(); clearErr(TDV); onData(ev.result.payload); }
       else if (critical || DENY.has(ev.error.code)) noteErr(TDV, ev.error);
-    }, { cache: { staleTime: 30000 }, refetchInterval: 60000 }));
+    }, { cache: { staleTime: Math.min(every, 300000) / 2 }, refetchInterval: every }));
+  }
+  function startNews() {
+    const day = ms => new Date(ms).toISOString().slice(0, 10), now = Date.now();
+    tdvWatch(CAL, { countries: "US", date_from: day(now - 86400000), date_to: day(now + 2 * 86400000), min_importance: 0 }, p => {
+      const o = asObj(p), rows = o && Array.isArray(o.result) ? o.result : [];
+      S.cal = rows.map(e => ({ ts: Date.parse(e.date), title: e.title || e.indicator || "", period: e.period || "", importance: +e.importance, forecast: e.forecast, previous: e.previous, actual: e.actual, scale: e.scale || "", unit: e.unit || "" }))
+        .filter(e => isFinite(e.ts)).sort((a, z) => a.ts - z.ts);
+      S.calLoaded = true; schedule();
+    }, false, 1800000);
+  }
+  function startFutures(sym) {
+    S.fut.sym = sym;
+    every(300000, g => binLoop(g, async () => {
+      const [oi, ls, tk] = [await bin("futures_usds.openInterestStatistics", { symbol: sym, period: "5m", limit: 289 }),
+                            await bin("futures_usds.topTraderLongShortRatioPositions", { symbol: sym, period: "1h", limit: 25 }),
+                            await bin("futures_usds.takerBuySellVolume", { symbol: sym, period: "1h", limit: 25 })];
+      if (g !== gen) return;
+      const arr = x => Array.isArray(x) ? x : [];
+      S.fut.oi = arr(oi).map(r => ({ ts: +r.timestamp, v: +r.sumOpenInterest, usd: +r.sumOpenInterestValue })).filter(r => isFinite(r.v)).sort((a, z) => a.ts - z.ts);
+      S.fut.ls = arr(ls).map(r => ({ ts: +r.timestamp, long: +r.longAccount, short: +r.shortAccount, ratio: +r.longShortRatio })).filter(r => isFinite(r.ratio)).sort((a, z) => a.ts - z.ts);
+      S.fut.taker = arr(tk).map(r => ({ ts: +r.timestamp, buy: +r.buyVol, sell: +r.sellVol })).filter(r => isFinite(r.buy)).sort((a, z) => a.ts - z.ts);
+      schedule();
+    }));
+    every(60000, g => binLoop(g, async () => { const m = await bin("futures_usds.markPrice", { symbol: sym }); if (g !== gen || !m) return;
+      S.fut.mark = { rate: +m.lastFundingRate || 0, next: +m.nextFundingTime }; schedule(); }));
   }
   function startTdvChart() {
     const ins = I(), [, cnt] = TF[ui.tf], tvIv = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" }[ui.tf];
@@ -779,6 +1034,8 @@
     overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false); schedule();
     if (ins.src === "bin") startBinance(); else startTdvChart();
     if (ins.gold) { startQuotes(); startXauTicker(); }
+    startNews(); startFutures(ins.key === "btc" ? "BTCUSDT" : "XAUUSDT");
+    every(10000, async g => { if (g === gen) await journalTick(); });
   }
   function restartChartOnly() {
     // timeframe change: keep book/trades/tracker, refetch chart only
@@ -818,6 +1075,7 @@
     seg("segInst", Object.values(INSTR).map(x => [x.key, x.btn, x.sub]), ui.inst, k => { if (k === ui.inst) return; ui.inst = k; store.set("inst", k); renderControls(); start(); });
     $("segMode").hidden = !ins.gold;
     seg("segMode", MODES.filter(m => !(ins.key === "gc" && m[0] === "gc")), ui.mode, k => { ui.mode = k; store.set("mode", k); renderControls(); schedule(); });
+    const units = UNITS[ins.key] || UNITS.xau; $("selUnit").innerHTML = units.map(([k, t]) => `<option value="${k}">${t}</option>`).join(""); $("selUnit").value = unitOf()[0];
     seg("segPlan", Object.entries(PLAN).map(([k, v]) => [k, v.label, `SL ${v.slK}×ATR วัน`]), ui.plan, k => { ui.plan = k; store.set("plan", k); renderControls(); schedule(); });
     seg("segTf", Object.keys(TF).map(k => [k, k]), ui.tf, k => { if (k === ui.tf) return; ui.tf = k; store.set("tf", k); renderControls(); restartChartOnly(); });
     if (ins.src === "bin") { const sel = $("selBig"); sel.innerHTML = ins.bigOpts.map(v => `<option value="${v}">${v} ${ins.unit}</option>`).join(""); sel.value = String(bigMin()); }
@@ -833,6 +1091,10 @@
     try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule); } catch { /* old browsers */ }
     $("selBig").addEventListener("change", e => { ui.big[I().key] = +e.target.value; store.set("big", ui.big); schedule(); });
     $("btnApprove").addEventListener("click", approve);
+    $("inCap").value = ui.size.cap; $("inPct").value = ui.size.pct;
+    const sizeIn = () => { ui.size.cap = Math.max(0, +$("inCap").value || 0); ui.size.pct = Math.min(10, Math.max(0, +$("inPct").value || 0)); ui.size.unit[ui.inst] = $("selUnit").value; store.set("size", ui.size); schedule(); };
+    for (const id of ["inCap", "inPct", "selUnit"]) $(id).addEventListener("change", sizeIn);
+    $("btnJClear").addEventListener("click", clearJournal);
     $("cvMain").addEventListener("mousemove", onHover);
     $("cvMain").addEventListener("mouseleave", () => { ui.hover = null; $("tip").hidden = true; if (S.chart.length) { drawMain(); drawCvd(); } });
     let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(schedule, 120); });
@@ -840,7 +1102,7 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
     mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null;
     if (!mcp) { overlay("เปิดหน้านี้ใน claude.ai เพื่อให้ดึงข้อมูลผ่าน connector Binance และ tdv ของคุณได้", false); $("status").textContent = "ไม่มีการเชื่อมต่อ connector ในมุมมองนี้"; return; }
-    start();
+    start(); initJournal();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

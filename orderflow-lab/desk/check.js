@@ -10,7 +10,8 @@ const OUT = path.join(__dirname, "..", "data");
     let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     const now = Date.now(), IV = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400 };
     const base = sym => sym === "XAUUSDT" ? 4167.5 : 81900, stepOf = sym => sym === "XAUUSDT" ? 1.2 : 60;
-    const klines = (sym, iv, n) => { const sec = IV[iv], st = stepOf(sym) * Math.sqrt(sec / 300); let p = base(sym) - st * 3; const out = []; const t0 = Math.floor(now / 1000 / sec) * sec - (n - 1) * sec;
+    const kc = {}, klines = (sym, iv, n) => kc[sym + iv + n] || (kc[sym + iv + n] = klinesGen(sym, iv, n));
+    const klinesGen = (sym, iv, n) => { const sec = IV[iv], st = stepOf(sym) * Math.sqrt(sec / 300); let p = base(sym) - st * 3; const out = []; const t0 = Math.floor(now / 1000 / sec) * sec - (n - 1) * sec;
       for (let i = 0; i < n; i++) { const o = p, c = o + (r() - 0.5) * st * 2, h = Math.max(o, c) + r() * st * 0.6, l = Math.min(o, c) - r() * st * 0.6, v = (sym === "XAUUSDT" ? 40 : 15) * (0.3 + r() * 2 + (r() < 0.04 ? 6 : 0)), bv = v * (0.25 + r() * 0.5);
         out.push([(t0 + i * sec) * 1000, o, h, l, c, v.toFixed(3), (t0 + i * sec + sec) * 1000 - 1, "0", 100, bv.toFixed(3), "0", "0"]); p = c; }
       const d = base(sym) - out[out.length - 1][4]; for (const k of out) for (const j of [1, 2, 3, 4]) k[j] = (k[j] + d).toFixed(2);
@@ -24,12 +25,31 @@ const OUT = path.join(__dirname, "..", "data");
       for (let k = start; k < end; k++) { const big = r() < 0.03; out.push({ a: k, p: (base(sym) + (r() - 0.5) * stepOf(sym) * 4).toFixed(2), q: (big ? (sym === "XAUUSDT" ? 5 + r() * 40 : 0.5 + r() * 4) : r() * 0.3).toFixed(3), f: k, l: k, T: Date.now() - (end - k) * 40, m: r() < 0.5 }); }
       id[sym] = Math.max(id[sym], end); return out; };
     const bin = (tool, a) => { if (/klines|klineCandlestick/i.test(tool)) return klines(a.symbol, a.interval, a.limit); if (/depth|orderBook/.test(tool)) return depth(a.symbol);
-      if (/ggTrades|AggregateTrades/.test(tool)) return agg(a.symbol, a); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
+      if (/ggTrades|AggregateTrades/.test(tool)) return agg(a.symbol, a);
+      if (tool === "futures_usds.openInterestStatistics") return Array.from({ length: a.limit }, (_, i) => ({ symbol: a.symbol, sumOpenInterest: String(131000 + i * 3 + r() * 50), sumOpenInterestValue: String(5.4e8 + i * 1e4), timestamp: now - (a.limit - 1 - i) * 300000 }));
+      if (tool === "futures_usds.markPrice") return { symbol: a.symbol, markPrice: "4167.9", lastFundingRate: "0.00010000", nextFundingTime: now + 3 * 3600000, time: now };
+      if (tool === "futures_usds.topTraderLongShortRatioPositions") return Array.from({ length: a.limit }, (_, i) => { const l = 0.7 + i * 0.003; return { symbol: a.symbol, longAccount: String(l), shortAccount: String(1 - l), longShortRatio: String(l / (1 - l)), timestamp: now - (a.limit - i) * 3600000 }; });
+      if (tool === "futures_usds.takerBuySellVolume") return Array.from({ length: a.limit }, (_, i) => ({ buyVol: String(400 + r() * 100), sellVol: String(400 + r() * 100), buySellRatio: "1.0", timestamp: now - (a.limit - i) * 3600000 })); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
     const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
-    window.__calls = [];
-    window.claude = { use: async n => n !== "mcp" ? null : ({
+    window.__calls = []; window.__dbWrites = [];
+    // in-memory db with one seeded open trade so the journal resolver has work to do
+    const store = new Map(), subs = [];
+    const deliver = () => { for (const [col, next] of subs) { const docs = [...store].filter(([k]) => k.startsWith(col + "/")).map(([k, v]) => ({ id: k.slice(col.length + 1), exists: true, data: () => v }))
+      .sort((a, z) => z.data().created - a.data().created); next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }); } };
+    const colRef = path => { const q = { path, doc: id => ({ id, path: path + "/" + id, set: async d => { window.__dbWrites.push(["set", id, d.status]); store.set(path + "/" + id, d); setTimeout(deliver, 0); },
+        update: async d => { window.__dbWrites.push(["update", id, d.status, d.tp1Hit]); store.set(path + "/" + id, { ...store.get(path + "/" + id), ...d }); setTimeout(deliver, 0); },
+        delete: async () => { store.delete(path + "/" + id); setTimeout(deliver, 0); } }),
+      orderBy: () => q, limit: () => q, onSnapshot: next => { subs.push([path, next]); setTimeout(deliver, 0); return () => {}; } }; return q; };
+    const db = { doc: path => ({ collection: c => colRef(path + "/" + c) }), collection: colRef };
+    { const bars = klines("XAUUSDT", "5m", 1000), k = bars.length - 30, entry = +bars[k][4], after = bars.slice(k + 1), H = Math.max(...after.map(b => +b[2])), L = Math.min(...after.map(b => +b[3]));
+      store.set("data/users/u1/journal/trades/seed", { inst: "xau", style: "day", side: "buy", created: bars[k][0] + 300000, entry, stop: L - 0.5, risk: entry - (L - 0.5), tp1: entry + (H - entry) * 0.5, tp2: H + 3,
+        tp1Name: "x", tp2Name: "y", zoneLo: entry - 1, zoneHi: entry, names: "seed", trend: true, bias: "x", status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null }); }
+    window.claude = { use: async n => n === "db" ? db : n === "user" ? { id: async () => "u1" } : n !== "mcp" ? null : ({
       callTool: async (srv, tool, input) => { window.__calls.push(srv + ":" + tool + ":" + (input.toolName || "")); if (srv === "Binance" && tool === "tool_execute") return { payload: bin(input.toolName, input.arguments) }; throw { code: "not_in_manifest" }; },
-      watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("ohlcv")) h({ type: "data", result: { payload: { bars: gc() } } });
+      watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
+          { date: new Date(now + 50 * 60000).toISOString(), title: "Core Inflation Rate MoM", importance: 1, forecast: 0.3, previous: 0.3, actual: null, unit: "%", period: "Sep" },
+          { date: new Date(now + 5 * 3600000).toISOString(), title: "Housing Starts", importance: 0, forecast: 1.3, previous: 1.275, actual: null, scale: "M" }] } } });
+        else if (tool.includes("ohlcv")) h({ type: "data", result: { payload: { bars: gc() } } });
         else h({ type: "data", result: { payload: { data: inp.symbol.includes("GC") ? { close: 4186.7, change: -0.4, update_mode: "streaming" } : inp.symbol.includes("THB") ? { close: 32.45, change: 0.1 } : { close: 4165.42, change: -0.13 } } } }); }, 50); return () => {}; } }) };
   })();`;
   fs.mkdirSync(OUT, { recursive: true });
@@ -41,8 +61,7 @@ const OUT = path.join(__dirname, "..", "data");
     await p.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await p.goto("file://" + path.join(OUT, "desk-preview.html"));
     // advance through several depth/trade polls so walls become persistent
-    await p.waitForTimeout(1500);
-    await p.evaluate(() => { /* nothing */ });
+    await p.waitForTimeout(3500);
     const info = async () => p.evaluate(() => ({ scrollW: document.documentElement.scrollWidth, ov: document.getElementById("ovMain").hidden, strip: [...document.querySelectorAll("#strip .q .v")].map(e => e.textContent).join(" | "),
       ob: document.querySelectorAll("#obBox tr").length, tape: document.querySelectorAll("#tblTape tr").length, flow: document.getElementById("flowTiles").textContent.slice(0, 160), err: document.getElementById("errTop").textContent, tags: [...document.querySelectorAll(".tag")].map(t => t.textContent).join(","), cot: document.getElementById("cardCot").hidden }));
     console.log(name, "xau", JSON.stringify(await info()));
@@ -58,6 +77,10 @@ const OUT = path.join(__dirname, "..", "data");
       await p.click('#segTf button[data-k="1H"]'); await p.waitForTimeout(400);
       await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(800);
       const calls = await p.evaluate(() => [...new Set(window.__calls)]); console.log("calls", calls.join(" "));
+      console.log("db writes", JSON.stringify(await p.evaluate(() => window.__dbWrites)));
+      console.log("journal", await p.evaluate(() => document.getElementById("jStats").textContent.slice(0, 200)), "|", await p.evaluate(() => document.getElementById("tblJournal").textContent.slice(0, 160)));
+      console.log("news banner", await p.evaluate(() => document.getElementById("newsBanner").hidden ? "hidden" : document.getElementById("newsBanner").textContent.slice(0, 120)));
+      console.log("fut", await p.evaluate(() => document.getElementById("futTiles").textContent.slice(0, 260)));
     } else await p.screenshot({ path: path.join(OUT, "desk-phone-dark.png"), fullPage: true });
     await ctx.close();
   }
