@@ -192,7 +192,7 @@
       <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span><span><i class="sw oi"></i>OI (แผงล่างสุด, futures ราย 5 นาที)</span>
     </div>
     <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
-    <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span></div>
+    <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span><span id="oiHint"></span></div>
     <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
   </section>
 
@@ -301,9 +301,9 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -450,7 +450,9 @@
     C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, title: "CVD", priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
     C.markers = LW.createSeriesMarkers(C.candles, []);
     const pane = C.chart.panes()[1]; if (pane) pane.setHeight(window.innerWidth < 600 ? 100 : 140);
-    C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r && r.from < 15 && !C.loadingOld && !C.noMore && S.chart.length) loadOlder(); });
+    C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => {
+      if (r) { const el = $("lwMain"); el.dataset.from = r.from.toFixed(1); el.dataset.to = r.to.toFixed(1); } // mirrored for tests
+      if (r && r.from < 15 && !C.loadingOld && !C.noMore && S.chart.length) loadOlder(); });
     C.chart.subscribeCrosshairMove(legend);
     $("btnLive").onclick = () => C.chart.timeScale().scrollToRealTime();
     $("btnFit").onclick = () => { const n = S.chart.length; C.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - viewBars()), to: n + 8 }); C.candles.priceScale().applyOptions({ autoScale: true }); };
@@ -514,20 +516,42 @@
     C.key = key; C.n = bs.length; C.first = bs[0].t;
     legend(null);
   }
-  // OI pane under CVD: Binance USDⓈ-M open interest every 5 minutes, stepped onto the bars by close time.
-  // The futures panel loads it for XAUUSDT (also shown on the GC chart, labelled as XAUUSDT) or BTCUSDT perp.
+  // OI pane under CVD: Binance USDⓈ-M open interest for the chart's own time range (step matched to the
+  // timeframe), stepped onto the bars by close time. XAUUSDT also serves the GC chart and is labelled so;
+  // a GC chart from a closed session gets the OI of those hours, not the last 24 h.
+  const OI_PERIOD = { "1m": "5m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d" };
+  function loadChartOi(bs) {
+    const ins = I(), o = S.oiChart, sym = ins.key === "btc" ? "BTCUSDT" : "XAUUSDT", period = OI_PERIOD[ui.tf] || "5m";
+    const end = Math.min(Date.now(), (bs[bs.length - 1].t + (TF_SEC[ui.tf] || 300)) * 1000);
+    const key = `${sym}|${period}|${Math.floor(end / 60000)}`;
+    if (o.busy || o.key === key) return;
+    o.busy = true; const g = gen;
+    bin("futures_usds.openInterestStatistics", { symbol: sym, period, limit: 500, endTime: end }).then(rows => {
+      if (g !== gen) return;
+      Object.assign(o, { key, sym, period, at: Date.now(), done: true,
+        pts: (Array.isArray(rows) ? rows : []).map(r => ({ ts: +r.timestamp, v: +r.sumOpenInterest })).filter(r => isFinite(r.ts) && isFinite(r.v)).sort((a, z) => a.ts - z.ts) });
+      schedule();
+    }).catch(() => { o.key = key; o.done = true; }).finally(() => { o.busy = false; });
+  }
   function syncOi(bs) {
-    const ins = I(), pts = S.fut.oi, want = ui.layers.oi && pts.length >= 2 && bs.length > 0;
-    if (!want) { if (C.oi) { C.chart.removeSeries(C.oi); C.oi = null; for (let i = C.chart.panes().length - 1; i >= 2; i--) if (!C.chart.panes()[i].getSeries().length) C.chart.removePane(i); } return; }
+    const ins = I(), o = S.oiChart, hint = $("oiHint"), drop = () => { if (C.oi) { C.chart.removeSeries(C.oi); C.oi = null; for (let i = C.chart.panes().length - 1; i >= 2; i--) if (!C.chart.panes()[i].getSeries().length) C.chart.removePane(i); } };
+    if (!ui.layers.oi || !bs.length) { drop(); hint.textContent = ""; return; }
+    loadChartOi(bs);
+    const sec = TF_SEC[ui.tf] || 300, pts = o.pts; let j = -1, n = 0;
+    const data = bs.map(b => { const close = (b.t + sec) * 1000; while (j + 1 < pts.length && pts[j + 1].ts <= close) j++;
+      const ok = j >= 0 && pts[j].ts >= (b.t - 3 * Math.max(sec, 300)) * 1000; if (ok) n++; return ok ? { time: lt(b.t), value: pts[j].v } : { time: lt(b.t) }; });
     const title = ins.key === "gc" ? "OI XAUUSDT" : ins.key === "btc" ? "OI BTCUSDT perp" : "OI";
+    if (n < 2) { drop(); hint.textContent = !o.done ? " · OI: กำลังโหลด" : " · OI: ไม่มีข้อมูล OI ในช่วงเวลาของกราฟนี้"; return; }
+    hint.textContent = ` · แผงล่างสุด = ${title} (Binance futures ราย ${o.period}${ins.key === "gc" ? ", ไม่ใช่ OI ของ COMEX" : ""})`;
     if (!C.oi) {
       C.oi = C.chart.addSeries(LW.LineSeries, { color: "#7c3aed", lineWidth: 2, title, priceLineVisible: false,
         priceFormat: { type: "custom", minMove: 0.01, formatter: v => Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : fmtV(v) } }, 2);
-      const pane = C.chart.panes()[2]; if (pane) pane.setHeight(window.innerWidth < 600 ? 70 : 100);
+      // keep CVD readable when the OI pane joins: the price pane gives up the room, not CVD
+      const narrow = window.innerWidth < 600;
+      requestAnimationFrame(() => { const ps = C.chart.panes(); // after the library has laid out the new pane
+        if (ps[1]) ps[1].setHeight(narrow ? 90 : 120); if (ps[2]) ps[2].setHeight(narrow ? 70 : 100); });
     } else C.oi.applyOptions({ title });
-    const sec = TF_SEC[ui.tf] || 300; let j = -1;
-    C.oi.setData(bs.map(b => { const close = (b.t + sec) * 1000; while (j + 1 < pts.length && pts[j + 1].ts <= close) j++;
-      return j >= 0 && pts[j].ts >= (b.t - 3 * Math.max(sec, 300)) * 1000 ? { time: lt(b.t), value: pts[j].v } : { time: lt(b.t) }; }));
+    C.oi.setData(data);
   }
   function legend(p) {
     const ins = I(), xf = X(), bs = S.chart, el = $("lwLegend"); if (!bs.length) { el.textContent = ""; return; }

@@ -28,11 +28,12 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       id[sym] = Math.max(id[sym], end); return out; };
     const bin = (tool, a) => { if (/klines|klineCandlestick/i.test(tool)) return klines(a.symbol, a.interval, a.limit, a.endTime); if (/depth|orderBook/.test(tool)) return depth(a.symbol);
       if (/ggTrades|AggregateTrades/.test(tool)) return agg(a.symbol, a);
-      if (tool === "futures_usds.openInterestStatistics") return Array.from({ length: a.limit }, (_, i) => ({ symbol: a.symbol, sumOpenInterest: String(131000 + i * 3 + r() * 50), sumOpenInterestValue: String(5.4e8 + i * 1e4), timestamp: now - (a.limit - 1 - i) * 300000 }));
+      if (tool === "futures_usds.openInterestStatistics") { const per = { "5m": 3e5, "15m": 9e5, "30m": 18e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 }[a.period] || 3e5, end = Math.floor((a.endTime || now) / per) * per;
+        return Array.from({ length: a.limit }, (_, i) => ({ symbol: a.symbol, sumOpenInterest: String(131000 + i * 3 + r() * 50), sumOpenInterestValue: String(5.4e8 + i * 1e4), timestamp: end - (a.limit - 1 - i) * per })); }
       if (tool === "futures_usds.markPrice") return { symbol: a.symbol, markPrice: "4167.9", lastFundingRate: "0.00010000", nextFundingTime: now + 3 * 3600000, time: now };
       if (tool === "futures_usds.topTraderLongShortRatioPositions") return Array.from({ length: a.limit }, (_, i) => { const l = 0.7 + i * 0.003; return { symbol: a.symbol, longAccount: String(l), shortAccount: String(1 - l), longShortRatio: String(l / (1 - l)), timestamp: now - (a.limit - i) * 3600000 }; });
       if (tool === "futures_usds.takerBuySellVolume") return Array.from({ length: a.limit }, (_, i) => ({ buyVol: String(400 + r() * 100), sellVol: String(400 + r() * 100), buySellRatio: "1.0", timestamp: now - (a.limit - i) * 3600000 })); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
-    const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
+    const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - 40 * 3600 - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
     window.__calls = []; window.__dbWrites = []; window.__dbReads = [];
     // in-memory db (where / orderBy / limit / get / onSnapshot like the real store, pages capped at 1000)
     // with one seeded open trade so the resolver has work to do, and older closed records for pagination
@@ -79,7 +80,7 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
     // advance through several depth/trade polls so walls become persistent
     await p.waitForTimeout(3500);
     const info = async () => p.evaluate(() => ({ scrollW: document.documentElement.scrollWidth, ov: document.getElementById("ovMain").hidden, strip: [...document.querySelectorAll("#strip .q .v")].map(e => e.textContent).join(" | "),
-      ob: document.querySelectorAll("#obBox tr").length, tape: document.querySelectorAll("#tblTape tr").length, flow: document.getElementById("flowTiles").textContent.slice(0, 160), err: document.getElementById("errTop").textContent, tags: [...document.querySelectorAll(".tag")].map(t => t.textContent).join(","), cot: document.getElementById("cardCot").hidden }));
+      oi: (document.getElementById("oiHint") || {}).textContent || "", ob: document.querySelectorAll("#obBox tr").length, tape: document.querySelectorAll("#tblTape tr").length, flow: document.getElementById("flowTiles").textContent.slice(0, 160), err: document.getElementById("errTop").textContent, tags: [...document.querySelectorAll(".tag")].map(t => t.textContent).join(","), cot: document.getElementById("cardCot").hidden }));
     console.log(name, "xau", JSON.stringify(await info()));
     if (name === "light") {
       await p.click('#segMode button[data-k="gc"]'); await p.waitForTimeout(300); console.log("mode gc last:", await p.textContent("#strip .q.hl .v"));
