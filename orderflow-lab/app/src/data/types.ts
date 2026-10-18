@@ -151,4 +151,6 @@ export interface AlertEvent {
   live: boolean;
   dedupeKey: string;
   ack: boolean;
+  /** which data source the page was using when it measured this (older events have none) */
+  source?: "demo" | "api" | "connector";
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import type { DataKind, Freshness, StreamStatus } from "../data/types";
+import type { SourceMode } from "../data/source";
 import { fmtAge, fmtTime } from "../lib/format";
 
 export const KIND_TEXT: Record<DataKind, string> = {
@@ -11,6 +12,16 @@ export const KIND_TEXT: Record<DataKind, string> = {
   approximate: "ค่าประมาณ",
   unavailable: "ยังไม่มีข้อมูล",
 };
+
+/** the owner-preview wording, shown above every screen whenever the connector is the source */
+export const OWNER_LABEL = "ข้อมูลจริงจาก Binance ผ่าน connector ของคุณ · ดูส่วนตัว ห้ามเผยแพร่/ขาย";
+
+/** next to a price or chart: where this number came from, when it is not demo data */
+export function SourceTag({ mode }: { mode: SourceMode }) {
+  if (mode === "connector") return <span className="badge owner"><Icon name="shield" />Binance จริง · connector ของคุณ · ดูส่วนตัว</span>;
+  if (mode === "api") return <span className="badge">เซิร์ฟเวอร์ Flow Lab</span>;
+  return null;
+}
 
 /** per-asset freshness: kind of data + exchange time of the newest value, timezone always written */
 export function DataBadge({ f, now }: { f: Freshness; now?: number }) {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, go, persisted } from "../state";
 import type { Lookback, MarketDetails, Quote, Series, Timeframe } from "../data/types";
-import { ERROR_TEXT, SourceError } from "../data/source";
+import { SourceError, errorText } from "../data/source";
 import { PriceChart, type Layers } from "../components/PriceChart";
-import { Coin, DataBadge, Loading, Seg, Sheet, Side, StreamBadge } from "../components/ui";
+import { Coin, DataBadge, KIND_TEXT, Loading, Seg, Sheet, Side, SourceTag, StreamBadge } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { GLOSSARY } from "../content/glossary";
 import { cvd, vwap } from "../domain/indicators";
@@ -17,6 +17,8 @@ const PRICE_TYPE = { last_trade: "ซื้อขายล่าสุด", mark
 const WALL_STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ลดลง" };
 const OUTCOME = { price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
 export const ENGINE_VERSION = "demo-0.1";
+/** snapshots record which pipeline produced their numbers */
+export const ENGINE_BY_SOURCE = { demo: ENGINE_VERSION, api: "api-0.1", connector: "connector-0.1" } as const;
 
 type Err = SourceError;
 const asErr = (e: unknown) => (e instanceof SourceError ? e : new SourceError("server", String(e)));
@@ -63,7 +65,7 @@ export function Analyze({ params }: { params: URLSearchParams }) {
       {okDetails && (
         <div className="price-types" aria-label="ชนิดราคา">
           {okDetails.prices.map((p) => (
-            <div key={p.type}><span>{PRICE_TYPE[p.type]}</span><b>{p.value == null ? "ไม่มีในตลาดนี้" : fmtNum(p.value, ins.priceDecimals)}</b></div>
+            <div key={p.type}><span>{PRICE_TYPE[p.type]}</span><b>{p.value != null ? fmtNum(p.value, ins.priceDecimals) : ins.market === "spot" && p.type !== "last_trade" ? "ไม่มีในตลาดนี้" : "ยังไม่มีข้อมูล"}</b></div>
           ))}
         </div>
       )}
@@ -95,12 +97,13 @@ export function Analyze({ params }: { params: URLSearchParams }) {
                 <div className="tiny muted">{marketLine(ins)}</div>
               </div>
               {okSeries && <DataBadge f={{ kind: okSeries.freshness.kind, asOf: null }} />}
+              <SourceTag mode={source.mode} />
             </div>
             {ins.caution && <p className="badge caution" style={{ marginTop: 8 }}>{ins.caution}</p>}
             {okQuote && (
               <div className="row" style={{ alignItems: "baseline", marginTop: 6 }}>
                 <span className="num" style={{ fontSize: 28, fontWeight: 700 }}>{fmtPrice(okQuote.price, ins.priceDecimals, ins.quote)}</span>
-                <span className={`num ${(okQuote.changePct ?? 0) >= 0 ? "buy" : "sell"}`} style={{ fontWeight: 700 }}>{(okQuote.changePct ?? 0) >= 0 ? "▲" : "▼"} {fmtSigned(okQuote.changePct, 2, "%")}</span>
+                <span className={`num ${okQuote.changePct == null ? "muted" : okQuote.changePct >= 0 ? "buy" : "sell"}`} style={{ fontWeight: 700 }}>{okQuote.changePct == null ? "ยังไม่มีข้อมูล" : `${okQuote.changePct >= 0 ? "▲" : "▼"} ${fmtSigned(okQuote.changePct, 2, "%")}`}</span>
                 <span className="muted small">24 ชม. · ราคาซื้อขายล่าสุด</span>
               </div>
             )}
@@ -118,7 +121,7 @@ export function Analyze({ params }: { params: URLSearchParams }) {
                 ))}
               </div>
             </div>
-            {!series ? <Loading lines={6} /> : series instanceof SourceError ? <p className="error">{ERROR_TEXT[series.code]}</p> : (
+            {!series ? <Loading lines={6} /> : series instanceof SourceError ? <p className="error">{errorText(series)}</p> : (
               <>
                 <PriceChart ins={ins} series={series} layers={layers} viewKey={`${ins.id}|${tf}|${lb}`}
                   profile={okDetails?.profile ?? null} onCapture={(fn) => (capture.current = fn)} />
@@ -164,7 +167,7 @@ export function Analyze({ params }: { params: URLSearchParams }) {
               ...(okDetails?.oi?.value != null ? [{ label: "OI", value: `${fmtCompact(okDetails.oi.value)} ${okDetails.oi.unit}` }] : []),
             ],
             quality: okDetails?.quality.map((q) => ({ stream: q.stream, status: q.status })) ?? [],
-            engineVersion: ENGINE_VERSION, schemaVersion: 1,
+            engineVersion: ENGINE_BY_SOURCE[source.mode], schemaVersion: 1,
             image: img ? { dataUrl: img, sha256: await sha256(img) } : null,
           };
           return { snap, observedAt: last.t * 1000 };
@@ -176,7 +179,7 @@ export function Analyze({ params }: { params: URLSearchParams }) {
 
 function Panels({ details, ins, open, onTerm }: { details: MarketDetails | Err | null; ins: { qtyUnit: string; quote: string; priceDecimals: number; market: string }; open: string | null; onTerm: (t: string) => void }) {
   if (!details) return <Loading lines={3} />;
-  if (details instanceof SourceError) return <p className="error">{ERROR_TEXT[details.code]}</p>;
+  if (details instanceof SourceError) return <p className="error">{errorText(details)}</p>;
   const now = Date.now();
   const book = details.quality.find((q) => q.stream === "book");
   return (
@@ -192,11 +195,15 @@ function Panels({ details, ins, open, onTerm }: { details: MarketDetails | Err |
           )}
           <p className="caption">{details.wallMethod}</p>
           <b>กำแพงที่หายไปล่าสุด</b>
-          <table className="data"><tbody>{details.wallEvents.map((e, i) => <tr key={i}><td><Side side={e.side} /></td><td className="r">{fmtNum(e.price, ins.priceDecimals)}</td><td>{OUTCOME[e.outcome]}</td><td className="r muted">{fmtHM(e.at)}</td></tr>)}</tbody></table>
+          {!details.wallEvents.length ? <p className="muted small">ยังไม่มีกำแพงที่หายไปตั้งแต่เริ่มดู</p> : (
+            <table className="data"><tbody>{details.wallEvents.map((e, i) => <tr key={i}><td><Side side={e.side} /></td><td className="r">{fmtNum(e.price, ins.priceDecimals)}</td><td>{OUTCOME[e.outcome]}</td><td className="r muted">{fmtHM(e.at)}</td></tr>)}</tbody></table>
+          )}
           <p className="caption">ระบบรู้แค่ว่าราคาไปถึงระดับนั้นตอนกำแพงหายหรือไม่ ไม่รู้ว่าคำสั่งถูกจับคู่หรือถูกถอน</p>
           <div className="row"><b className="grow">ไม้ใหญ่ล่าสุด</b><button type="button" className="link-btn" onClick={() => onTerm("bigtrade")}>คืออะไร</button></div>
-          <table className="data"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th className="r">ราคา</th><th className="r">ขนาด</th></tr></thead>
-            <tbody>{details.bigTrades.map((t, i) => <tr key={i}><td className="muted">{fmtHM(t.at)}</td><td><Side side={t.side} /></td><td className="r">{fmtNum(t.price, ins.priceDecimals)}</td><td className="r">{fmtNum(t.size, 1)} {ins.qtyUnit}</td></tr>)}</tbody></table>
+          {!details.bigTrades.length ? <p className="muted small">ยังไม่มีไม้ใหญ่ตามเกณฑ์</p> : (
+            <table className="data"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th className="r">ราคา</th><th className="r">ขนาด</th></tr></thead>
+              <tbody>{details.bigTrades.map((t, i) => <tr key={i}><td className="muted">{fmtHM(t.at)}</td><td><Side side={t.side} /></td><td className="r">{fmtNum(t.price, ins.priceDecimals)}</td><td className="r">{fmtNum(t.size, t.size >= 10 ? 1 : 3)} {ins.qtyUnit}</td></tr>)}</tbody></table>
+          )}
           <p className="caption">{details.bigMethod}</p>
         </div>
       </details>
@@ -289,7 +296,7 @@ function SnapshotForm({ onClose, build, symbol }: { onClose: () => void; symbol:
         {preview && (
           <div className="card small" style={{ padding: 10 }}>
             {preview.snap.image && <img className="entry-thumb" src={preview.snap.image.dataUrl} alt={`ภาพกราฟ ${symbol} ที่จะบันทึก`} />}
-            <div className="muted tiny" style={{ marginTop: 6 }}>ภาพ ณ {fmtDateTime(preview.snap.capturedAt)} · {preview.snap.dataKind === "demo" ? "ข้อมูลตัวอย่าง" : preview.snap.dataKind} · {preview.snap.timeframe}/{preview.snap.lookback} · engine {preview.snap.engineVersion}</div>
+            <div className="muted tiny" style={{ marginTop: 6 }}>ภาพ ณ {fmtDateTime(preview.snap.capturedAt)} · {KIND_TEXT[preview.snap.dataKind] ?? preview.snap.dataKind} · {preview.snap.timeframe}/{preview.snap.lookback} · engine {preview.snap.engineVersion}</div>
             <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{preview.snap.values.map((v) => <li key={v.label}>{v.label}: <span className="num">{v.value}</span></li>)}</ul>
           </div>
         )}

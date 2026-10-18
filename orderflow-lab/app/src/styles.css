@@ -21,6 +21,9 @@
   --amber-ink: #6e4500;
   --demo-bg: #e9f0ff;
   --demo-ink: #1d4ed8;
+  /* owner preview (real Binance data through the owner's connector): distinct from demo blue and live green */
+  --owner-bg: #f3e8ff;
+  --owner-ink: #6b21a8;
   --focus: #2563eb;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 38, 58, 0.06), 0 4px 16px rgba(16, 38, 58, 0.05);
@@ -61,6 +64,11 @@ img { max-width: 100%; display: block; }
 }
 
 .offline { background: var(--amber-bg); color: var(--amber-ink); padding: 10px 16px; font-size: 14px; text-align: center; }
+.offline.demo { background: var(--demo-bg); color: var(--demo-ink); }
+.offline.owner { background: var(--owner-bg); color: var(--owner-ink); font-weight: 600; }
+.offline.api { background: var(--raised); color: var(--ink-2); }
+.source-issue { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin-top: 6px; color: var(--ink); }
+.source-issue .btn { min-height: 44px; }
 
 /* ---- page header ----------------------------------------------------------- */
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; margin: 4px 0 16px; }
@@ -102,6 +110,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
 .badge.caution { background: var(--amber-bg); color: var(--amber-ink); }
 .badge.bad { background: var(--sell-soft); color: var(--sell); }
 .badge.local { background: var(--amber-bg); color: var(--amber-ink); }
+.badge.owner { background: var(--owner-bg); color: var(--owner-ink); }
 .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; }
 
 .buy { color: var(--buy); }

@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, go, persisted } from "../state";
 import type { Instrument, Observation, Quote } from "../data/types";
-import { SourceError, ERROR_TEXT } from "../data/source";
-import { Coin, DataBadge, Loading, Spark } from "../components/ui";
+import { SourceError, errorText } from "../data/source";
+import { Coin, DataBadge, Loading, SourceTag, Spark } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { fmtNum, fmtPrice, fmtSigned, TZ_LABEL } from "../lib/format";
 
@@ -68,24 +68,24 @@ export function Overview() {
           </div>
         </div>
         {current.caution && <p className="badge caution" style={{ marginTop: 10 }}>{current.caution}</p>}
-        {!q ? <div style={{ marginTop: 12 }}><Loading lines={2} /></div> : q instanceof SourceError ? <p className="error" style={{ marginTop: 12 }}>{ERROR_TEXT[q.code]}</p> : (
+        {!q ? <div style={{ marginTop: 12 }}><Loading lines={2} /></div> : q instanceof SourceError ? <p className="error" style={{ marginTop: 12 }}>{errorText(q)}</p> : (
           <>
             <div className="row" style={{ marginTop: 10, alignItems: "baseline" }}>
               <div className="price num grow">{fmtPrice(q.price, current.priceDecimals, current.quote)}</div>
-              <div className={`change num ${q.changePct != null && q.changePct >= 0 ? "up" : "down"}`} style={{ fontWeight: 700 }}>
-                {q.changePct != null && q.changePct >= 0 ? "▲" : "▼"} {fmtSigned(q.changePct, 2, "%")} <span className="muted small">(24 ชม.)</span>
+              <div className={`change num ${q.changePct == null ? "muted" : q.changePct >= 0 ? "up" : "down"}`} style={{ fontWeight: 700 }}>
+                {q.changePct == null ? "ยังไม่มีข้อมูล" : `${q.changePct >= 0 ? "▲" : "▼"} ${fmtSigned(q.changePct, 2, "%")}`} <span className="muted small">(24 ชม.)</span>
               </div>
             </div>
             <div className="meta">ราคาซื้อขายล่าสุด (last trade)</div>
             <Spark values={q.spark} up={(q.changePct ?? 0) >= 0} label={`กราฟราคา 24 ชั่วโมงของ ${current.symbol}`} />
-            <div style={{ marginTop: 8 }}><DataBadge f={q.freshness} /></div>
+            <div className="row" style={{ marginTop: 8 }}><DataBadge f={q.freshness} /><SourceTag mode={source.mode} /></div>
           </>
         )}
       </section>
 
       <section className="section" aria-labelledby="happen">
         <h2 id="happen">สิ่งที่เกิดขึ้น</h2>
-        {!obs ? <Loading lines={3} /> : obs instanceof SourceError ? <p className="error">{ERROR_TEXT[obs.code]}</p> : !obs.length ? <p className="empty">ยังไม่มีเหตุการณ์ที่น่าสังเกต</p> : (
+        {!obs ? <Loading lines={3} /> : obs instanceof SourceError ? <p className="error">{errorText(obs)}</p> : !obs.length ? <p className="empty">ยังไม่มีเหตุการณ์ที่น่าสังเกต</p> : (
           <div className="stack">
             {obs.slice(0, 3).map((o) => (
               <button key={o.id} type="button" className="obs" onClick={() => go("/analyze", { id: o.instrumentId, panel: o.evidence })}>

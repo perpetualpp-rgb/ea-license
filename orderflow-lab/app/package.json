@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:artifact": "vite --mode artifact",
     "build": "tsc --noEmit && vite build",
+    "build:artifact": "vite build --mode artifact",
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "node e2e/check.mjs",
-    "build:single": "npm run build && node scripts/single-file.mjs"
+    "e2e:artifact": "node e2e/check-artifact.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "build:single": "npm run build && npm run build:artifact && node scripts/single-file.mjs && node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "lightweight-charts": "5.0.0",

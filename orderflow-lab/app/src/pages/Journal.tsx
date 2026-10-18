@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApp, go } from "../state";
-import { Sheet, Tabs, Side } from "../components/ui";
+import { KIND_TEXT, Sheet, Tabs, Side } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { newId, type JournalEntry } from "../journal/store";
 import { entriesCsv, journalJson, tradesCsv } from "../journal/export";
@@ -83,6 +83,7 @@ export function Journal() {
                 <div className="row" style={{ marginTop: 8 }}>
                   {e.tags.map((t) => <span key={t} className="tag">{t}</span>)}
                   {e.snapshot?.dataKind === "demo" && <span className="badge demo">ภาพจากข้อมูลตัวอย่าง</span>}
+                  {e.snapshot?.engineVersion.startsWith("connector") && <span className="badge owner">ภาพจากข้อมูลจริง Binance · ดูส่วนตัว ห้ามเผยแพร่/ขาย</span>}
                   <span className="badge local">ร่างในเครื่อง</span>
                   {e.reviewAt && !e.review && <span className={`badge ${e.reviewAt <= now ? "caution" : ""}`}>ทบทวน {fmtDateTime(e.reviewAt)}</span>}
                 </div>
@@ -129,7 +130,7 @@ function EntrySheet({ entry, onClose, onChanged, onDelete }: { entry: JournalEnt
             {s.image ? <img className="entry-thumb" src={s.image.dataUrl} alt={`ภาพกราฟ ${s.symbol} ณ ${fmtDateTime(s.capturedAt)}`} /> : <p className="muted small">ไม่ได้แนบภาพกราฟ</p>}
             <p className="tiny muted" style={{ margin: "6px 0" }}>
               ภาพตลาด ณ {fmtDateTime(s.capturedAt)} · {s.symbol} {s.venue} {s.market === "spot" ? "Spot" : "Perpetual"} · {s.timeframe}/{s.lookback} ·
-              {s.dataKind === "demo" ? " ข้อมูลตัวอย่าง" : ` ${s.dataKind}`} · engine {s.engineVersion} · ข้อมูลล่าสุดในภาพ {s.sourceWatermark ? fmtDateTime(s.sourceWatermark) : "ไม่ทราบ"}
+              {` ${KIND_TEXT[s.dataKind] ?? s.dataKind}`}{s.engineVersion.startsWith("connector") ? " · Binance ผ่าน connector ของคุณ (ดูส่วนตัว ห้ามเผยแพร่/ขาย)" : ""} · engine {s.engineVersion} · ข้อมูลล่าสุดในภาพ {s.sourceWatermark ? fmtDateTime(s.sourceWatermark) : "ไม่ทราบ"}
             </p>
             <ul style={{ margin: 0, paddingLeft: 18 }} className="small">{s.values.map((v) => <li key={v.label}>{v.label}: <span className="num">{v.value}</span></li>)}</ul>
             {s.quality.some((q) => q.status !== "ok") && <p className="error" style={{ marginTop: 8 }}>ตอนบันทึก ข้อมูลบางชนิดไม่ปกติ: {s.quality.filter((q) => q.status !== "ok").map((q) => `${q.stream} (${q.status})`).join(", ")}</p>}

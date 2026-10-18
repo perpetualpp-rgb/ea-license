@@ -36,8 +36,8 @@ async function audit(page, label) {
       && !el.classList.contains("sr-only") && (r.width < 44 || r.height < 40); })
     .map((el) => `${el.tagName.toLowerCase()}.${el.className}:${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`));
   check(`${label}: touch targets ≥ 44px wide and ≥ 40px tall`, small.length === 0, small.slice(0, 5).join(", "));
-  const claim = await page.evaluate(() => /บันทึกบนเซิร์ฟเวอร์แล้ว|synced|สำรองแล้ว/i.test(document.body.innerText));
-  check(`${label}: never claims server save/sync`, !claim);
+  const claim = await page.evaluate(() => /บันทึกบนเซิร์ฟเวอร์แล้ว|synced|สำรองแล้ว|ถูกต้อง/i.test(document.body.innerText));
+  check(`${label}: never claims server save/sync or "ถูกต้อง"`, !claim);
 }
 
 const browser = await chromium.launch({ executablePath: fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined }).catch(() => chromium.launch());

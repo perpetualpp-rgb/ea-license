@@ -72,7 +72,7 @@ export function Alerts() {
           const last = fired.filter((e) => e.ruleId === r.id).reduce<number | null>((m, e) => (m == null || e.at > m ? e.at : m), null);
           const st = evaluateRule(r, { now: Date.now(), market: ins.market, quality, measure, lastFiredAt: last, units: { qty: ins.qtyUnit, quote: ins.quote }, symbol: ins.symbol });
           next[r.id] = st;
-          if (st.state === "triggered" && channels.in_app) fired = mergeEvents(fired, [st.event]);
+          if (st.state === "triggered" && channels.in_app) fired = mergeEvents(fired, [{ ...st.event, source: source.mode }]);
         } catch {
           next[r.id] = { state: "no_data", reason: "โหลดข้อมูลไม่ได้" };
         }
@@ -110,7 +110,8 @@ export function Alerts() {
                   <div className="cmp">{describeComparison(e)}</div>
                   <div className="row">
                     <span className={`badge ${e.live ? "live" : "caution"}`}>{e.live ? "แจ้งตอนเกิดเหตุ" : "ย้อนหลัง · ไม่ได้แจ้งสด"}</span>
-                    {source.mode === "demo" && <span className="badge demo">ข้อมูลตัวอย่าง</span>}
+                    {(e.source ?? source.mode) === "demo" && <span className="badge demo">ข้อมูลตัวอย่าง</span>}
+                    {e.source === "connector" && <span className="badge owner">ข้อมูลจริง Binance · connector ของคุณ · ดูส่วนตัว</span>}
                     {ins && <span className="tiny muted">{ins.venue} · {ins.market === "spot" ? "Spot" : "Perpetual"}</span>}
                   </div>
                   <div className="row">
@@ -159,6 +160,7 @@ export function Alerts() {
           <Switch label="แจ้งเตือนทาง Telegram" checked={false} onChange={() => undefined} disabled />
         </div>
         <p className="caption">ถ้าข้อมูลที่กฎใช้ขาดช่วงหรือ book กำลัง resync ระบบจะพักกฎนั้นไว้ ไม่แจ้งจากข้อมูลที่เสีย</p>
+        {source.mode === "connector" && <p className="caption">กฎประเมินในหน้านี้จากข้อมูล Binance ผ่าน connector ของคุณ ทุก 15 วินาทีขณะเปิดหน้าอยู่เท่านั้น ไม่มีการแจ้งเมื่อปิดหน้า</p>}
       </section>
 
       {form && <RuleForm rule={form} instruments={instruments} onClose={() => setForm(null)}
