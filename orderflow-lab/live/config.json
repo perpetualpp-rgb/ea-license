@@ -1,0 +1,14 @@
+{
+  "data_dir": "data/live",
+  "markets": {
+    "futures": {"rest": "https://fapi.binance.com", "ws": "wss://fstream.binance.com/stream", "symbols": ["XAUUSDT", "BTCUSDT"]},
+    "spot": {"rest": "https://api.binance.com", "ws": "wss://stream.binance.com:9443/stream", "symbols": ["BTCUSDT"]}
+  },
+  "book": {
+    "XAUUSDT": {"bucket": 0.5, "window_pct": 1.0},
+    "BTCUSDT": {"bucket": 10, "window_pct": 1.0}
+  },
+  "book_every_s": 1,
+  "mark_every_s": 5,
+  "oi_every_s": 60
+}

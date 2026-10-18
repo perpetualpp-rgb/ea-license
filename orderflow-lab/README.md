@@ -45,6 +45,7 @@ orderflow-lab/
     bigtrades.py      ไม้ใหญ่ (เกณฑ์ percentile) จัดกลุ่มตามราคา + โซน contested
     levels.py         เลขกลม
     summary.py        รวมทุกอย่างเป็น dict เดียว
+  live/               ระยะ 0: เก็บข้อมูล Binance แบบ WebSocket ตลอด 24 ชม. (ดูหัวข้อด้านล่าง)
   tests/              unit tests (unittest) รวม fixture จาก API จริง
     test_js_parity.py รัน engine.js ด้วย node เทียบกับ Python ทีละตัวเลข (ข้ามถ้าไม่มี node)
     render_check.js   เปิดหน้าเว็บใน Chromium แบบ headless แล้วจับภาพ (ต้องมี playwright)
@@ -82,6 +83,41 @@ orderflow-lab/
 * **ข้อจำกัด:** เริ่มเปิดหน้าจะมีข้อมูลแค่ trade ล่าสุด 500–1,000 รายการ (ไม่กี่นาที)
   แล้วค่อย ๆ สะสมขณะเปิดหน้าค้างไว้ ปิดแท็บ = ข้อมูลหาย ถ้าต้องการเก็บยาวใช้
   `collector.py` แทน · หน้าไม่ส่งอะไรไปที่ไหนนอกจากเรียก API ของ exchange
+
+## ระยะ 0: เก็บข้อมูล Binance ตลอด 24 ชม. (`live/`)
+
+ตัวเก็บข้อมูลแบบ WebSocket สำหรับวิจัยและ backtest ของเราเอง (ตามสิทธิ์ "internal use" ของ Binance)
+ดู `ROADMAP.md` ข้อ 4.2 ก่อนนำข้อมูลไปให้คนอื่นใช้
+
+* XAUUSDT และ BTCUSDT ฝั่ง futures รวมถึง BTCUSDT ฝั่ง spot: ทุกรายการซื้อขาย, order book ที่ซิงก์ตามวิธีของ Binance
+  (บันทึกเป็นช่วงราคา ±1% ทุก 1 วิ), แท่ง 1 นาที, mark price และ funding, Open Interest ทุก 1 นาที,
+  และรายการ liquidation
+* หลุดแล้วต่อใหม่เองได้ ส่วนรายการซื้อขายที่ขาดระหว่างหลุดหรือปิดเครื่อง ระบบจะดึงย้อนหลังผ่าน REST ให้ครบ
+* เก็บไฟล์ละ 1 ชั่วโมงต่อข้อมูลแต่ละชนิด แล้วบีบอัดเมื่อครบชั่วโมง ทดสอบกับ BTC spot แล้ว order book
+  ใช้พื้นที่ราว 9 MB ต่อวัน และรายการซื้อขายราว 8 ไบต์ต่อรายการ
+* `data/live/status.json` อัปเดตทุก 10 วิ บอกว่าเชื่อมต่ออยู่ไหม, book ซิงก์ไหม, และข้อมูลล่าสุดมาเมื่อไร
+
+**ก่อนติดตั้ง ต้องตรวจว่าเครื่องเรียก Binance ได้** เพราะ Binance บล็อกบางประเทศ (เช่น สหรัฐฯ)
+และ cloud บางภูมิภาค เปิด `https://fapi.binance.com/fapi/v1/ping` ในเครื่องนั้น ต้องได้ `{}`
+ถ้าได้ข้อความ "restricted location" (รหัส 451) ให้ใช้เครื่องหรือ VPS ที่อื่น เครื่องที่บ้านในไทยใช้ได้
+
+```bash
+cd orderflow-lab
+pip install -r live/requirements.txt
+python3 -m live.collector                    # เก็บตลอด (Ctrl-C หยุด)
+python3 -m live.collector --minutes 5        # ทดลอง 5 นาที
+python3 -m live.check                        # สรุปความครบของข้อมูลเมื่อวานและวันนี้
+```
+
+ให้รันตลอดเวลา เลือกอย่างใดอย่างหนึ่ง:
+* **Docker บน VPS:** `cd orderflow-lab/live && docker compose up -d` (รีสตาร์ตเองเมื่อเครื่องบูต)
+* **Linux ไม่ใช้ Docker:** ใช้ไฟล์ `live/orderflow-collector.service` กับ systemd
+* **คอม Windows ที่บ้าน:** ติดตั้ง Python 3.12 แล้วสั่ง `py -m pip install -r live\requirements.txt`
+  จากนั้นสร้างงานใน Task Scheduler ให้รัน `py -m live.collector` ในโฟลเดอร์ `orderflow-lab`
+  ตอนล็อกอิน และปิดโหมด Sleep ของเครื่อง
+
+สำรองข้อมูล: คัดลอกไฟล์ `.jsonl.gz` ใน `data/live/` ไปเก็บที่อื่นทุกวัน เช่น ใช้แอป Google Drive
+บนเครื่องซิงก์โฟลเดอร์นั้น ไฟล์ที่ยังไม่ปิดชั่วโมงเป็น `.jsonl` ธรรมดาและกำลังถูกเขียนอยู่
 
 ## หน้า desk บน claude.ai (`desk/`)
 

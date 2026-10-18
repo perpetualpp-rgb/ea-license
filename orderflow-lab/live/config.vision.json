@@ -1,0 +1,11 @@
+{
+  "_comment": "spot only, through Binance's public market-data hosts (data-api / data-stream.binance.vision); for testing or where api.binance.com is blocked",
+  "data_dir": "data/live",
+  "markets": {
+    "spot": {"rest": "https://data-api.binance.vision", "ws": "wss://data-stream.binance.vision/stream", "symbols": ["BTCUSDT"]}
+  },
+  "book": {"BTCUSDT": {"bucket": 10, "window_pct": 1.0}},
+  "book_every_s": 1,
+  "mark_every_s": 5,
+  "oi_every_s": 60
+}
