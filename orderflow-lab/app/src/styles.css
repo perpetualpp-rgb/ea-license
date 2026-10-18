@@ -257,6 +257,8 @@ table.data .r { text-align: right; }
 .chart-readout span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-readout .flow { color: var(--muted); }
 .chart-readout .meta { color: var(--muted); font-size: 11px; }
+.chart-readout .oi-line { color: #6d28d9; font-weight: 600; }
+.chart-wrap.full .chart-box { touch-action: none; }
 .chart-hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
 @media (max-width: 599px) { .wide-only { display: none; } }
 /* full screen: the chart takes the whole viewport, like TradingView on a phone */

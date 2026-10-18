@@ -36,6 +36,17 @@ interface Props {
   freshness?: string;
 }
 
+/** OI value with its 1-hour change for the readout line, so OI is visible without finding the pane */
+function oiText(d: MarketDetails | null, layers: Layers, market: string): string {
+  if (!layers.oi) return "";
+  if (market === "spot") return "OI: ไม่มีในตลาด spot (เลือก Perp)";
+  const oi = d?.oi;
+  if (!oi || oi.value == null) return "OI: ยังไม่มีข้อมูล";
+  const v = Math.abs(oi.value) >= 1e4 ? `${(oi.value / 1e3).toFixed(1)}K` : fmtNum(oi.value, 0);
+  const ch = oi.change1hPct == null ? "" : ` · 1 ชม. ${oi.change1hPct >= 0 ? "+" : "−"}${fmtNum(Math.abs(oi.change1hPct), 2)}%`;
+  return `OI ${v} ${oi.unit}${ch} (แผงม่วงล่างสุด)`;
+}
+
 const C = {
   buy: "#0b7a43", sell: "#b42318", vwap: "#2563eb", band: "rgba(37,99,235,0.55)", poc: "#8a5a00", range: "#566a7d",
   round: "#94a3b8", oi: "#7c3aed", grid: "#e7edf3", text: "#566a7d", line: "#d9e2ec",
@@ -64,11 +75,23 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
   useEffect(() => {
     api.current?.chart.applyOptions({ handleScroll: { vertTouchDrag: full } });
     if (!full) return;
+    // claim every touch that starts on the chart: preventDefault on a non-passive touchstart tells the
+    // browser (and a WebView inside another app) that the page handles this gesture itself;
+    // the chart library still receives the events and pans / zooms
+    const el = box.current;
+    const claim = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); };
+    el?.addEventListener("touchstart", claim, { passive: false });
+    el?.addEventListener("touchmove", claim, { passive: false });
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
     window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+      el?.removeEventListener("touchstart", claim);
+      el?.removeEventListener("touchmove", claim);
+    };
   }, [full]);
 
   useEffect(() => {
@@ -138,12 +161,13 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
       if (layers.cvd) {
         a.cvd = a.chart.addSeries(BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, topLineColor: C.buy, bottomLineColor: C.sell,
           topFillColor1: "rgba(11,122,67,0.22)", topFillColor2: "rgba(11,122,67,0.03)", bottomFillColor1: "rgba(180,35,24,0.03)", bottomFillColor2: "rgba(180,35,24,0.22)",
-          priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.01, formatter: (v: number) => fmtNum(v, Math.abs(v) >= 100 ? 0 : 2) } }, 1);
+          title: "CVD", priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.01, formatter: (v: number) => fmtNum(v, Math.abs(v) >= 100 ? 0 : 2) } }, 1);
         a.chart.panes()[1]?.setHeight(narrowNow() ? 64 : 100);
       }
       if (wantOi) {
         const pane = layers.cvd ? 2 : 1;
-        a.oi = a.chart.addSeries(LineSeries, { color: C.oi, lineWidth: 2, priceLineVisible: false,
+        // the pane names itself on the price axis ("OI 132.6K"), so it is not just an unlabelled purple line
+        a.oi = a.chart.addSeries(LineSeries, { color: C.oi, lineWidth: 2, priceLineVisible: false, title: "OI",
           priceFormat: { type: "custom", minMove: 0.01, formatter: (v: number) => (Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}K` : fmtNum(v, 0)) } }, pane);
         a.chart.panes()[pane]?.setHeight(narrowNow() ? 56 : 90);
       }
@@ -306,6 +330,7 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
       {/* the readout sits above the chart, never over the candles; it shows the newest bar until a bar is touched */}
       <div className="chart-readout" aria-live="off">
         {legend ? <><span>{legend.ohlc}</span><span className="flow">{legend.flow}</span>{legend.wall && <span className="flow">{legend.wall}</span>}
+          {oiText(details, layers, ins.market) && <span className="oi-line">{oiText(details, layers, ins.market)}</span>}
           {(updated || freshness) && <span className="meta">{updated ? `⟳ อัปเดต ${updated}` : ""}{freshness ? ` · ${freshness}` : ""}</span>}</> : <span>&nbsp;</span>}
       </div>
       <div className="chart-box" ref={box} role="img" aria-label={summary}

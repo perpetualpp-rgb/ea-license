@@ -95,6 +95,7 @@
   .sw.round { height: 0; border-top: 2px dashed var(--axis); border-radius: 0; vertical-align: 2px; }
   .sw.bub { border-radius: 50%; background: var(--buy); }
   .sw.wall { width: 16px; height: 6px; border-radius: 2px; background: var(--buy); vertical-align: 1px; }
+  .sw.oi { height: 3px; border-radius: 2px; vertical-align: 2px; background: #7c3aed; }
   .sw.c1, .sw.c2, .sw.c3 { height: 3px; border-radius: 2px; vertical-align: 2px; } .sw.c1 { background: var(--c1); } .sw.c2 { background: var(--c2); } .sw.c3 { background: var(--c3); }
   .tg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   .tg button { padding: 3px 9px; font-size: 0.76rem; border-radius: 999px; color: var(--ink-2); }
@@ -188,7 +189,7 @@
     </div>
     <div class="legend">
       <span><i class="sw wall"></i>Wall (ทึบ = ยืนนาน, ประ = ใหม่, หนา = ใหญ่)</span><span><i class="sw bub"></i>ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย)</span>
-      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span>
+      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span><span><i class="sw oi"></i>OI (แผงล่างสุด, futures ราย 5 นาที)</span>
     </div>
     <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
     <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span></div>
@@ -288,12 +289,12 @@
   const TV_IV = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" };
   const INTRADAY = new Set(["1m", "5m", "15m", "30m", "1H"]);
   const MODES = [["native", "ราคาตลาดนี้"], ["gc", "เทียบ GC"], ["spot", "เทียบ Spot"], ["thb", "ทองไทย ฿"]];
-  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"]];
+  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"], ["oi", "OI"]];
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
   const ui = { jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
-               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true }, store.get("layers", {})), hover: null };
+               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true }, store.get("layers", {})), hover: null };
   const $ = id => document.getElementById(id);
   const I = () => INSTR[ui.inst] || INSTR.xau;
   const bigMin = () => { const ins = I(); return ins.src === "bin" ? (ui.big[ins.key] ?? ins.bigDef) : null; };
@@ -430,7 +431,7 @@
 
   // ---- interactive chart: TradingView Lightweight Charts (drag, zoom, crosshair, panes) ----------
   const LW = window.LightweightCharts, TZ = -new Date().getTimezoneOffset() * 60; // the time axis shows local time
-  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, markers: null, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
+  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, oi: null, markers: null, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
   const lt = t => t + TZ;
   function alpha(hex, a) { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
   function initChart() {
@@ -446,7 +447,7 @@
     C.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
     C.vwap = C.chart.addSeries(LW.LineSeries, { lineWidth: 2, priceFormat: price, ...quiet });
     C.bands = [LW.LineStyle.Solid, LW.LineStyle.Solid, LW.LineStyle.Dashed, LW.LineStyle.Dashed].map(s => C.chart.addSeries(LW.LineSeries, { lineWidth: 1, lineStyle: s, priceFormat: price, ...quiet }));
-    C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
+    C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, title: "CVD", priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
     C.markers = LW.createSeriesMarkers(C.candles, []);
     const pane = C.chart.panes()[1]; if (pane) pane.setHeight(window.innerWidth < 600 ? 100 : 140);
     C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r && r.from < 15 && !C.loadingOld && !C.noMore && S.chart.length) loadOlder(); });
@@ -491,6 +492,7 @@
     else if (ui.layers.big) { const thr = p95(bs.map(b => b.v));
       for (const b of bs) if (b.v >= thr && b.v > 0) { const up = delta(b) >= 0; mk.push({ time: lt(b.t), position: up ? "belowBar" : "aboveBar", shape: "circle", color: up ? T.buy : T.sell, size: 1 }); } }
     C.markers.setMarkers(mk.sort((a, z) => a.time - z.time));
+    syncOi(bs);
     // levels as price lines with labels on the price axis
     for (const l of C.lines) C.candles.removePriceLine(l); C.lines = [];
     // phones keep only the axis labels; titles inside the pane would cover the candles
@@ -511,6 +513,21 @@
       if (added || follow) ts.setVisibleLogicalRange({ from: prevRange.from + added + follow, to: prevRange.to + added + follow }); }
     C.key = key; C.n = bs.length; C.first = bs[0].t;
     legend(null);
+  }
+  // OI pane under CVD: Binance USDⓈ-M open interest every 5 minutes, stepped onto the bars by close time.
+  // The futures panel loads it for XAUUSDT (also shown on the GC chart, labelled as XAUUSDT) or BTCUSDT perp.
+  function syncOi(bs) {
+    const ins = I(), pts = S.fut.oi, want = ui.layers.oi && pts.length >= 2 && bs.length > 0;
+    if (!want) { if (C.oi) { C.chart.removeSeries(C.oi); C.oi = null; for (let i = C.chart.panes().length - 1; i >= 2; i--) if (!C.chart.panes()[i].getSeries().length) C.chart.removePane(i); } return; }
+    const title = ins.key === "gc" ? "OI XAUUSDT" : ins.key === "btc" ? "OI BTCUSDT perp" : "OI";
+    if (!C.oi) {
+      C.oi = C.chart.addSeries(LW.LineSeries, { color: "#7c3aed", lineWidth: 2, title, priceLineVisible: false,
+        priceFormat: { type: "custom", minMove: 0.01, formatter: v => Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : fmtV(v) } }, 2);
+      const pane = C.chart.panes()[2]; if (pane) pane.setHeight(window.innerWidth < 600 ? 70 : 100);
+    } else C.oi.applyOptions({ title });
+    const sec = TF_SEC[ui.tf] || 300; let j = -1;
+    C.oi.setData(bs.map(b => { const close = (b.t + sec) * 1000; while (j + 1 < pts.length && pts[j + 1].ts <= close) j++;
+      return j >= 0 && pts[j].ts >= (b.t - 3 * Math.max(sec, 300)) * 1000 ? { time: lt(b.t), value: pts[j].v } : { time: lt(b.t) }; }));
   }
   function legend(p) {
     const ins = I(), xf = X(), bs = S.chart, el = $("lwLegend"); if (!bs.length) { el.textContent = ""; return; }
