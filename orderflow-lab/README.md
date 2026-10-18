@@ -83,6 +83,24 @@ orderflow-lab/
   แล้วค่อย ๆ สะสมขณะเปิดหน้าค้างไว้ ปิดแท็บ = ข้อมูลหาย ถ้าต้องการเก็บยาวใช้
   `collector.py` แทน · หน้าไม่ส่งอะไรไปที่ไหนนอกจากเรียก API ของ exchange
 
+## หน้า desk บน claude.ai (`desk/`)
+
+หน้าเดียวกับที่เปิดใน claude.ai ดึงข้อมูลผ่าน connector **Binance** และ **tdv (TradingView)**
+ในบัญชีของผู้เปิดเอง (ไม่มีข้อมูลตลาดฝังในไฟล์ นอกจากตาราง COT ของ CFTC ซึ่งเป็นข้อมูลสาธารณะ)
+
+* ทองคำ Binance XAUUSDT (perp) และ BTC Binance spot: order book, รายการซื้อขาย และแท่งเทียนที่มี
+  ปริมาณผู้กดซื้อจริง → Wall, Order Book (SD, เติม/ถอน), Big Trades Zone, CVD, Flow
+* ทองคำ COMEX GC1! จาก TradingView: แท่งเทียนอย่างเดียว ค่าที่ได้จึงเป็นค่าประมาณ (≈)
+* แผนเทรดอัตโนมัติ: เลือกโซนที่มีหลายระดับซ้อนกัน, SL = ขอบโซน + ATR รายวัน × 0.25 (เดย์เทรด)
+  หรือ × 0.5 (สวิง), TP = แนวถัดไปที่ได้อย่างน้อย 1.5R/2.5R (สวิง 2R/3.5R)
+* เรียก Binance ได้เฉพาะ 7 endpoint ข้อมูลตลาดที่อยู่ใน allowlist (`BIN_ALLOW` ใน `template.html`)
+  คำสั่งซื้อขาย/โอน/leverage ถูกบล็อก
+
+```bash
+python3 desk/build.py   # template.html + cot_*.html + web/engine.js → desk/orderflow-desk.html
+node desk/check.js      # เปิดหน้าด้วย connector จำลอง แล้วจับภาพไว้ที่ data/ (ต้องมี playwright)
+```
+
 ### ข้อตกลงสำคัญ
 * `Trade.side` คือ **ฝั่งผู้กดซื้อ/ขาย (taker)** เสมอ Coinbase ส่งฝั่ง maker มา
   parser จะกลับด้านให้ ถ้าพลาดตรงนี้ CVD จะกลับเครื่องหมายทั้งหมด

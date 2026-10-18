@@ -1,0 +1,8 @@
+  <section class="card" id="cardCot">
+    <h2>สถานะรายใหญ่ในทอง COMEX · CFTC COT <span class="hint" id="cotHint"></span></h2>
+    <div class="legend"><span><i class="sw c1"></i>กองทุน (Managed Money)</span><span><i class="sw c2"></i>ธนาคาร (Swap Dealers)</span><span><i class="sw c3"></i>ผู้ผลิต/ผู้ค้าทอง</span><span>เส้นศูนย์ = long เท่ากับ short</span></div>
+    <canvas id="cvCot" role="img" aria-label="กราฟสถานะสุทธิรายสัปดาห์ของกองทุน ธนาคาร และผู้ผลิต ตัวเลขอยู่ในตารางด้านล่าง"></canvas>
+    <div class="tip" id="tipCot" hidden></div>
+    <div class="tbl"><table><thead><tr><th>กลุ่ม</th><th class="num">Long</th><th class="num">Short</th><th class="num">สุทธิ</th><th class="num">เปลี่ยน 1 สัปดาห์</th><th class="num">ดัชนี 3 ปี</th></tr></thead><tbody id="tblCot"></tbody></table></div>
+    <p class="cotnote">หน่วยเป็นสัญญา (1 สัญญา = 100 ออนซ์) · ดัชนี 3 ปี: 0 = สุทธิต่ำสุดในช่วง, 100 = สูงสุดในช่วง · CFTC เก็บข้อมูลวันอังคาร ประกาศวันศุกร์ · ข้อมูลชุดนี้ฝังอยู่ในหน้า จะอัปเดตเมื่อเผยแพร่หน้าใหม่ · ที่มา: CFTC Commitments of Traders (Disaggregated, Futures Only)</p>
+  </section>

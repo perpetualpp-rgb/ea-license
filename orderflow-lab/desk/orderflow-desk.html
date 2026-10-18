@@ -1,0 +1,1322 @@
+<title>Order Flow Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+  /* Layout: desk sheet in the order a flow trader reads it — price strip, Volume beside Big Trades Zone, the Wall + Order chart, CVD, Order Book beside Flow tape, ladder beside per-bar delta, then COT. */
+  :root {
+    --page: #f4f2ec; --surface: #fcfbf7; --raised: #f0ede4;
+    --ink: #17160f; --ink-2: #55524a; --muted: #8a8679;
+    --grid: #e4e0d4; --axis: #c8c2b1; --border: rgba(23,22,15,0.11);
+    --buy: #008300; --sell: #e34948; --vwap: #2a78d6;
+    --assist: rgba(27,175,122,0.16); --assist-line: rgba(27,175,122,0.55);
+    --zone-top: rgba(227,73,72,0.07); --zone-bot: rgba(0,131,0,0.07);
+    --brass: #8f6a17; --brass-soft: rgba(143,106,23,0.15);
+    --profile: rgba(23,22,15,0.22); --profile-va: rgba(23,22,15,0.45);
+    --note-bg: #fbf1dc; --note-ink: #6b4a06;
+    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a;
+    --f-display: "Chakra Petch", "IBM Plex Sans Thai", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0e0e0c; --surface: #191814; --raised: #222019;
+      --ink: #f2efe6; --ink-2: #c5c0b2; --muted: #8e8a7d;
+      --grid: #2a2823; --axis: #3c3a32; --border: rgba(255,255,255,0.10);
+      --buy: #008300; --sell: #e66767; --vwap: #3987e5;
+      --assist: rgba(25,158,112,0.20); --assist-line: rgba(25,158,112,0.65);
+      --zone-top: rgba(230,103,103,0.09); --zone-bot: rgba(0,131,0,0.12);
+      --brass: #d8b45f; --brass-soft: rgba(216,180,95,0.15);
+      --profile: rgba(242,239,230,0.20); --profile-va: rgba(242,239,230,0.42);
+      --note-bg: #2c2412; --note-ink: #f0d79e;
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0e0e0c; --surface: #191814; --raised: #222019;
+    --ink: #f2efe6; --ink-2: #c5c0b2; --muted: #8e8a7d;
+    --grid: #2a2823; --axis: #3c3a32; --border: rgba(255,255,255,0.10);
+    --buy: #008300; --sell: #e66767; --vwap: #3987e5;
+    --assist: rgba(25,158,112,0.20); --assist-line: rgba(25,158,112,0.65);
+    --zone-top: rgba(230,103,103,0.09); --zone-bot: rgba(0,131,0,0.12);
+    --brass: #d8b45f; --brass-soft: rgba(216,180,95,0.15);
+    --profile: rgba(242,239,230,0.20); --profile-va: rgba(242,239,230,0.42);
+    --note-bg: #2c2412; --note-ink: #f0d79e;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+  }
+  html, body { background: var(--page); color: var(--ink); }
+  body { font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+  * { box-sizing: border-box; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 28px; display: grid; gap: 12px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 18px; }
+  .brand { font-family: var(--f-display); font-weight: 600; font-size: 1.6rem; margin: 0; line-height: 1.1; }
+  .brand small { display: block; font-family: var(--f-body); font-weight: 400; font-size: 0.82rem; color: var(--ink-2); margin-top: 4px; }
+  header .grow { flex: 1; }
+  button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--vwap); outline-offset: 2px; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; background: var(--surface); }
+  .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; color: var(--ink-2); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button small { font-family: var(--f-data); font-size: 0.78em; opacity: 0.8; margin-left: 4px; }
+  .bar label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 0.86rem; }
+  #status { margin-left: auto; color: var(--ink-2); font-size: 0.82rem; }
+
+  .strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .q { padding: 9px 14px; border-right: 1px solid var(--grid); min-width: 0; }
+  .q:last-child { border-right: 0; }
+  .q .k { font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .q .v { font-family: var(--f-display); font-weight: 500; font-size: 1.35rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .q .s { font-size: 0.78rem; color: var(--ink-2); }
+  .q.hl .v { text-decoration: underline 2px var(--brass); text-underline-offset: 5px; }
+
+  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  @media (max-width: 860px) { .row2 { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; position: relative; min-width: 0; }
+  .card h2 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 600; font-size: 0.98rem; letter-spacing: 0.04em; text-transform: uppercase; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .card h2 .hint { font-family: var(--f-body); font-weight: 400; font-size: 0.78rem; color: var(--muted); letter-spacing: 0; text-transform: none; }
+  .tag { font-family: var(--f-body); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.02em; text-transform: none; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--ink-2); }
+  .tag.real { border-color: var(--buy); color: var(--ink); }
+  .tag.real::before { content: "● "; color: var(--buy); }
+  .tag.approx::before { content: "≈ "; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.76rem; color: var(--ink-2); margin-bottom: 6px; align-items: center; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+  .sw.up { background: var(--buy); } .sw.down { border: 2px solid var(--sell); }
+  .sw.vwap { height: 3px; border-radius: 2px; vertical-align: 2px; background: var(--vwap); }
+  .sw.assist { background: var(--assist); border: 1px solid var(--assist-line); }
+  .sw.magnet { background: var(--brass-soft); border: 1px solid var(--brass); }
+  .sw.ztop { background: var(--zone-top); border: 1px solid var(--sell); } .sw.zbot { background: var(--zone-bot); border: 1px solid var(--buy); }
+  .sw.round { height: 0; border-top: 2px dashed var(--axis); border-radius: 0; vertical-align: 2px; }
+  .sw.bub { border-radius: 50%; background: var(--buy); }
+  .sw.wall { width: 16px; height: 6px; border-radius: 2px; background: var(--buy); vertical-align: 1px; }
+  .sw.c1, .sw.c2, .sw.c3 { height: 3px; border-radius: 2px; vertical-align: 2px; } .sw.c1 { background: var(--c1); } .sw.c2 { background: var(--c2); } .sw.c3 { background: var(--c3); }
+  .tg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .tg button { padding: 3px 9px; font-size: 0.76rem; border-radius: 999px; color: var(--ink-2); }
+  .tg button[aria-pressed="true"] { border-color: var(--assist-line); color: var(--ink); background: var(--raised); }
+  canvas { display: block; width: 100%; }
+  #cvMain { height: 480px; } #cvVol, #cvBig { height: 300px; } #cvCvd { height: 150px; } #cvCot { height: 260px; }
+  @media (max-width: 600px) { #cvMain { height: 360px; } }
+  .overlay { position: absolute; inset: 64px 14px 14px; display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 12px; background: var(--surface); }
+  .overlay p { max-width: 52ch; margin: 0 0 10px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 6px 9px; border-radius: 8px; font-size: 12px; line-height: 1.45; white-space: nowrap; z-index: 2; font-family: var(--f-data); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid var(--grid); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; }
+  td.num, th.num { text-align: right; font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+  tr.is-last td { background: var(--raised); font-weight: 600; }
+  tr.is-last td:first-child::before { content: "● "; }
+  .tbl { overflow-x: auto; }
+  .up::before { content: "▲ "; color: var(--buy); font-size: 0.8em; } .down::before { content: "▼ "; color: var(--sell); font-size: 0.8em; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .tile { background: var(--raised); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .tile .k { font-size: 0.72rem; color: var(--muted); } .tile .v { font-family: var(--f-display); font-size: 1.12rem; overflow-wrap: anywhere; } .tile .s { font-size: 0.74rem; color: var(--ink-2); }
+  .ob td { padding: 2px 6px; border-bottom: 0; }
+  .ob .sz { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+  .ob .bb, .ob .ab { width: 38%; }
+  .ob .bar { display: block; height: 10px; border-radius: 2px; }
+  .ob .bb .bar { background: var(--buy); opacity: 0.75; margin-left: auto; }
+  .ob .ab .bar { border: 1.5px solid var(--sell); background: transparent; }
+  .ob .px { text-align: center; font-family: var(--f-data); color: var(--ink-2); }
+  .ob tr.mid td { border-top: 1px dashed var(--axis); border-bottom: 1px dashed var(--axis); font-weight: 600; color: var(--ink); text-align: center; font-family: var(--f-data); }
+  .sd { font-size: 0.68rem; font-family: var(--f-data); padding: 0 4px; border-radius: 4px; background: var(--raised); color: var(--ink); }
+  .sd.s3 { background: var(--brass-soft); outline: 1px solid var(--brass); }
+  .chg { font-family: var(--f-data); font-size: 0.72rem; color: var(--muted); }
+  .note { background: var(--note-bg); color: var(--note-ink); border-radius: 10px; padding: 9px 12px; font-size: 0.85rem; margin: 0; }
+  .err { background: var(--note-bg); color: var(--note-ink); border-radius: 8px; padding: 6px 10px; font-size: 0.82rem; margin-bottom: 6px; }
+  .empty { color: var(--muted); white-space: normal; padding: 10px 6px; }
+  .cotnote { color: var(--muted); font-size: 0.78rem; margin: 8px 0 0; }
+  #tblPlan td { white-space: normal; vertical-align: top; } #tblPlan td.num { white-space: nowrap; } #tblPlan td:first-child { white-space: nowrap; font-weight: 600; }
+  #tblPlan .why { display: block; font-size: 0.74rem; color: var(--muted); }
+  footer { color: var(--muted); font-size: 0.76rem; max-width: 120ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 class="brand">Order Flow Lab<small>โต๊ะอ่านกระแสคำสั่งซื้อขาย · ข้อมูลจาก Binance และ TradingView ในบัญชีของคุณ</small></h1>
+    <span class="grow"></span>
+    <button id="btnTheme" type="button" aria-label="สลับโหมดสว่างหรือมืด">สว่าง / มืด</button>
+  </header>
+
+  <section class="bar" aria-label="ตัวเลือก">
+    <div class="seg" id="segInst" role="group" aria-label="สินทรัพย์"></div>
+    <div class="seg" id="segMode" role="group" aria-label="โหมดราคา"></div>
+    <div class="seg" id="segTf" role="group" aria-label="ไทม์เฟรม"></div>
+    <label for="selBig" id="lblBig">ไม้ใหญ่ ≥ <select id="selBig"></select></label>
+    <span id="status">กำลังเชื่อมต่อ…</span>
+  </section>
+
+  <section class="strip" id="strip" aria-label="ราคา"></section>
+  <div class="err" id="errTop" hidden></div>
+
+  <div class="row2">
+    <section class="card">
+      <h2>Volume <span class="tag" id="tagVol"></span><span class="hint" id="volHint"></span></h2>
+      <canvas id="cvVol" role="img" aria-label="โปรไฟล์ปริมาณรายระดับราคาของ session ปัจจุบัน"></canvas>
+    </section>
+    <section class="card">
+      <h2>Big Trades Zone <span class="tag" id="tagBig"></span><span class="hint" id="bigHint"></span></h2>
+      <canvas id="cvBig" role="img" aria-label="โซนไม้ใหญ่แยกฝั่งซื้อและขายตามระดับราคา"></canvas>
+    </section>
+  </div>
+
+  <section class="card" id="cardMain">
+    <h2><span id="mainTitle">Wall + Order</span><span class="hint" id="mainHint"></span></h2>
+    <div class="legend">
+      <span class="tg" id="tgLayers"></span>
+      <span><i class="sw up"></i>ขึ้น</span><span><i class="sw down"></i>ลง</span>
+      <span><i class="sw wall"></i>Wall (ทึบ = BID, กลวง = ASK, จาง = ยังใหม่)</span>
+      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ–3σ</span>
+      <span><i class="sw ztop"></i>Top</span><span><i class="sw magnet"></i>Magnet + POC</span><span><i class="sw zbot"></i>Bottom</span>
+      <span><i class="sw round"></i>เลขกลม</span><span><i class="sw bub"></i>ไม้ใหญ่ (ทึบ = ซื้อ, กลวง = ขาย)</span>
+    </div>
+    <canvas id="cvMain" role="img" aria-label="กราฟราคาพร้อมกำแพงออเดอร์ ไม้ใหญ่ Assist และ Range ตัวเลขอยู่ในบันไดราคาและ Order Book"></canvas>
+    <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
+    <div class="tip" id="tip" hidden></div>
+  </section>
+
+  <section class="card">
+    <h2>CVD <span class="tag" id="tagCvd"></span><span class="hint" id="cvdHint"></span></h2>
+    <canvas id="cvCvd" role="img" aria-label="กราฟ Cumulative Volume Delta"></canvas>
+  </section>
+
+  <section class="card" aria-label="แผนเทรด">
+    <h2>แผนเทรด <span class="tag" id="tagPlan"></span><span class="hint" id="planHint"></span></h2>
+    <div class="bar" style="margin-bottom:8px"><div class="seg" id="segPlan" role="group" aria-label="สไตล์แผน"></div></div>
+    <div class="tiles" id="planBias"></div>
+    <div class="tbl"><table><thead><tr><th>แผน</th><th>โซนเข้า</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th class="num">R:R</th><th>เงื่อนไขยืนยัน</th><th>ยกเลิกเมื่อ</th></tr></thead><tbody id="tblPlan"><tr><td colspan="8" class="empty">รอข้อมูล</td></tr></tbody></table></div>
+    <p class="cotnote">ระบบเลือกโซนที่มีหลายระดับซ้อนกัน (กำแพงที่ยืนนาน, Range ของ session ก่อน, สูง/ต่ำหลายวัน, Assist, โซนไม้ใหญ่, เลขกลม) · SL = ขอบโซน + ATR รายวัน × 0.25 (เดย์เทรด) หรือ × 0.5 (สวิง) ไม่ต่ำกว่า 0.2% / 0.4% ของราคา · TP = แนวถัดไปที่ได้อย่างน้อย 1.5R / 2.5R (สวิง 2R / 3.5R) ถ้าไม่มีแนวจะใช้ระยะ R แทน · แผนเปลี่ยนตามข้อมูลสด ใช้ประกอบการตัดสินใจเท่านั้น</p>
+  </section>
+
+  <div class="row2">
+    <section class="card" aria-label="Order Book">
+      <h2>Order Book <span class="tag" id="tagOb"></span><span class="hint" id="obHint"></span></h2>
+      <div class="tbl" id="obBox"><p class="empty">รอข้อมูล</p></div>
+      <div class="tbl"><table><thead><tr><th>กำแพงที่หายไป</th><th class="num">ราคา</th><th class="num">ขนาด</th><th>ผล</th><th class="num">อยู่นาน</th></tr></thead><tbody id="tblEvents"><tr><td colspan="5" class="empty">ยังไม่มี</td></tr></tbody></table></div>
+    </section>
+    <section class="card" aria-label="Flow">
+      <h2>Flow <span class="tag" id="tagFlow"></span><span class="hint" id="flowHint"></span></h2>
+      <div class="tiles" id="flowTiles"></div>
+      <div class="tbl"><table><thead><tr><th>เวลา</th><th>ฝั่ง</th><th class="num">ราคา</th><th class="num">ขนาด</th><th class="num">มูลค่า $</th></tr></thead><tbody id="tblTape"><tr><td colspan="5" class="empty">รอข้อมูล</td></tr></tbody></table></div>
+    </section>
+  </div>
+
+  <div class="row2">
+    <section class="card tbl" aria-label="บันไดราคา">
+      <h2>บันไดราคา <span class="hint" id="ladHint">ห่าง = จากราคาล่าสุด</span></h2>
+      <table><thead><tr><th>ระดับ</th><th class="num">ราคา</th><th class="num">ห่าง</th></tr></thead><tbody id="ladder"><tr><td colspan="3" class="empty">รอข้อมูล</td></tr></tbody></table>
+    </section>
+    <section class="card tbl">
+      <h2>Delta รายแท่ง <span class="tag" id="tagDelta"></span><span class="hint">12 แท่งล่าสุดของกราฟ</span></h2>
+      <table><thead><tr><th>เวลา</th><th class="num">ปิด</th><th class="num">ปริมาณ</th><th class="num">ซื้อ</th><th class="num">ขาย</th><th class="num">delta</th></tr></thead><tbody id="tblDelta"><tr><td colspan="6" class="empty">รอข้อมูล</td></tr></tbody></table>
+    </section>
+  </div>
+
+  <section class="card" id="cardCot">
+    <h2>สถานะรายใหญ่ในทอง COMEX · CFTC COT <span class="hint" id="cotHint"></span></h2>
+    <div class="legend"><span><i class="sw c1"></i>กองทุน (Managed Money)</span><span><i class="sw c2"></i>ธนาคาร (Swap Dealers)</span><span><i class="sw c3"></i>ผู้ผลิต/ผู้ค้าทอง</span><span>เส้นศูนย์ = long เท่ากับ short</span></div>
+    <canvas id="cvCot" role="img" aria-label="กราฟสถานะสุทธิรายสัปดาห์ของกองทุน ธนาคาร และผู้ผลิต ตัวเลขอยู่ในตารางด้านล่าง"></canvas>
+    <div class="tip" id="tipCot" hidden></div>
+    <div class="tbl"><table><thead><tr><th>กลุ่ม</th><th class="num">Long</th><th class="num">Short</th><th class="num">สุทธิ</th><th class="num">เปลี่ยน 1 สัปดาห์</th><th class="num">ดัชนี 3 ปี</th></tr></thead><tbody id="tblCot"></tbody></table></div>
+    <p class="cotnote">หน่วยเป็นสัญญา (1 สัญญา = 100 ออนซ์) · ดัชนี 3 ปี: 0 = สุทธิต่ำสุดในช่วง, 100 = สูงสุดในช่วง · CFTC เก็บข้อมูลวันอังคาร ประกาศวันศุกร์ · ข้อมูลชุดนี้ฝังอยู่ในหน้า จะอัปเดตเมื่อเผยแพร่หน้าใหม่ · ที่มา: CFTC Commitments of Traders (Disaggregated, Futures Only)</p>
+  </section>
+
+  <p class="note" id="noteSrc"></p>
+  <footer>Binance และ TradingView ถูกเรียกผ่าน connector ในบัญชีของคุณตอนเปิดหน้า หน้าเรียกเฉพาะข้อมูลตลาด (แท่งเทียน, order book, รายการซื้อขาย, ราคา) ไม่มีคำสั่งซื้อขายหรือโอนเงิน และไม่เก็บข้อมูลไว้ในหน้า · ข้อมูล TradingView ใช้ดูส่วนตัวเท่านั้น อย่าแชร์หน้านี้ · ราคาทองไทยเป็นค่าประมาณจากสปอต × USDTHB × 0.4729 (96.5%, 15.244 กรัม) ไม่รวมพรีเมียม · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</footer>
+</div>
+
+<script>
+/* Order Flow Lab engine — JavaScript port of orderflow-lab/engine/*.py.
+ *
+ * Keep this in lock-step with the Python modules: tests/test_js_parity.py runs
+ * both on the same input and compares the numbers. Records use the same shapes
+ * as feeds/types.py:
+ *   trade = {ts, price, size, side:"buy"|"sell", exchange, symbol, trade_id}   (side = taker)
+ *   book  = {ts, exchange, symbol, bids:[[price,size],...] desc, asks:[[price,size],...] asc}
+ *   bar   = {t (unix s), o, h, l, c, v}
+ */
+(function (root, factory) {
+  const OF = factory();
+  if (typeof module !== "undefined" && module.exports) module.exports = OF;
+  root.OF = OF;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  // ---- numeric helpers that mirror Python semantics --------------------------
+  function roundHalfEven(x) {
+    const f = Math.floor(x), d = x - f;
+    if (d < 0.5) return f;
+    if (d > 0.5) return f + 1;
+    return f % 2 === 0 ? f : f + 1;
+  }
+  function exp10(x) { let e = 0; while (x < 1 && e > -12) { x *= 10; e -= 1; } return e; }
+  function levelOf(price, tick) {
+    const digits = Math.max(0, -exp10(tick)) + 2;
+    return Number((roundHalfEven(price / tick) * tick).toFixed(digits));
+  }
+  function median(values) {
+    const s = [...values].sort((a, b) => a - b), n = s.length;
+    if (!n) return 0;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function signedSize(t) { return t.side === "buy" ? t.size : -t.size; }
+  function bucketStart(ts, interval) { return ts - (ts % interval); }
+  function bestBid(book) { return book.bids.length ? book.bids[0][0] : null; }
+  function bestAsk(book) { return book.asks.length ? book.asks[0][0] : null; }
+  function bookMid(book) {
+    if (book.bids.length && book.asks.length) return (book.bids[0][0] + book.asks[0][0]) / 2;
+    return bestBid(book) ?? bestAsk(book);
+  }
+  function sortBook(bids, asks) {
+    return {
+      bids: bids.filter(l => l[1] > 0).sort((a, b) => b[0] - a[0]),
+      asks: asks.filter(l => l[1] > 0).sort((a, b) => a[0] - b[0]),
+    };
+  }
+
+  // ---- bars ------------------------------------------------------------------
+  function barsFromTrades(trades, intervalMs) {
+    const bars = [];
+    let cur = null;
+    const finish = c => ({ t: Math.floor(c.t / 1000), o: c.o, h: c.h, l: c.l, c: c.c, v: c.v });
+    for (const tr of trades) {
+      const b0 = bucketStart(tr.ts, intervalMs);
+      if (!cur || b0 !== cur.t) {
+        if (cur) bars.push(finish(cur));
+        cur = { t: b0, o: tr.price, h: tr.price, l: tr.price, c: tr.price, v: 0 };
+      }
+      cur.h = Math.max(cur.h, tr.price);
+      cur.l = Math.min(cur.l, tr.price);
+      cur.c = tr.price;
+      cur.v += tr.size;
+    }
+    if (cur) bars.push(finish(cur));
+    return bars;
+  }
+
+  // ---- cvd -------------------------------------------------------------------
+  function cvdSeries(trades, start = 0) {
+    const out = []; let acc = start;
+    for (const tr of trades) { acc += signedSize(tr); out.push([tr.ts, acc]); }
+    return out;
+  }
+  function deltaBuckets(trades, intervalMs) {
+    const out = []; let cur = null;
+    for (const tr of trades) {
+      const b0 = Math.floor(bucketStart(tr.ts, intervalMs) / 1000);
+      if (!cur || cur.t !== b0) { cur = { t: b0, buy: 0, sell: 0, delta: 0, n: 0 }; out.push(cur); }
+      if (tr.side === "buy") cur.buy += tr.size; else cur.sell += tr.size;
+      cur.delta = cur.buy - cur.sell;
+      cur.n += 1;
+    }
+    return out;
+  }
+  function cvdFromBuckets(buckets, start = 0) {
+    const out = []; let acc = start;
+    for (const b of buckets) { acc += b.delta; out.push([b.t, acc]); }
+    return out;
+  }
+  function approxBarDelta(bar) {
+    const rng = bar.h - bar.l;
+    if (rng <= 0 || bar.v <= 0) return 0;
+    return bar.v * ((bar.c - bar.l) - (bar.h - bar.c)) / rng;
+  }
+  function approxCvdFromBars(bars, start = 0) {
+    const out = []; let acc = start;
+    for (const b of bars) { acc += approxBarDelta(b); out.push([b.t, acc]); }
+    return out;
+  }
+  function divergence(prices, cvds, lookback = 20) {
+    const n = Math.min(prices.length, cvds.length);
+    if (n < lookback + 1) return null;
+    const pNow = prices[n - 1], cNow = cvds[n - 1];
+    const pPrev = prices.slice(n - 1 - lookback, n - 1), cPrev = cvds.slice(n - 1 - lookback, n - 1);
+    if (pNow > Math.max(...pPrev) && cNow < Math.max(...cPrev)) return "bearish";
+    if (pNow < Math.min(...pPrev) && cNow > Math.min(...cPrev)) return "bullish";
+    return null;
+  }
+
+  // ---- profile ---------------------------------------------------------------
+  class Profile {
+    constructor(tick, approximate = false) { this.tick = tick; this.approximate = approximate; this.levels = new Map(); }
+    add(price, size, side) {
+      const k = levelOf(price, this.tick);
+      let lv = this.levels.get(k);
+      if (!lv) { lv = { buy: 0, sell: 0, total: 0 }; this.levels.set(k, lv); }
+      if (side === "buy") lv.buy += size; else if (side === "sell") lv.sell += size;
+      lv.total += size;
+    }
+    get total() { let s = 0; for (const v of this.levels.values()) s += v.total; return s; }
+    sortedLevels() { return [...this.levels.entries()].sort((a, b) => a[0] - b[0]); }
+    rows() { return this.sortedLevels().map(([price, v]) => ({ price, ...v })); }
+  }
+  function profileFromTrades(trades, tick) { const p = new Profile(tick); for (const t of trades) p.add(t.price, t.size, t.side); return p; }
+  function profileFromBars(bars, tick) {
+    const p = new Profile(tick, true);
+    for (const b of bars) {
+      const lo = levelOf(b.l, tick), hi = levelOf(b.h, tick);
+      const n = Math.round((hi - lo) / tick) + 1, share = b.v / n;
+      for (let i = 0; i < n; i++) p.add(lo + i * tick, share, null);
+    }
+    return p;
+  }
+  function poc(prof) {
+    if (!prof.levels.size) return null;
+    let best = null, bp = null;
+    for (const [p, v] of prof.levels) if (best === null || v.total > best || (v.total === best && p < bp)) { best = v.total; bp = p; }
+    return bp;
+  }
+  function valueArea(prof, pct = 0.70) {
+    const levels = prof.sortedLevels();
+    if (!levels.length) return null;
+    const prices = levels.map(x => x[0]), vols = levels.map(x => x[1].total);
+    let i = vols.indexOf(Math.max(...vols)), lo = i, hi = i, acc = vols[i];
+    const target = prof.total * pct;
+    while (acc < target && (lo > 0 || hi < vols.length - 1)) {
+      const down = lo > 0 ? vols[lo - 1] : -1, up = hi < vols.length - 1 ? vols[hi + 1] : -1;
+      if (up > down) { hi += 1; acc += vols[hi]; } else { lo -= 1; acc += vols[lo]; }
+    }
+    return [prices[lo], prices[hi]];
+  }
+  function sessionRange(prof, pct = 0.70) {
+    if (!prof.levels.size) return null;
+    const levels = prof.sortedLevels(), va = valueArea(prof, pct);
+    return { high: levels[levels.length - 1][0], low: levels[0][0], poc: poc(prof), va_low: va[0], va_high: va[1],
+             va_pct: pct, total: prof.total, approximate: prof.approximate };
+  }
+  function nodes(prof, top = 3) {
+    const levels = prof.sortedLevels();
+    if (!levels.length) return { hvn: [], lvn: [] };
+    const lo = levels[0][0], hi = levels[levels.length - 1][0], n = Math.round((hi - lo) / prof.tick) + 1;
+    const full = [];
+    for (let i = 0; i < n; i++) { const p = levelOf(lo + i * prof.tick, prof.tick); full.push([p, (prof.levels.get(p) || { total: 0 }).total]); }
+    const hvn = [...full].sort((a, b) => b[1] - a[1]).slice(0, top), lvn = [...full].sort((a, b) => a[1] - b[1]).slice(0, top);
+    return { hvn: hvn.map(([price, total]) => ({ price, total })), lvn: lvn.map(([price, total]) => ({ price, total })) };
+  }
+
+  // ---- vwap ------------------------------------------------------------------
+  function vwapBands(bars, sigmas = [1, 2, 3]) {
+    const out = []; let sV = 0, sPV = 0, sP2V = 0;
+    for (const b of bars) {
+      const p = (b.h + b.l + b.c) / 3, v = b.v;
+      sV += v; sPV += p * v; sP2V += p * p * v;
+      if (sV <= 0) continue;
+      const vwap = sPV / sV, sd = Math.sqrt(Math.max(0, sP2V / sV - vwap * vwap));
+      const bands = {}; for (const k of sigmas) bands[k] = [vwap - k * sd, vwap + k * sd];
+      out.push({ t: b.t, vwap, sd, bands });
+    }
+    return out;
+  }
+  function position(price, point) {
+    const z = point.sd > 0 ? (price - point.vwap) / point.sd : 0;
+    const label = z >= 2 ? "expensive" : z <= -2 ? "cheap" : z > 0 ? "above" : z < 0 ? "below" : "at_vwap";
+    return { z, label };
+  }
+  function bandShape(series, lookback = 12, expand = 1.25, flat = 1.05) {
+    if (series.length <= lookback) return null;
+    const now = series[series.length - 1].sd, then = series[series.length - 1 - lookback].sd;
+    if (then <= 0) return null;
+    const r = now / then;
+    return r >= expand ? "expanding" : r <= flat ? "flat" : "widening";
+  }
+
+  // ---- walls -----------------------------------------------------------------
+  function detectWalls(book, maxLevels = 200, minMult = 4.0, minSize = 0, mergeGap = 0, maxDistPct = 1.0) {
+    const mid = bookMid(book) || 0, out = [];
+    for (const [side, all] of [["bid", book.bids.slice(0, maxLevels)], ["ask", book.asks.slice(0, maxLevels)]]) {
+      let levels = all;
+      if (mid && maxDistPct > 0) levels = levels.filter(lv => Math.abs(lv[0] - mid) / mid * 100 <= maxDistPct);
+      const sizes = levels.filter(l => l[1] > 0).map(l => l[1]);
+      if (!sizes.length) continue;
+      const med = median(sizes);
+      const cands = levels.filter(([, s]) => s >= Math.max(minSize, minMult * med))
+        .map(([price, size]) => ({ side, price, size, mult: med > 0 ? size / med : 0 }));
+      const merged = [];
+      for (const w of cands) {
+        const m = merged[merged.length - 1];
+        if (m && mergeGap > 0 && Math.abs(w.price - m.edge) <= mergeGap * (1 + 1e-6)) {
+          m.size += w.size; m.levels += 1; m.edge = w.price;
+          if (w.size > m.peak) { m.peak = w.size; m.price = w.price; }
+        } else merged.push({ ...w, levels: 1, edge: w.price, peak: w.size });
+      }
+      for (const m of merged) {
+        delete m.edge; delete m.peak;
+        m.dist = Math.abs(m.price - mid);
+        m.dist_pct = mid ? m.dist / mid * 100 : 0;
+        out.push(m);
+      }
+    }
+    out.sort((a, b) => b.size - a.size);
+    return out;
+  }
+
+  class WallTracker {
+    constructor(tick, opts = {}) {
+      Object.assign(this, { minMult: 4.0, maxLevels: 200, minSize: 0, mergeGap: 0, persistMs: 60000, missLimit: 2,
+                            changePct: 0.25, maxDistPct: 1.0, minSeen: 2 }, opts);
+      this.tick = tick; this.walls = new Map(); this._events = []; this.lastBook = null;
+    }
+    update(book) {
+      const seen = new Set();
+      for (const w of detectWalls(book, this.maxLevels, this.minMult, this.minSize, this.mergeGap, this.maxDistPct)) {
+        const key = w.side + ":" + levelOf(w.price, this.tick);
+        seen.add(key);
+        const rec = this.walls.get(key);
+        if (!rec) {
+          this.walls.set(key, { ...w, first_ts: book.ts, last_ts: book.ts, size_first: w.size, size_prev: w.size, seen: 1, misses: 0, status: "new" });
+          continue;
+        }
+        const prev = rec.size, change = prev > 0 ? (w.size - prev) / prev : 0;
+        Object.assign(rec, w, { last_ts: book.ts, size_prev: prev, seen: rec.seen + 1, misses: 0,
+          status: change >= this.changePct ? "adding" : change <= -this.changePct ? "pulling" : "holding" });
+      }
+      const events = [];
+      for (const [key, rec] of [...this.walls.entries()]) {
+        if (seen.has(key)) continue;
+        rec.misses += 1;
+        if (rec.misses > this.missLimit) {
+          this.walls.delete(key);
+          if (rec.seen < this.minSeen) continue;
+          const ev = { ...rec, outcome: this._outcome(rec, book), ended_ts: book.ts, age_ms: rec.last_ts - rec.first_ts };
+          this._events.push(ev); events.push(ev);
+        }
+      }
+      this.lastBook = book;
+      return events;
+    }
+    _outcome(rec, book) {
+      const touched = rec.side === "bid" ? (bestBid(book) !== null && bestBid(book) <= rec.price)
+                                         : (bestAsk(book) !== null && bestAsk(book) >= rec.price);
+      return touched ? "filled" : "pulled";
+    }
+    active(nowTs) {
+      const now = nowTs ?? (this.lastBook ? this.lastBook.ts : 0);
+      const rows = [...this.walls.values()].map(rec => {
+        const age = now - rec.first_ts;
+        return { ...rec, age_ms: age, persistent: age >= this.persistMs, growth: rec.size_first ? rec.size / rec.size_first - 1 : 0 };
+      });
+      rows.sort((a, b) => b.size - a.size);
+      return rows;
+    }
+    events(n = 20) { return this._events.slice(-n); }
+  }
+
+  // ---- big trades ------------------------------------------------------------
+  function percentile(values, pct) {
+    if (!values.length) return 0;
+    const s = [...values].sort((a, b) => a - b);
+    const k = Math.max(0, Math.min(s.length - 1, Math.ceil(pct * s.length) - 1));
+    return s[k];
+  }
+  function threshold(trades, pct = 0.99, minAbs = 0) { return Math.max(minAbs, percentile(trades.map(t => t.size), pct)); }
+  function bigTrades(trades, thr) { return trades.filter(t => thr > 0 && t.size >= thr); }
+  function zones(big, tick, contestRatio = 0.5) {
+    const acc = new Map();
+    for (const t of big) {
+      const k = levelOf(t.price, tick);
+      let z = acc.get(k);
+      if (!z) { z = { price: k, buy: 0, sell: 0, n: 0, first_ts: t.ts, last_ts: t.ts }; acc.set(k, z); }
+      if (t.side === "buy") z.buy += t.size; else z.sell += t.size;
+      z.n += 1; z.first_ts = Math.min(z.first_ts, t.ts); z.last_ts = Math.max(z.last_ts, t.ts);
+    }
+    const rows = [...acc.values()].map(z => {
+      const bigSide = Math.max(z.buy, z.sell), smallSide = Math.min(z.buy, z.sell);
+      return { ...z, total: z.buy + z.sell, delta: z.buy - z.sell, contested: bigSide > 0 && smallSide / bigSide >= contestRatio };
+    });
+    rows.sort((a, b) => b.total - a.total);
+    return rows;
+  }
+  function recent(big, nowMs, windowMs) { return big.filter(t => nowMs - t.ts <= windowMs); }
+
+  // ---- round levels ----------------------------------------------------------
+  function roundLevels(low, high, step) {
+    const out = []; let x = Math.ceil(low / step) * step;
+    while (x <= high + 1e-9) { out.push(Number(x.toFixed(8))); x += step; }
+    return out;
+  }
+  function nearest(price, step) {
+    const below = Math.floor(price / step) * step, above = below < price ? below + step : below;
+    return [Number(below.toFixed(8)), Number(above.toFixed(8))];
+  }
+
+  // ---- summaries -------------------------------------------------------------
+  function summarizeBars(bars, tick, roundStep, vaPct = 0.70, magnetPct = 0.30) {
+    if (!bars.length) return { error: "no bars" };
+    const prof = profileFromBars(bars, tick), rng = sessionRange(prof, vaPct), magnet = valueArea(prof, magnetPct);
+    const bands = vwapBands(bars), last = bars[bars.length - 1], cvds = approxCvdFromBars(bars);
+    const lastBand = bands[bands.length - 1];
+    return {
+      mode: "bars", approximate: true, bars: bars.length, bar_list: bars, t_first: bars[0].t, t_last: last.t,
+      last: last.c, volume: bars.reduce((s, b) => s + b.v, 0),
+      range: rng, magnet: { low: magnet[0], high: magnet[1], pct: magnetPct }, nodes: nodes(prof, 3),
+      vwap: lastBand ? { ...lastBand, position: position(last.c, lastBand), shape: bandShape(bands) } : null,
+      vwap_series: bands, profile: prof,
+      cvd: { value: cvds[cvds.length - 1][1], approximate: true, divergence: divergence(bars.map(b => b.c), cvds.map(c => c[1])), series: cvds },
+      round_levels: roundLevels(rng.low, rng.high, roundStep), nearest_round: nearest(last.c, roundStep),
+    };
+  }
+
+  function summarizeTrades(trades, books, tick, roundStep, intervalMs = 60000, vaPct = 0.70, magnetPct = 0.30,
+                           bigPct = 0.99, bigMin = 0, wallMult = 4.0, wallDepth = 200, persistMs = 60000, wallMaxDistPct = 1.0,
+                           tracker = null) {
+    if (!trades.length) return { error: "no trades" };
+    const bars = barsFromTrades(trades, intervalMs);
+    const out = summarizeBars(bars, tick, roundStep, vaPct, magnetPct);
+    Object.assign(out, { mode: "trades", approximate: false, trades: trades.length, last: trades[trades.length - 1].price,
+                         ts_first: trades[0].ts, ts_last: trades[trades.length - 1].ts });
+    const prof = profileFromTrades(trades, tick);
+    out.range = sessionRange(prof, vaPct);
+    const magnet = valueArea(prof, magnetPct);
+    out.magnet = { low: magnet[0], high: magnet[1], pct: magnetPct };
+    out.nodes = nodes(prof, 3);
+    out.profile = prof;
+    let pb = 0, ps = 0; for (const v of prof.levels.values()) { pb += v.buy; ps += v.sell; }
+    out.profile_buy = pb; out.profile_sell = ps;
+
+    const buckets = deltaBuckets(trades, intervalMs), series = cvdFromBuckets(buckets);
+    out.cvd = { value: series[series.length - 1][1], approximate: false, last_buckets: buckets.slice(-5), buckets,
+                series, divergence: divergence(bars.map(b => b.c), series.map(c => c[1])) };
+
+    const thr = threshold(trades, bigPct, bigMin), big = bigTrades(trades, thr);
+    out.big_trades = { threshold: thr, pct: bigPct, count: big.length, zones: zones(big, tick).slice(0, 8), list: big,
+                       recent: big.slice(-5).map(t => ({ ts: t.ts, price: t.price, size: t.size, side: t.side })) };
+
+    const tr = tracker || new WallTracker(tick, { minMult: wallMult, maxLevels: wallDepth, mergeGap: tick, persistMs, maxDistPct: wallMaxDistPct });
+    if (!tracker) for (const b of books) tr.update(b);
+    const active = tr.active();
+    const keep = ["side", "price", "size", "mult", "levels", "dist", "dist_pct", "status", "seen", "age_ms", "persistent", "growth"];
+    const pick = (w) => Object.fromEntries(keep.map(k => [k, w[k]]));
+    const lastBook = tr.lastBook || books[books.length - 1] || null;
+    out.walls = {
+      snapshots: books.length,
+      bid: active.filter(w => w.side === "bid").slice(0, 5).map(pick),
+      ask: active.filter(w => w.side === "ask").slice(0, 5).map(pick),
+      events: tr.events(10).map(e => ({ side: e.side, price: e.price, size: e.size, outcome: e.outcome, age_ms: e.age_ms, ended_ts: e.ended_ts })),
+      book_ts: lastBook ? lastBook.ts : null, best_bid: lastBook ? bestBid(lastBook) : null, best_ask: lastBook ? bestAsk(lastBook) : null,
+    };
+    return out;
+  }
+
+  return { levelOf, median, signedSize, bucketStart, bestBid, bestAsk, bookMid, sortBook, barsFromTrades,
+           cvdSeries, deltaBuckets, cvdFromBuckets, approxBarDelta, approxCvdFromBars, divergence,
+           Profile, profileFromTrades, profileFromBars, poc, valueArea, sessionRange, nodes,
+           vwapBands, position, bandShape, detectWalls, WallTracker,
+           percentile, threshold, bigTrades, zones, recent, roundLevels, nearest, summarizeBars, summarizeTrades };
+});
+
+</script>
+
+<script>
+"use strict";
+(() => {
+  const BIN = "Binance", TDV = "tdv", OHLCV = "mcp-tv-get-ohlcv", QUOTE = "mcp-tv-get-symbol-data", THB_K = 15.244 * 0.965 / 31.1035;
+  // the only Binance endpoints this page may call; all are public market data
+  const BIN_ALLOW = new Set(["futures_usds.klineCandlestickData", "futures_usds.orderBook", "futures_usds.compressedAggregateTradesList",
+                             "futures_usds.symbolPriceTicker", "spot.klines", "spot.depth", "spot.aggTrades"]);
+  const TOOLS = { fut: { k: "futures_usds.klineCandlestickData", d: "futures_usds.orderBook", t: "futures_usds.compressedAggregateTradesList", kmax: 1500 },
+                  spot: { k: "spot.klines", d: "spot.depth", t: "spot.aggTrades", kmax: 1000 } };
+  const INSTR = {
+    xau: { key: "xau", btn: "ทองคำ", sub: "Binance XAUUSDT", label: "ทองคำ Binance XAUUSDT", src: "bin", mkt: "fut", symbol: "XAUUSDT", tick: 0.1, dec: 2, round: 25, gold: true, unit: "oz",
+           bucket: 0.5, zone: 1, bigOpts: [5, 10, 20, 50], bigDef: 10, sessOff: 22 * 3600 },
+    gc: { key: "gc", btn: "ทองคำ", sub: "COMEX GC1!", label: "ทองคำ COMEX GC1!", src: "tdv", sym: "COMEX:GC1!", tick: 0.1, dec: 1, round: 25, gold: true, unit: "สัญญา" },
+    btc: { key: "btc", btn: "BTC", sub: "Binance", label: "BTC Binance BTCUSDT", src: "bin", mkt: "spot", symbol: "BTCUSDT", tick: 10, dec: 1, round: 500, gold: false, unit: "BTC",
+           bucket: 10, zone: 25, bigOpts: [0.5, 1, 2, 5], bigDef: 1, sessOff: 0 },
+  };
+  const TF = { "1m": ["1m", 600], "5m": ["5m", 576], "15m": ["15m", 400], "30m": ["30m", 300], "1H": ["1h", 300], "4H": ["4h", 240], "1D": ["1D", 180] };
+  const TF_SEC = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "4H": 14400, "1D": 86400 };
+  const INTRADAY = new Set(["1m", "5m", "15m", "30m", "1H"]);
+  const MODES = [["native", "ราคาตลาดนี้"], ["gc", "เทียบ GC"], ["spot", "เทียบ Spot"], ["thb", "ทองไทย ฿"]];
+  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"]];
+  const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", filled: "ราคาถึง", pulled: "ถอนหนี" };
+  const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+                  set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
+  const ui = { plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+               layers: Object.assign({ wall: true, big: true, assist: true, range: true, round: true }, store.get("layers", {})), hover: null };
+  const $ = id => document.getElementById(id);
+  const I = () => INSTR[ui.inst] || INSTR.xau;
+  const bigMin = () => { const ins = I(); return ins.src === "bin" ? (ui.big[ins.key] ?? ins.bigDef) : null; };
+
+  // ---- state -------------------------------------------------------------------------
+  let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
+  const S = { chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+              quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
+  function resetData() { Object.assign(S, { chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+
+  // ---- formatting ---------------------------------------------------------------------
+  const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtV = v => v == null || !isFinite(v) ? "–" : v === 0 ? "0" : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(Math.abs(v) >= 1 ? 2 : 3);
+  const sgn = v => (v > 0 ? "+" : v < 0 ? "−" : "") + fmtV(Math.abs(v));
+  const fT = s => new Date(s * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  const fTs = ms => new Date(ms).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const fDT = s => new Date(s * 1000).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fAge = ms => ms >= 3600000 ? (ms / 3600000).toFixed(1) + " ชม." : ms >= 60000 ? Math.round(ms / 60000) + " นาที" : Math.round(ms / 1000) + " วิ";
+  function tok() { const c = getComputedStyle(document.documentElement), g = n => c.getPropertyValue(n).trim();
+    return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), buy: g("--buy"), sell: g("--sell"), vwap: g("--vwap"),
+             assist: g("--assist"), ztop: g("--zone-top"), zbot: g("--zone-bot"), brass: g("--brass"), brassSoft: g("--brass-soft"), profile: g("--profile"), profileVa: g("--profile-va") }; }
+  const FONT = "11px 'IBM Plex Mono', ui-monospace, monospace";
+  function setTag(id, real) { const el = $(id); el.className = "tag " + (real ? "real" : "approx"); el.textContent = real ? "ข้อมูลจริง" : "ประมาณจากแท่ง"; }
+
+  // ---- connector calls ----------------------------------------------------------------
+  const DENY = new Set(["needs_reauth", "server_not_connected", "blocked_by_policy", "approval_required", "not_in_manifest", "selection_required"]);
+  function errCopy(src, e) {
+    const name = src === BIN ? "Binance" : "tdv (TradingView)";
+    switch (e && e.code) {
+      case "server_not_connected": return `ยังไม่ได้เชื่อม connector ${name} เพิ่มได้ที่ claude.ai → Settings → Connectors แล้วเปิดหน้านี้ใหม่`;
+      case "needs_reauth": return `การเชื่อมต่อ ${name} หมดอายุ เชื่อมต่อใหม่ที่ claude.ai → Settings → Connectors`;
+      case "not_in_manifest": return `หน้านี้ยังไม่ได้รับอนุญาตให้ใช้ ${name} เปิดเมนู Permissions ของหน้านี้แล้วเปิดสิทธิ์`;
+      case "selection_required": return `มี connector ชื่อ ${name} มากกว่าหนึ่งตัว เลือกตัวที่จะใช้ในหน้าต่างที่ claude.ai แสดง`;
+      case "approval_required": return `ต้องอนุญาตให้หน้านี้ใช้ ${name} ก่อน กดปุ่ม "อนุญาตและดึงข้อมูล"`;
+      case "blocked_by_policy": return `องค์กรของคุณปิดการใช้ ${name}`;
+      case "tool_error": return `${name} ตอบว่าดึงข้อมูลไม่สำเร็จ: ${(e.message || "").slice(0, 160)}`;
+      case "server_unavailable": case "rate_limited": return `${name} ไม่ตอบชั่วคราว แสดงข้อมูลล่าสุดที่มีไว้ก่อน`;
+      case "not_granted": case "capability_disabled": case "capability_removed": return "มุมมองนี้เรียก connector ไม่ได้ เปิดหน้านี้ใน claude.ai";
+      default: return `ดึงข้อมูลจาก ${name} ไม่สำเร็จ (${(e && e.code) || "ไม่ทราบสาเหตุ"})`;
+    }
+  }
+  function noteErr(src, e) { S.errs[src] = e; if (e && e.code === "approval_required") S.approve = src; schedule(); }
+  function clearErr(src) { if (S.errs[src]) { delete S.errs[src]; if (S.approve === src) S.approve = null; schedule(); } }
+  const asObj = p => { if (typeof p === "string") { try { return JSON.parse(p); } catch { return p; } } return p; };
+  async function bin(tool, args) {
+    if (!BIN_ALLOW.has(tool)) throw { code: "bad_request", message: "blocked: " + tool };
+    const res = await mcp.callTool(BIN, "tool_execute", { toolName: tool, arguments: args }, { cache: false });
+    let p = asObj(res.payload);
+    if (p && !Array.isArray(p) && typeof p === "object" && p.result !== undefined && Object.keys(p).length <= 2) p = asObj(p.result);
+    if (typeof p === "string") throw { code: "tool_error", message: p };
+    if (p && !Array.isArray(p) && p.code !== undefined && p.msg) throw { code: "tool_error", message: `${p.code} ${p.msg}` };
+    S.stamp.bin = Date.now(); clearErr(BIN);
+    return p;
+  }
+  const kl = rows => (Array.isArray(rows) ? rows : []).map(r => ({ t: Math.floor(+r[0] / 1000), o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5], bv: +r[9] }))
+    .filter(b => isFinite(b.c) && isFinite(b.h) && isFinite(b.l) && b.v >= 0);
+  function tvBars(payload) { const p = asObj(payload); if (!p || !p.bars) return [];
+    const b = p.bars, rows = Array.isArray(b) ? b.map(r => ({ t: +r.t, o: +r.o, h: +r.h, l: +r.l, c: +r.c, v: +r.v, bv: NaN }))
+      : (b.t || []).map((t, i) => ({ t: +t, o: +b.o[i], h: +b.h[i], l: +b.l[i], c: +b.c[i], v: +b.v[i], bv: NaN }));
+    return rows.filter(r => isFinite(r.c) && r.v >= 0).sort((a, z) => a.t - z.t); }
+
+  // ---- per-bar flow (exact when the bar carries taker-buy volume) -------------------------
+  const exact = b => isFinite(b.bv);
+  function split(b) { if (exact(b)) return [b.bv, Math.max(0, b.v - b.bv)]; const r = b.h - b.l, f = r > 0 ? (b.c - b.l) / r : 0.5; return [b.v * f, b.v * (1 - f)]; }
+  const delta = b => { const [x, y] = split(b); return x - y; };
+
+  // ---- sessions -----------------------------------------------------------------------
+  function sessions(bs, ins) {
+    const out = []; let cur = [], key = null;
+    for (let i = 0; i < bs.length; i++) {
+      const b = bs[i], k = ins.src === "bin" ? Math.floor((b.t - ins.sessOff) / 86400) : null;
+      const brk = i > 0 && (ins.src === "bin" ? k !== key : b.t - bs[i - 1].t >= 2400);
+      if (brk && cur.length) { out.push(cur); cur = []; }
+      cur.push(b); key = k;
+    }
+    if (cur.length) out.push(cur);
+    return out;
+  }
+  const p95 = arr => { const s = arr.slice().sort((a, z) => a - z); return s.length ? s[Math.max(0, Math.ceil(0.95 * s.length) - 1)] : Infinity; };
+  function derive() {
+    const ins = I(); if (S.sess.length < 5) return null;
+    const ss = sessions(S.sess, ins), cur = ss[ss.length - 1], prev = ss.length > 1 ? ss[ss.length - 2] : null;
+    const prof = OF.profileFromBars(cur, ins.tick), rng = OF.sessionRange(prof, 0.70), mag = OF.valueArea(prof, 0.30);
+    let pr = null;
+    if (prev && prev.length > 10) { const pp = OF.profileFromBars(prev, ins.tick), r = OF.sessionRange(pp, 0.70), m = OF.valueArea(pp, 0.30);
+      pr = { yhi: Math.max(...prev.map(b => b.h)), ylo: Math.min(...prev.map(b => b.l)), poc: r.poc, vah: r.va_high, val: r.va_low, mhi: m[1], mlo: m[0] }; }
+    return { cur, prev, prof, rng, mag, pr, last: cur[cur.length - 1] };
+  }
+
+  // ---- price modes: display value = a·price + b ------------------------------------------
+  function refPrice() { const ins = I(); if (ins.key === "xau") return S.xauPx; if (ins.key === "gc") return S.chart.length ? S.chart[S.chart.length - 1].c : (S.quotes.gc && S.quotes.gc.close); return null; }
+  function gcPx() { return I().key === "gc" && S.chart.length ? S.chart[S.chart.length - 1].c : S.quotes.gc && S.quotes.gc.close; }
+  function X() {
+    const ins = I(), nat = { a: 1, b: 0, dec: ins.dec, step: ins.round, unit: "" };
+    if (!ins.gold || ui.mode === "native") return nat;
+    const ref = refPrice(), sp = S.quotes.spot && S.quotes.spot.close, thb = S.quotes.thb && S.quotes.thb.close, gc = gcPx();
+    if (ui.mode === "gc") return ref != null && gc != null ? { a: 1, b: gc - ref, dec: 1, step: 25, unit: "" } : { ...nat, pending: true };
+    if (ui.mode === "spot") return ref != null && sp != null ? { a: 1, b: sp - ref, dec: 2, step: 25, unit: "" } : { ...nat, pending: true };
+    if (ref == null || sp == null || !thb) return { ...nat, pending: true };
+    const k = thb * THB_K; return { a: k, b: (sp - ref) * k, dec: 0, step: 500, unit: " ฿" };
+  }
+
+  // ---- order book helpers ----------------------------------------------------------------
+  function bucketBook(book, b) {
+    const bid = new Map(), ask = new Map(), key = v => +v.toFixed(6);
+    for (const [p, q] of book.bids) { const k = key(Math.floor(p / b + 1e-9) * b); bid.set(k, (bid.get(k) || 0) + q); }
+    for (const [p, q] of book.asks) { const k = key(Math.ceil(p / b - 1e-9) * b); ask.set(k, (ask.get(k) || 0) + q); }
+    return { ts: book.ts, exchange: "binance", symbol: book.symbol, bids: [...bid].sort((x, y) => y[0] - x[0]), asks: [...ask].sort((x, y) => x[0] - y[0]) };
+  }
+  function stats(levels) { const v = levels.map(l => l[1]); if (!v.length) return { m: 0, sd: 1 };
+    const m = v.reduce((s, x) => s + x, 0) / v.length, sd = Math.sqrt(v.reduce((s, x) => s + (x - m) * (x - m), 0) / v.length) || 1; return { m, sd }; }
+
+  // ---- canvas helpers ----------------------------------------------------------------------
+  function sized(cv) { const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); return { ctx, w, h }; }
+  function nice(lo, hi, n) { const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const st = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag; const out = [];
+    for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st) out.push(Number(v.toFixed(10))); return out; }
+  function hl(ctx, x0, x1, y, col, w, dash) { ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = w || 1; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x0, Math.round(y) + 0.5); ctx.lineTo(x1, Math.round(y) + 0.5); ctx.stroke(); ctx.restore(); }
+  function band(ctx, x0, x1, y0, y1, col) { ctx.fillStyle = col; ctx.fillRect(x0, Math.min(y0, y1), x1 - x0, Math.abs(y1 - y0)); }
+  function yAxis(ctx, lo, hi, top, bot, x, align, xf, grid) {
+    const T = tok(), yOf = p => bot - (p - lo) / (hi - lo) * (bot - top), dlo = xf.a * lo + xf.b, dhi = xf.a * hi + xf.b;
+    ctx.font = FONT; ctx.textBaseline = "middle"; ctx.textAlign = align;
+    const ticks = nice(Math.min(dlo, dhi), Math.max(dlo, dhi), 7), st = ticks.length > 1 ? ticks[1] - ticks[0] : 1, e = Math.floor(Math.log10(st) + 1e-9);
+    const dec = Math.min(xf.dec, Math.max(0, -e + ((st / Math.pow(10, e)) % 1 > 1e-6 ? 1 : 0)));
+    for (const d of ticks) { const y = yOf((d - xf.b) / xf.a); if (grid) hl(ctx, grid[0], grid[1], y, T.grid); ctx.fillStyle = T.muted; ctx.fillText(fmt(d, dec), x, y); }
+    return yOf;
+  }
+  function barIndexAt(bars, tsSec) { let lo = 0, hi = bars.length - 1; if (hi < 0 || tsSec < bars[0].t) return -1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bars[m].t <= tsSec) lo = m; else hi = m - 1; } return lo; }
+  function vwapSeries(bs, ins) { if (!INTRADAY.has(ui.tf)) return OF.vwapBands(bs, [1, 2, 3]); const out = []; for (const seg of sessions(bs, ins)) out.push(...OF.vwapBands(seg, [1, 2, 3])); return out; }
+
+  // ---- main chart: Wall + Order -------------------------------------------------------------
+  function drawMain() {
+    const cv = $("cvMain"), { ctx, w, h } = sized(cv); if (!S.chart.length) return;
+    const T = tok(), ins = I(), xf = X(), bs = visBars(), n = bs.length, intraday = INTRADAY.has(ui.tf), narrow = w < 560;
+    const walls = ins.src === "bin" && ui.layers.wall && S.tracker ? S.tracker.active() : [];
+    const wallW = walls.length ? (narrow ? 44 : Math.min(150, Math.max(100, w * 0.13))) : 0;
+    const padL = narrow ? 58 : 70, plot = { l: padL, r: w - (narrow ? 40 : 64) - wallW, t: 10, b: h - 24 }, ws = { l: plot.r + 6, r: plot.r + 6 + wallW - 8 };
+    let lo = Math.min(...bs.map(b => b.l)), hi = Math.max(...bs.map(b => b.h)); const span = hi - lo || 1;
+    const inView = walls.filter(x => x.price >= lo - span * 0.35 && x.price <= hi + span * 0.35);
+    for (const x of inView) { lo = Math.min(lo, x.price); hi = Math.max(hi, x.price); }
+    const pad = (hi - lo || 1) * 0.05; lo -= pad; hi += pad;
+    const yOf = yAxis(ctx, lo, hi, plot.t, plot.b, padL - 8, "right", xf, [plot.l, plot.r]);
+    const bw = (plot.r - plot.l) / n, xOf = i => plot.l + (i + 0.5) * bw;
+    ctx.save(); ctx.beginPath(); ctx.rect(plot.l, plot.t, plot.r - plot.l, plot.b - plot.t); ctx.clip();
+    const pr = D && D.pr;
+    if (ui.layers.range && pr) {
+      const i0 = intraday && D ? bs.findIndex(b => b.t >= D.cur[0].t) : 0, x0 = i0 > 0 ? xOf(i0) - bw / 2 : plot.l;
+      band(ctx, x0, plot.r, yOf(pr.vah), yOf(pr.yhi), T.ztop); band(ctx, x0, plot.r, yOf(pr.ylo), yOf(pr.val), T.zbot);
+      band(ctx, x0, plot.r, yOf(pr.mlo), yOf(pr.mhi), T.brassSoft); hl(ctx, x0, plot.r, yOf(pr.poc), T.brass, 1.5, [6, 4]);
+      hl(ctx, x0, plot.r, yOf(pr.yhi), T.sell, 1); hl(ctx, x0, plot.r, yOf(pr.ylo), T.buy, 1);
+    }
+    const vsAll = vwapSeries(S.chart, ins), vs = vsAll.length === S.chart.length ? vsAll.slice(-n) : [];
+    if (ui.layers.assist && vs.length === n) {
+      for (const up of [true, false]) { ctx.fillStyle = T.assist; ctx.beginPath();
+        vs.forEach((p, i) => { const y = yOf(up ? p.bands[3][1] : p.bands[3][0]); i ? ctx.lineTo(xOf(i), y) : ctx.moveTo(xOf(i), y); });
+        for (let i = n - 1; i >= 0; i--) ctx.lineTo(xOf(i), yOf(up ? vs[i].bands[2][1] : vs[i].bands[2][0])); ctx.closePath(); ctx.fill(); }
+      ctx.strokeStyle = T.vwap; ctx.lineWidth = 1.6; ctx.beginPath();
+      vs.forEach((p, i) => (i && !(intraday && sessStart(bs, i, ins))) ? ctx.lineTo(xOf(i), yOf(p.vwap)) : ctx.moveTo(xOf(i), yOf(p.vwap))); ctx.stroke();
+    }
+    if (ui.layers.round) { const dlo = xf.a * lo + xf.b, dhi = xf.a * hi + xf.b;
+      for (let d = Math.ceil(Math.min(dlo, dhi) / xf.step) * xf.step; d <= Math.max(dlo, dhi); d += xf.step) hl(ctx, plot.l, plot.r, yOf((d - xf.b) / xf.a), T.axis, 1, [5, 4]); }
+    const body = Math.max(1, Math.min(9, bw * 0.66));
+    bs.forEach((b, i) => { const x = xOf(i), up = b.c >= b.o, col = up ? T.buy : T.sell;
+      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, yOf(b.h)); ctx.lineTo(Math.round(x) + 0.5, yOf(b.l)); ctx.stroke();
+      if (body < 3) return; const y0 = yOf(Math.max(b.o, b.c)), y1 = Math.max(y0 + 1, yOf(Math.min(b.o, b.c)));
+      if (up) { ctx.fillStyle = col; ctx.fillRect(x - body / 2, y0, body, y1 - y0); } else { ctx.fillStyle = T.surface; ctx.fillRect(x - body / 2, y0, body, y1 - y0); ctx.lineWidth = 1.2; ctx.strokeRect(x - body / 2 + 0.5, y0 + 0.5, body - 1, Math.max(1, y1 - y0 - 1)); } });
+    // walls extend across the plot as faint lines so price can be read against them
+    if (walls.length) for (const x of inView) hl(ctx, plot.l, plot.r, yOf(x.price), x.side === "bid" ? T.buy : T.sell, 1, x.persistent ? null : [2, 4]);
+    // big trades (exact, from the trade tape)
+    if (ui.layers.big && ins.src === "bin") {
+      const thr = bigMin(), big = S.trades.filter(t => t.size >= thr), mx = Math.max(thr, ...big.map(t => t.size));
+      for (const t of big) { const i = barIndexAt(bs, t.ts / 1000); if (i < 0) continue; const r = 3 + 9 * Math.sqrt(t.size / mx), x = xOf(i), y = yOf(t.price);
+        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, 7); ctx.fillStyle = T.surface; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+        if (t.side === "buy") { ctx.globalAlpha = 0.8; ctx.fillStyle = T.buy; ctx.fill(); ctx.globalAlpha = 1; } else { ctx.strokeStyle = T.sell; ctx.lineWidth = 2; ctx.stroke(); } }
+    } else if (ui.layers.big) {
+      const thr = p95(bs.map(b => b.v)), mx = Math.max(1e-9, ...bs.map(b => b.v));
+      bs.forEach((b, i) => { if (b.v < thr || b.v <= 0) return; const d = delta(b), r = 3 + 9 * Math.sqrt(b.v / mx), x = xOf(i), y = yOf((b.h + b.l + b.c) / 3);
+        ctx.beginPath(); ctx.arc(x, y, r + 2, 0, 7); ctx.fillStyle = T.surface; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+        if (d >= 0) { ctx.globalAlpha = 0.8; ctx.fillStyle = T.buy; ctx.fill(); ctx.globalAlpha = 1; } else { ctx.strokeStyle = T.sell; ctx.lineWidth = 2; ctx.stroke(); } });
+    }
+    ctx.restore();
+    // walls strip on the right
+    if (walls.length) {
+      const mx = Math.max(...inView.map(x => x.size), 1e-9); ctx.font = FONT; ctx.textBaseline = "middle";
+      for (const x of inView) { const y = yOf(x.price), len = Math.max(4, (ws.r - ws.l - (narrow ? 0 : 52)) * x.size / mx), bh = 7, col = x.side === "bid" ? T.buy : T.sell;
+        ctx.globalAlpha = x.persistent ? 1 : 0.5;
+        if (x.side === "bid") { ctx.fillStyle = col; ctx.fillRect(ws.l, y - bh / 2, len, bh); } else { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(ws.l + 0.5, y - bh / 2 + 0.5, len - 1, bh - 1); }
+        ctx.globalAlpha = 1; ctx.fillStyle = T.ink2; ctx.textAlign = "left";
+        if (!narrow) ctx.fillText(`${x.side === "bid" ? "Bid" : "Ask"} ${fmtV(x.size)}`, ws.l + len + 4, y); }
+    }
+    // range labels
+    ctx.font = FONT; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    if (ui.layers.range && pr) for (const [p, t, c] of [[pr.yhi, "Y-Hi", T.sell], [pr.vah, "Top", T.muted], [pr.poc, "POC", T.brass], [pr.val, "Bottom", T.muted], [pr.ylo, "Y-Lo", T.buy]]) {
+      const y = yOf(p); if (y > plot.t && y < plot.b) { ctx.fillStyle = c; ctx.fillText(t, plot.r + 4 + wallW, y); } }
+    const last = bs[n - 1].c, yl = yOf(last); hl(ctx, plot.l, plot.r, yl, T.ink2, 1);
+    const tag = fmt(xf.a * last + xf.b, narrow ? Math.min(1, xf.dec) : xf.dec), tw = ctx.measureText(tag).width + 10; ctx.fillStyle = T.ink; ctx.fillRect(padL - tw - 4, yl - 9, tw, 18);
+    ctx.fillStyle = T.surface; ctx.textAlign = "right"; ctx.fillText(tag, padL - 9, yl);
+    ctx.fillStyle = T.muted; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; const every = Math.max(1, Math.ceil(84 / bw));
+    for (let i = n - 1; i >= 0; i -= every) ctx.fillText(intraday ? fT(bs[i].t) : new Date(bs[i].t * 1000).toLocaleDateString("th-TH", { day: "numeric", month: "short" }), Math.min(plot.r - 18, Math.max(plot.l + 18, xOf(i))), h - 6);
+    if (ui.hover) { const x = xOf(ui.hover.i); ctx.save(); ctx.strokeStyle = T.axis; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, plot.t); ctx.lineTo(x, plot.b); ctx.stroke(); ctx.restore(); hl(ctx, plot.l, plot.r, ui.hover.y, T.axis, 1, [3, 3]); }
+    cv._L = { plot, bw, n, lo, hi, xf, vs, walls: inView, ws };
+  }
+  // bars that fit the chart width; indicators are computed on the full series and then sliced
+  function visBars() { const w = $("cvMain").clientWidth || 800; return S.chart.slice(-Math.max(60, Math.floor((w - 150) / 2))); }
+  function sessStart(bs, i, ins) { if (ins.src === "bin") return Math.floor((bs[i].t - ins.sessOff) / 86400) !== Math.floor((bs[i - 1].t - ins.sessOff) / 86400); return bs[i].t - bs[i - 1].t >= 2400; }
+
+  // ---- Volume (session profile) -------------------------------------------------------------
+  function drawVol() {
+    const cv = $("cvVol"), { ctx, w, h } = sized(cv); if (!D) return;
+    const T = tok(), ins = I(), xf = X(), lv = D.prof.sortedLevels(); if (!lv.length) return;
+    const lo = D.rng.low - ins.tick * 2, hi = D.rng.high + ins.tick * 2, plot = { l: 6, r: w - 70, t: 8, b: h - 8 };
+    const yOf = yAxis(ctx, lo, hi, plot.t, plot.b, w - 4, "right", xf, null);
+    const want = Math.max(20, Math.min(80, Math.round((plot.b - plot.t) / 4))), step = Math.max(ins.tick, (hi - lo) / want), agg = new Map();
+    for (const [p, v] of lv) { const k = Math.floor((p - lo) / step); agg.set(k, (agg.get(k) || 0) + v.total); }
+    const mx = Math.max(...agg.values()), rh = Math.max(1, (plot.b - plot.t) * step / (hi - lo) - 1);
+    for (const [k, v] of agg) { const p0 = lo + k * step, mid = p0 + step / 2, inVa = mid >= D.rng.va_low && mid <= D.rng.va_high;
+      ctx.fillStyle = inVa ? T.profileVa : T.profile; ctx.fillRect(plot.l, yOf(p0 + step), (plot.r - plot.l) * v / mx, rh); }
+    hl(ctx, plot.l, plot.r, yOf(D.rng.poc), T.brass, 2);
+    ctx.font = FONT; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    const top = [], taken = [];
+    for (const e of [...agg.entries()].sort((a, z) => z[1] - a[1])) { const y = yOf(lo + (e[0] + 0.5) * step); if (taken.every(t => Math.abs(t - y) >= 14)) { top.push(e); taken.push(y); } if (top.length >= 6) break; }
+    for (const [k, v] of top) { const mid = lo + (k + 0.5) * step, y = yOf(mid), len = (plot.r - plot.l) * v / mx, t = `${fmt(xf.a * mid + xf.b, xf.dec)} v=${fmtV(v)}`;
+      ctx.fillStyle = T.ink2; ctx.fillText(t, Math.min(plot.l + len + 6, plot.r - ctx.measureText(t).width), y); }
+    hl(ctx, plot.l, plot.r, yOf(D.last.c), T.ink2, 1, [3, 3]);
+    $("volHint").textContent = `session ปัจจุบัน · POC ${fmt(xf.a * D.rng.poc + xf.b, xf.dec)} · โซน 70% ${fmt(xf.a * D.rng.va_low + xf.b, xf.dec)}–${fmt(xf.a * D.rng.va_high + xf.b, xf.dec)} · รวม ${fmtV(D.rng.total)} ${ins.unit}`;
+  }
+
+  // ---- Big Trades Zone ---------------------------------------------------------------------
+  function bigZones() {
+    const ins = I();
+    if (ins.src === "bin") { const thr = bigMin(), big = S.trades.filter(t => t.size >= thr); return { zones: OF.zones(big, ins.zone).slice(0, 12), n: big.length, thr, real: true }; }
+    if (!D) return { zones: [], n: 0, real: false };
+    const thr = p95(D.cur.map(b => b.v)), big = D.cur.filter(b => b.v >= thr && b.v > 0), raw = (D.rng.high - D.rng.low) / 16, mg = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    const zb = Math.max(1, [1, 2, 2.5, 5, 10].map(m => m * mg).find(x => x >= raw) || 10 * mg), zm = new Map();
+    for (const b of big) { const k = Math.round(((b.h + b.l + b.c) / 3) / zb) * zb, [x, y] = split(b), z = zm.get(k) || { price: k, buy: 0, sell: 0, n: 0 }; z.buy += x; z.sell += y; z.n += 1; zm.set(k, z); }
+    const zones = [...zm.values()].sort((a, z) => (z.buy + z.sell) - (a.buy + a.sell)).slice(0, 12).map(z => ({ ...z, contested: Math.min(z.buy, z.sell) / Math.max(z.buy, z.sell) >= 0.5 }));
+    return { zones, n: big.length, thr, real: false };
+  }
+  function drawBig() {
+    const cv = $("cvBig"), { ctx, w, h } = sized(cv), Z = bigZones(), ins = I(), xf = X(); setTag("tagBig", Z.real);
+    $("bigHint").textContent = Z.real ? `ไม้ ≥ ${fmtV(Z.thr)} ${ins.unit} ตั้งแต่เปิดหน้า · ${Z.n} ไม้ · ⚔ = สองฝั่งปะทะกัน` : `นาทีที่ปริมาณ ≥ P95 ของ session · ⚔ = สองฝั่งสูสี`;
+    if (!Z.zones.length) { const T = tok(); ctx.fillStyle = T.muted; ctx.font = "13px " + getComputedStyle(document.body).fontFamily; ctx.textAlign = "center"; ctx.fillText(Z.real ? "ยังไม่มีไม้ใหญ่ตั้งแต่เปิดหน้า ลองลดเกณฑ์ไม้ใหญ่" : "รอข้อมูล", w / 2, h / 2); return; }
+    const T = tok(), last = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.chart.length ? S.chart[S.chart.length - 1].c : Z.zones[0].price;
+    let lo = Math.min(last, ...Z.zones.map(z => z.price)), hi = Math.max(last, ...Z.zones.map(z => z.price)); const pad = Math.max((hi - lo) * 0.08, ins.zone || 1); lo -= pad; hi += pad;
+    const plot = { l: 8, r: w - 70, t: 8, b: h - 22 }, mid = (plot.l + plot.r) / 2, half = (plot.r - plot.l) / 2 - 4;
+    const yOf = yAxis(ctx, lo, hi, plot.t, plot.b, w - 4, "right", xf, [plot.l, plot.r]);
+    ctx.strokeStyle = T.axis; ctx.beginPath(); ctx.moveTo(Math.round(mid) + 0.5, plot.t); ctx.lineTo(Math.round(mid) + 0.5, plot.b); ctx.stroke();
+    const mx = Math.max(1e-9, ...Z.zones.map(z => Math.max(z.buy, z.sell))), bh = 13, taken = []; ctx.font = FONT; ctx.textBaseline = "middle";
+    const label = (t, x0, x1, y, left) => { const tw = ctx.measureText(t).width;
+      if (left ? x0 - 4 - tw >= plot.l : x1 + 4 + tw <= plot.r) { ctx.fillStyle = T.ink2; ctx.textAlign = left ? "right" : "left"; ctx.fillText(t, left ? x0 - 4 : x1 + 4, y); }
+      else { ctx.fillStyle = "#fff"; ctx.textAlign = left ? "left" : "right"; ctx.fillText(t, left ? x0 + 4 : x1 - 4, y); } };
+    for (const z of Z.zones) { const y = yOf(z.price), lb = half * z.sell / mx, rb = half * z.buy / mx, lab = !taken.some(t => Math.abs(t - y) < 14);
+      ctx.fillStyle = T.sell; ctx.fillRect(mid - lb, y - bh / 2, lb, bh); ctx.fillStyle = T.buy; ctx.fillRect(mid, y - bh / 2, rb, bh);
+      if (!lab) continue; taken.push(y);
+      if (z.sell > 0) label(`Ask ${fmtV(z.sell)}`, mid - lb, mid, y, true);
+      if (z.buy > 0) label(`Bid ${fmtV(z.buy)}${z.contested ? " ⚔" : ""}`, mid, mid + rb, y, false);
+      else if (z.contested) label("⚔", mid, mid, y, false); }
+    hl(ctx, plot.l, plot.r, yOf(last), T.ink2, 1, [3, 3]);
+    ctx.fillStyle = T.muted; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.fillText("← ผู้กดขาย (Ask)        ผู้กดซื้อ (Bid) →", mid, h - 6);
+  }
+
+  // ---- CVD ---------------------------------------------------------------------------------
+  function drawCvd() {
+    const cv = $("cvCvd"), { ctx, w, h } = sized(cv); if (!S.chart.length) return;
+    const M = $("cvMain")._L, T = tok(), ins = I(), all = S.chart, intraday = INTRADAY.has(ui.tf), real = all.every(exact);
+    const padL = M ? M.plot.l : 70, plot = { l: padL, r: M ? M.plot.r : w - 64, t: 8, b: h - 20 };
+    setTag("tagCvd", real); setTag("tagDelta", real);
+    let acc = 0; const full = all.map((b, i) => { if (intraday && i && sessStart(all, i, ins)) acc = 0; acc += delta(b); return acc; });
+    const bs = visBars(), n = bs.length, vals = full.slice(-n);
+    let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); const pad = (hi - lo || 1) * 0.1; lo -= pad; hi += pad;
+    const yOf = v => plot.b - (v - lo) / (hi - lo) * (plot.b - plot.t), bw = (plot.r - plot.l) / n, xOf = i => plot.l + (i + 0.5) * bw, y0 = yOf(0);
+    ctx.font = FONT; ctx.textBaseline = "middle"; for (const v of nice(lo, hi, 4)) { hl(ctx, plot.l, plot.r, yOf(v), T.grid); ctx.fillStyle = T.muted; ctx.textAlign = "right"; ctx.fillText(fmtV(v), padL - 8, yOf(v)); }
+    for (const [up, col] of [[true, T.buy], [false, T.sell]]) { ctx.save(); ctx.beginPath(); ctx.rect(plot.l, up ? plot.t : y0, plot.r - plot.l, up ? y0 - plot.t : plot.b - y0); ctx.clip();
+      ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(xOf(0), y0); vals.forEach((v, i) => ctx.lineTo(xOf(i), yOf(v))); ctx.lineTo(xOf(n - 1), y0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    hl(ctx, plot.l, plot.r, y0, T.axis); ctx.strokeStyle = T.ink2; ctx.lineWidth = 1.8; ctx.beginPath();
+    vals.forEach((v, i) => (i && !(intraday && sessStart(bs, i, ins))) ? ctx.lineTo(xOf(i), yOf(v)) : ctx.moveTo(xOf(i), yOf(v))); ctx.stroke();
+    if (ui.hover) { const x = xOf(ui.hover.i); ctx.save(); ctx.strokeStyle = T.axis; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, plot.t); ctx.lineTo(x, plot.b); ctx.stroke(); ctx.restore(); }
+    const prices = bs.map(b => b.c), dv = OF.divergence(prices, vals, 20);
+    $("cvdHint").textContent = `${real ? "จากปริมาณผู้กดซื้อ/ขายจริงในแต่ละแท่ง" : "ประมาณจากตำแหน่งราคาปิด"}${intraday ? " · เริ่มใหม่ทุก session" : ""} · ล่าสุด ${sgn(vals[n - 1])} ${ins.unit}` +
+      (dv === "bearish" ? " · ราคาทำจุดสูงใหม่แต่ CVD ไม่ตาม" : dv === "bullish" ? " · ราคาทำจุดต่ำใหม่แต่ CVD ไม่ตาม" : "");
+  }
+
+  // ---- Order Book (bucketed) ---------------------------------------------------------------
+  function renderBook() {
+    const ins = I(), xf = X(), box = $("obBox");
+    if (ins.src !== "bin") { setTag("tagOb", false); $("tagOb").textContent = "ไม่มีข้อมูล"; $("obHint").textContent = "";
+      box.innerHTML = `<p class="empty">COMEX GC ไม่มี order book ให้ใช้ฟรี ต้องใช้ข้อมูล MBO ที่เสียเงิน เลือก "ทองคำ Binance XAUUSDT" เพื่อดู Order Book จริง</p>`; $("tblEvents").innerHTML = ""; return; }
+    setTag("tagOb", true); const B = S.bucketed; if (!B) return;
+    const N = 12, asks = B.asks.slice(0, N).reverse(), bids = B.bids.slice(0, N), sa = stats(B.asks.slice(0, 200)), sb = stats(B.bids.slice(0, 200));
+    const prev = S.prevBuckets, mx = Math.max(...asks.map(l => l[1]), ...bids.map(l => l[1]), 1e-9);
+    const sdTag = (q, s) => { const z = (q - s.m) / s.sd; return z >= 3 ? `<span class="sd s3">3SD</span>` : z >= 2 ? `<span class="sd">2SD</span>` : ""; };
+    const chg = (side, p, q) => { if (!prev) return ""; const pq = prev[side].get(p) || 0, d = q - pq; return Math.abs(d) < 1e-9 ? "" : `<span class="chg">(${d > 0 ? "+" : "−"}${fmtV(Math.abs(d))})</span>`; };
+    const row = (side, [p, q], s) => { const pct = Math.max(2, 100 * q / mx).toFixed(1), px = fmt(xf.a * p + xf.b, xf.dec);
+      return side === "ask" ? `<tr><td class="bb"></td><td class="px">${px}</td><td class="ab"><span class="bar" style="width:${pct}%"></span></td><td class="sz">${fmtV(q)} ${sdTag(q, s)} ${chg("ask", p, q)}</td></tr>`
+        : `<tr><td class="bb"><span class="bar" style="width:${pct}%"></span></td><td class="px">${px}</td><td class="ab"></td><td class="sz">${fmtV(q)} ${sdTag(q, s)} ${chg("bid", p, q)}</td></tr>`; };
+    const bb = B.bids[0], ba = B.asks[0], mid = bb && ba ? (S.book.bids[0][0] + S.book.asks[0][0]) / 2 : null;
+    box.innerHTML = `<table class="ob"><thead><tr><th class="num">BID</th><th style="text-align:center">ราคา</th><th>ASK</th><th>ขนาด · SD · เปลี่ยน</th></tr></thead><tbody>${asks.map(l => row("ask", l, sa)).join("")}` +
+      `<tr class="mid"><td colspan="4">mid ${fmt(xf.a * mid + xf.b, xf.dec)} · สเปรด ${fmt(S.book.asks[0][0] - S.book.bids[0][0], ins.dec)}</td></tr>${bids.map(l => row("bid", l, sb)).join("")}</tbody></table>`;
+    $("obHint").textContent = `รวมเป็นช่วงละ ${ins.bucket} ${ins.key === "btc" ? "USDT" : "ดอลลาร์"} · 2SD/3SD = ใหญ่ผิดปกติเทียบ 200 ช่วงใกล้ราคา · (+/−) = เปลี่ยนจากรอบก่อน · อัปเดต ${fTs(B.ts)}`;
+    const ev = S.tracker ? S.tracker.events(8).slice().reverse() : [];
+    $("tblEvents").innerHTML = ev.length ? ev.map(e => `<tr><td>${e.side === "bid" ? "BID" : "ASK"} ${e.outcome === "pulled" ? "✕" : ""}</td><td class="num">${fmt(xf.a * e.price + xf.b, xf.dec)}</td><td class="num">${fmtV(e.size)}</td><td>${STATUS[e.outcome]}</td><td class="num">${fAge(e.age_ms)}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">ยังไม่มีกำแพงที่หายไป (ต้องเห็นอย่างน้อย 2 รอบ)</td></tr>`;
+  }
+
+  // ---- Flow -----------------------------------------------------------------------------------
+  function renderFlow() {
+    const ins = I(), xf = X(), tiles = [];
+    if (ins.src === "bin") {
+      setTag("tagFlow", true);
+      const tr = S.trades, now = tr.length ? tr[tr.length - 1].ts : Date.now(), win = ms => tr.filter(t => now - t.ts <= ms);
+      const sum = (arr, side) => arr.reduce((s, t) => s + (t.side === side ? t.size : 0), 0), thr = bigMin();
+      const w5 = win(300000), w30 = win(1800000), b5 = sum(w5, "buy"), s5 = sum(w5, "sell"), b30 = sum(w30, "buy"), s30 = sum(w30, "sell");
+      const pres = b5 + s5 > 0 ? b5 / (b5 + s5) * 100 : 50, big30 = w30.filter(t => t.size >= thr), bigB = big30.filter(t => t.side === "buy"), bigS = big30.filter(t => t.side === "sell");
+      const spanMin = tr.length > 1 ? (tr[tr.length - 1].ts - tr[0].ts) / 60000 : 0, avg5 = spanMin >= 15 ? tr.reduce((s, t) => s + t.size, 0) / spanMin * 5 : null;
+      const power = avg5 ? (b5 + s5) / avg5 : null, status = pres >= 60 ? "ฝั่งซื้อคุม" : pres <= 40 ? "ฝั่งขายคุม" : "สมดุล";
+      tiles.push(["Net 5 นาที", sgn(b5 - s5), `30 นาที ${sgn(b30 - s30)} ${ins.unit}`], ["Pressure", `${pres.toFixed(0)}% ซื้อ`, status],
+                 ["BigMoney 30 นาที", `${bigB.length} : ${bigS.length}`, `ซื้อ : ขาย · สุทธิ ${sgn(sum(big30, "buy") - sum(big30, "sell"))}`],
+                 ["Power", power ? `${power.toFixed(1)}×` : "–", power ? "ปริมาณ 5 นาทีเทียบค่าเฉลี่ย" : "ต้องเก็บข้อมูล ≥ 15 นาที"]);
+      const tape = tr.filter(t => t.size >= thr).slice(-12).reverse();
+      $("tblTape").innerHTML = tape.length ? tape.map(t => `<tr><td>${fTs(t.ts)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}</td><td class="num">${fmt(xf.a * t.price + xf.b, xf.dec)}</td><td class="num">${fmtV(t.size)}</td><td class="num">${fmtV(t.size * t.price)}</td></tr>`).join("")
+        : `<tr><td colspan="5" class="empty">ยังไม่มีไม้ ≥ ${fmtV(thr)} ${ins.unit} ตั้งแต่เปิดหน้า</td></tr>`;
+      $("flowHint").textContent = `จาก tape ${tr.length.toLocaleString()} ไม้ · ${spanMin >= 1 ? spanMin.toFixed(0) + " นาที" : "เพิ่งเริ่ม"}${S.gaps ? ` · ข้อมูลขาดช่วง ${S.gaps} ครั้ง` : ""}`;
+    } else {
+      setTag("tagFlow", false);
+      if (D) { const tail = D.cur.slice(-30); let fb = 0, fs = 0; for (const b of tail) { const [x, y] = split(b); fb += x; fs += y; }
+        const pres = fb + fs > 0 ? fb / (fb + fs) * 100 : 50;
+        tiles.push(["Net ≈ 30 นาที", sgn(fb - fs), ins.unit], ["Pressure ≈", `${pres.toFixed(0)}% ซื้อ`, pres >= 55 ? "ฝั่งซื้อนำ" : pres <= 45 ? "ฝั่งขายนำ" : "สมดุล"]); }
+      $("tblTape").innerHTML = `<tr><td colspan="5" class="empty">COMEX ไม่มี tape ฟรี เลือก "ทองคำ Binance XAUUSDT" เพื่อดูไม้ใหญ่ทีละรายการ</td></tr>`;
+      $("flowHint").textContent = "ประมาณจากแท่ง 1 นาที";
+    }
+    $("flowTiles").innerHTML = tiles.map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+  }
+
+  // ---- strip, ladder, delta table ----------------------------------------------------------
+  function renderStrip() {
+    const ins = I(), xf = X(), q = S.quotes, tl = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : null, last = tl ?? (S.chart.length ? S.chart[S.chart.length - 1].c : null), tiles = [];
+    const modeLabel = MODES.find(m => m[0] === ui.mode)[1];
+    if (ins.gold) {
+      const gc = gcPx(), sp = q.spot && q.spot.close, thb = q.thb && q.thb.close;
+      tiles.push([`Last · ${ins.sub}`, last == null ? "–" : fmt(xf.a * last + xf.b, xf.dec) + (xf.unit || ""), xf.pending ? "รอราคาอ้างอิง" : modeLabel, true]);
+      tiles.push(["Binance XAUUSDT", fmt(S.xauPx, 2), "perp · มี order flow"]);
+      tiles.push(["Future · GC1!", fmt(gc, 1), q.gc ? (q.gc.update_mode === "streaming" ? "COMEX สด" : "COMEX ล่าช้า") : "รอ TradingView"]);
+      tiles.push(["Spot · XAUUSD", fmt(sp, 2), q.spot && q.spot.change != null ? `เปลี่ยน ${q.spot.change >= 0 ? "+" : "−"}${Math.abs(q.spot.change).toFixed(2)}%` : ""]);
+      tiles.push(["Offset GC − XAUUSDT", gc != null && S.xauPx != null ? sgn(gc - S.xauPx) : "–", "ใช้แปลงระดับข้ามตลาด"]);
+      tiles.push(["ทองไทย 96.5% ≈", sp && thb ? fmt(sp * thb * THB_K, 0) + " ฿" : "–", thb ? `USDTHB ${fmt(thb, 3)}` : ""]);
+    } else {
+      const d0 = D && D.cur[0]; tiles.push(["Last · BTCUSDT", fmt(last, 1), "Binance spot", true]);
+      tiles.push(["เปลี่ยนจากต้นวัน (UTC)", d0 && last != null ? sgn(last - d0.o) : "–", d0 ? `เปิด ${fmt(d0.o, 1)}` : ""]);
+      tiles.push(["ช่วงวันนี้", D ? `${fmt(D.rng.low, 0)} – ${fmt(D.rng.high, 0)}` : "–", D ? `POC ${fmt(D.rng.poc, 0)}` : ""]);
+      if (S.book) tiles.push(["Bid / Ask", `${fmt(S.book.bids[0][0], 2)}`, `ask ${fmt(S.book.asks[0][0], 2)}`]);
+    }
+    $("strip").innerHTML = tiles.map(([k, v, s, hlite]) => `<div class="q${hlite ? " hl" : ""}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || "&nbsp;"}</div></div>`).join("");
+  }
+  function renderLadder() {
+    if (!D || !S.chart.length) return; const xf = X(), last = S.chart[S.chart.length - 1].c, rows = [], add = (label, p) => { if (p != null && isFinite(p)) rows.push({ label, p }); };
+    if (D.pr) { add("Y-Hi (สูงสุด session ก่อน)", D.pr.yhi); add("Top zone (ขอบบน 70% ก่อน)", D.pr.vah); add("Magnet บน", D.pr.mhi); add("POC session ก่อน", D.pr.poc); add("Magnet ล่าง", D.pr.mlo); add("Bottom zone (ขอบล่าง 70% ก่อน)", D.pr.val); add("Y-Lo (ต่ำสุด session ก่อน)", D.pr.ylo); }
+    const L = $("cvMain")._L, v = L && L.vs && L.vs[L.vs.length - 1];
+    if (v) { add("VWAP", v.vwap); add("Assist +2σ", v.bands[2][1]); add("Assist +3σ", v.bands[3][1]); add("Assist −2σ", v.bands[2][0]); add("Assist −3σ", v.bands[3][0]); }
+    add("POC session นี้", D.rng.poc);
+    if (S.tracker) { const act = S.tracker.active().filter(w => w.persistent); const bw = act.filter(w => w.side === "bid")[0], aw = act.filter(w => w.side === "ask")[0];
+      if (bw) add(`Wall BID ${fmtV(bw.size)} (${STATUS[bw.status]})`, bw.price); if (aw) add(`Wall ASK ${fmtV(aw.size)} (${STATUS[aw.status]})`, aw.price); }
+    const Z = bigZones(); if (Z.real && Z.zones[0]) add(`Big Trades zone ${fmtV(Z.zones[0].buy + Z.zones[0].sell)}`, Z.zones[0].price);
+    const dl = xf.a * last + xf.b; for (let k = -2; k <= 2; k++) { const d = Math.floor(dl / xf.step) * xf.step + k * xf.step; add("เลขกลม", (d - xf.b) / xf.a); }
+    rows.push({ label: "ราคาล่าสุด", p: last, last: true }); rows.sort((a, z) => z.p - a.p || (a.last ? -1 : 1));
+    $("ladder").innerHTML = rows.map(r => { const d = (r.p - last) * xf.a;
+      return `<tr class="${r.last ? "is-last" : ""}"><td>${r.label}</td><td class="num">${fmt(xf.a * r.p + xf.b, xf.dec)}</td><td class="num">${r.last ? "" : (d >= 0 ? "+" : "−") + fmt(Math.abs(d), xf.dec)}</td></tr>`; }).join("");
+    $("ladHint").textContent = `ห่าง = จากราคาล่าสุด · ${MODES.find(m => m[0] === ui.mode)[1]}`;
+  }
+  function renderDelta() {
+    const xf = X();
+    $("tblDelta").innerHTML = S.chart.slice(-12).reverse().map(b => { const [x, y] = split(b), d = x - y;
+      return `<tr><td>${INTRADAY.has(ui.tf) ? fT(b.t) : fDT(b.t)}</td><td class="num">${fmt(xf.a * b.c + xf.b, xf.dec)}</td><td class="num">${fmtV(b.v)}</td><td class="num">${fmtV(x)}</td><td class="num">${fmtV(y)}</td><td class="num ${d > 0 ? "up" : d < 0 ? "down" : ""}">${sgn(d)}</td></tr>`; }).join("");
+  }
+  function renderStatus() {
+    const ins = I(), parts = [];
+    if (S.stamp.bin) parts.push(`Binance ${fTs(S.stamp.bin)}`);
+    if (S.stamp.tdv) parts.push(`TradingView ${fTs(S.stamp.tdv)}`);
+    $("status").textContent = parts.length ? "อัปเดต " + parts.join(" · ") : "กำลังดึงข้อมูล…";
+    const msgs = Object.entries(S.errs).map(([src, e]) => errCopy(src, e)); $("errTop").hidden = !msgs.length; $("errTop").textContent = msgs.join(" · ");
+    $("noteSrc").textContent = ins.key === "xau" ? "ทองคำ Binance XAUUSDT เป็นสัญญา perpetual ที่อ้างอิงราคาทอง มี order book และรายการซื้อขายจริง แต่เป็นคนละตลาดกับ COMEX ใช้ปุ่ม \"เทียบ GC\" เพื่อแปลงระดับราคาไปเทียบกับ GC"
+      : ins.key === "gc" ? "COMEX GC มีแค่แท่งเทียนจาก TradingView ไม่มี order book หรือ tape ฟรี แผงที่มีป้าย ≈ คำนวณจากแท่งเทียน สำหรับกำแพงและไม้ใหญ่ของทอง ให้เลือก \"ทองคำ Binance XAUUSDT\""
+      : "BTC จาก Binance spot: แท่งเทียนบอกปริมาณผู้กดซื้อจริง, order book 1,000 ระดับ และรายการซื้อขายทีละไม้";
+  }
+
+  // ---- trade plan: rule-based scenarios from the levels on this page -------------------------
+  // day: risk sized by the 1-hour ATR; swing: by the 4-hour ATR with wider targets
+  // stops and zones scale with the daily ATR so quiet hours (weekends, Asia) don't shrink them
+  const PLAN = { day: { label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4, conf: "15 นาที", inval: "1 ชม." },
+                 swing: { label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8, conf: "1 ชม.", inval: "4 ชม." } };
+  function lastPx() { return I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.chart.length ? S.chart[S.chart.length - 1].c : null; }
+  function atrDaily(bars) {
+    const d = bars.length > 4 ? bars.slice(0, -1) : bars; if (d.length < 3) return null; // drop the forming day
+    const tr = d.slice(1).map((x, i) => Math.max(x.h - x.l, Math.abs(x.h - d[i].c), Math.abs(x.l - d[i].c))).slice(-14);
+    return tr.reduce((a, v) => a + v, 0) / tr.length;
+  }
+  function atrOf(bars, sec) {
+    const g = new Map();
+    for (const b of bars) { const k = Math.floor(b.t / sec), x = g.get(k); if (!x) g.set(k, { h: b.h, l: b.l, c: b.c }); else { x.h = Math.max(x.h, b.h); x.l = Math.min(x.l, b.l); x.c = b.c; } }
+    let hs = [...g.entries()].sort((a, z) => a[0] - z[0]).map(e => e[1]); if (hs.length > 4) hs = hs.slice(0, -1); // drop the forming bar
+    if (hs.length < 3) return null;
+    const tr = hs.slice(1).map((x, i) => Math.max(x.h - x.l, Math.abs(x.h - hs[i].c), Math.abs(x.l - hs[i].c))).slice(-14);
+    return tr.reduce((a, v) => a + v, 0) / tr.length;
+  }
+  function planLevels(last, st) {
+    const L = [], add = (p, name, w) => { if (p != null && isFinite(p)) L.push({ p, name, w }); }, ins = I();
+    if (D.pr) { add(D.pr.yhi, "Y-Hi", 1.5); add(D.pr.vah, "Top zone", 1.5); add(D.pr.mhi, "Magnet บน", 1); add(D.pr.poc, "POC ก่อน", 1.5); add(D.pr.mlo, "Magnet ล่าง", 1); add(D.pr.val, "Bottom zone", 1.5); add(D.pr.ylo, "Y-Lo", 1.5); }
+    const dd = S.daily.length > 1 ? S.daily.slice(0, -1) : [];
+    for (const [n, w] of [[5, 1.5], [20, 1.25]]) if (dd.length >= n) { const z = dd.slice(-n); add(Math.max(...z.map(b => b.h)), `สูงสุด ${n} วัน`, w); add(Math.min(...z.map(b => b.l)), `ต่ำสุด ${n} วัน`, w); }
+    const vw = OF.vwapBands(D.cur, [2, 3]), v = vw[vw.length - 1];
+    if (v) { add(v.vwap, "VWAP", 1); add(v.bands[2][1], "Assist +2σ", 1); add(v.bands[3][1], "Assist +3σ", 1); add(v.bands[2][0], "Assist −2σ", 1); add(v.bands[3][0], "Assist −3σ", 1); }
+    add(D.rng.poc, "POC วันนี้", 1);
+    if (S.tracker) for (const w of S.tracker.active().filter(x => x.persistent).slice(0, 6)) add(w.price, `Wall ${w.side === "bid" ? "BID" : "ASK"} ${fmtV(w.size)}`, 2.5);
+    const Z = bigZones(); if (Z.real) for (const z of Z.zones.slice(0, 3)) add(z.price, `ไม้ใหญ่ ${fmtV(z.buy + z.sell)}`, 1.5);
+    const r0 = Math.floor(last / ins.round) * ins.round; for (let k = -st.rounds + 1; k <= st.rounds; k++) add(r0 + k * ins.round, "เลขกลม", 0.75);
+    return { L, v };
+  }
+  function cluster(levels, side, last, win) {
+    // candidate zones on one side of price, scored by the weight of levels stacked within win
+    const c = levels.filter(l => side === "res" ? l.p > last + 0.5 * win : l.p < last - 0.5 * win).sort((a, z) => Math.abs(a.p - last) - Math.abs(z.p - last));
+    let best = null;
+    for (const seed of c.slice(0, 6)) {
+      const mem = c.filter(l => Math.abs(l.p - seed.p) <= win), score = mem.reduce((s, l) => s + l.w, 0) - Math.abs(seed.p - last) / win * 0.15;
+      if (!best || score > best.score) best = { score, mem, lo: Math.min(...mem.map(l => l.p)), hi: Math.max(...mem.map(l => l.p)) };
+    }
+    return best;
+  }
+  function renderPlan() {
+    const ins = I(), xf = X(), last = lastPx(), body = $("tblPlan"), st = PLAN[ui.plan] || PLAN.day;
+    setTag("tagPlan", ins.src === "bin"); $("tagPlan").textContent = ins.src === "bin" ? "จาก order flow จริง" : "จากแท่งเทียน";
+    if (!D || last == null) { body.innerHTML = `<tr><td colspan="8" class="empty">รอข้อมูล</td></tr>`; $("planBias").innerHTML = ""; return; }
+    const dAtr = atrDaily(S.daily), hAtr = atrOf(S.sess, 3600), atr = dAtr || (hAtr ? hAtr * 4 : null), atrName = dAtr ? "ATR รายวัน" : "ATR รายวัน ≈ (ATR 1 ชม. × 4)";
+    if (!atr) { body.innerHTML = `<tr><td colspan="8" class="empty">ข้อมูลย้อนหลังยังไม่พอคำนวณ ATR</td></tr>`; $("planBias").innerHTML = ""; return; }
+    const slGap = Math.max(st.slK * atr, last * st.floor), win = st.clK * atr, gap2 = Math.max(win, 0.25 * atr), { L, v } = planLevels(last, st), F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
+    // bias: price vs session VWAP, session CVD, recent pressure
+    const cvd = D.cur.reduce((a, b) => a + delta(b), 0); let score = 0; const why = [];
+    if (v) { if (last > v.vwap) { score++; why.push("ราคาเหนือ VWAP"); } else { score--; why.push("ราคาใต้ VWAP"); } }
+    if (cvd > 0) { score++; why.push("CVD วันนี้เป็นบวก"); } else if (cvd < 0) { score--; why.push("CVD วันนี้เป็นลบ"); }
+    if (ins.src === "bin" && S.trades.length) { const now = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => now - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0), pr = tot ? b / tot * 100 : 50;
+      if (pr >= 55) { score++; why.push(`แรงซื้อ 5 นาที ${pr.toFixed(0)}%`); } else if (pr <= 45) { score--; why.push(`แรงขาย 5 นาที ${(100 - pr).toFixed(0)}%`); } }
+    const bias = score >= 2 ? "เอียงซื้อ" : score <= -2 ? "เอียงขาย" : "สองทาง รอราคาเข้าโซน";
+    const res = cluster(L, "res", last, win), sup = cluster(L, "sup", last, win), rows = [];
+    const mk = (side, z) => {
+      if (!z) return null; const sell = side === "sell", dir = sell ? -1 : 1, entry = sell ? z.lo : z.hi, stop = sell ? z.hi + slGap : z.lo - slGap, risk = Math.abs(entry - stop);
+      const ahead = L.filter(l => (l.p - entry) * dir > 0).sort((a, b) => Math.abs(a.p - entry) - Math.abs(b.p - entry));
+      const pick = (minR, after) => ahead.find(l => Math.abs(l.p - entry) >= minR * risk && (after == null || Math.abs(l.p - entry) >= Math.abs(after - entry) + gap2))
+        || { p: entry + dir * Math.max(minR * risk, after == null ? 0 : Math.abs(after - entry) + gap2), name: `${minR}R (ไม่มีแนวถัดไป)` };
+      const t1 = pick(st.minR[0], null), t2 = pick(st.minR[1], t1.p), rr = t => (Math.abs(t.p - entry) / risk).toFixed(1);
+      const trend = score === 0 ? null : (sell ? score < 0 : score > 0);
+      return `<tr><td>${sell ? "▼ ขาย" : "▲ ซื้อ"}${trend === null ? "" : trend ? " · ตามแรง" : " · สวนแรง"}</td><td>${F(z.lo)}–${F(z.hi)}<span class="why">${[...new Set(z.mem.map(l => l.name))].join(" + ")}</span></td>` +
+        `<td class="num">${F(entry)}</td><td class="num">${F(stop)}<span class="why">${Dd(stop - entry)}</span></td>` +
+        `<td class="num">${F(t1.p)} / ${F(t2.p)}<span class="why">${Dd(t1.p - entry)} · ${Dd(t2.p - entry)}</span><span class="why">${t1.name} · ${t2.name}</span></td><td class="num">${rr(t1)} / ${rr(t2)}</td>` +
+        `<td>${sell ? `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับลงใต้ ${F(z.lo)}, CVD ไม่ทำจุดสูงใหม่${ins.src === "bin" ? ", กำแพง ASK ในโซนไม่ถูกถอน" : ""}` : `ราคาเข้าโซนแล้วแท่ง ${st.conf} ปิดกลับขึ้นเหนือ ${F(z.hi)}, CVD ไม่ทำจุดต่ำใหม่${ins.src === "bin" ? ", กำแพง BID ในโซนไม่ถูกถอน" : ""}`} · ถึง TP1 แล้วเลื่อน SL มาที่ทุน${trend === false ? " · สวนแรง ใช้ครึ่งไม้" : ""}</td>` +
+        `<td>แท่ง ${st.inval} ปิด${sell ? "เหนือ" : "ใต้"} ${F(stop)}</td></tr>`;
+    };
+    const order = score < 0 ? [["sell", res], ["buy", sup]] : [["buy", sup], ["sell", res]];
+    for (const [side, z] of order) { const r = mk(side, z); if (r) rows.push(r); }
+    body.innerHTML = rows.join("") || `<tr><td colspan="8" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
+    $("planBias").innerHTML = [["ทิศทางตอนนี้", bias, why.join(" · ") || "ข้อมูลยังน้อย"], ["ราคา", F(last), MODES.find(m => m[0] === ui.mode)[1]],
+      [atrName, fmt(atr * xf.a, Math.max(0, xf.dec - 1)), `SL ห่างขอบโซน ${fmt(slGap * xf.a, Math.max(0, xf.dec - 1))} (${st.slK} × ATR) · TP ≥ ${st.minR[0]}R / ${st.minR[1]}R`]]
+      .map(([k, val, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`).join("");
+    $("planHint").textContent = `${st.label} · อัปเดต ${fTs(Date.now())} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
+  }
+  function renderAll() {
+    rafPending = false; D = derive();
+    const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
+    $("lblBig").hidden = ins.src !== "bin"; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
+    renderStrip(); drawMain(); drawVol(); drawBig(); drawCvd(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); renderStatus();
+    $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
+    $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : "") : "";
+    if (S.chart.length) $("ovMain").hidden = true;
+    else if (S.approve) overlay(errCopy(S.approve, S.errs[S.approve]), true);
+    else if (Object.keys(S.errs).length && Object.values(S.errs).some(e => DENY.has(e.code))) overlay(Object.entries(S.errs).map(([s, e]) => errCopy(s, e)).join(" "), false);
+  }
+  function schedule() { if (rafPending) return; rafPending = true; requestAnimationFrame(renderAll); }
+  function overlay(text, approve) { $("ovMain").hidden = false; $("ovText").textContent = text; $("btnApprove").hidden = !approve; }
+
+  // ---- data loops ------------------------------------------------------------------------------
+  function every(ms, fn) { const g = gen; let busy = false;
+    const run = async () => { if (g !== gen || busy || document.hidden) return; busy = true; try { await fn(g); } finally { busy = false; } };
+    run(); timers.push(setInterval(run, ms)); }
+  function stopAll() { gen++; for (const t of timers) clearInterval(t); timers = []; for (const u of unsubs) u(); unsubs = []; }
+  async function binLoop(g, fn) { try { await fn(); } catch (e) { if (g === gen) noteErr(BIN, e); } }
+  function startBinance() {
+    const ins = I(), T = TOOLS[ins.mkt], sym = ins.symbol;
+    S.tracker = new OF.WallTracker(ins.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
+    every(30000, g => binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: sym, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = kl(rows); schedule(); }));
+    every(60000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "5m", limit: 1000 }); if (g !== gen) return; S.sess = kl(rows); schedule(); }));
+    every(600000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "1d", limit: 30 }); if (g !== gen) return; S.daily = kl(rows); schedule(); }));
+    every(10000, g => binLoop(g, async () => { const p = await bin(T.d, { symbol: sym, limit: 1000 }); if (g !== gen || !p || !p.bids) return;
+      const book = { ts: p.T || p.E || Date.now(), symbol: sym, ...OF.sortBook(p.bids.map(l => [+l[0], +l[1]]), p.asks.map(l => [+l[0], +l[1]])) };
+      if (S.bucketed) S.prevBuckets = { bid: new Map(S.bucketed.bids), ask: new Map(S.bucketed.asks) };
+      S.book = book; S.bucketed = bucketBook(book, ins.bucket); S.tracker.update(S.bucketed); schedule(); }));
+    every(8000, g => binLoop(g, async () => {
+      // a full page means we fell behind; read up to three pages per tick to catch up
+      for (let page = 0; page < 3; page++) {
+        const args = { symbol: sym, limit: 1000 }; if (S.lastId != null) args.fromId = S.lastId + 1;
+        const rows = await bin(T.t, args); if (g !== gen || !Array.isArray(rows) || !rows.length) return;
+        if (S.lastId != null && +rows[0].a > S.lastId + 1) S.gaps += 1;
+        for (const r of rows) { const id = +r.a; if (S.lastId != null && id <= S.lastId) continue; S.trades.push({ ts: +r.T, price: +r.p, size: +r.q, side: r.m ? "sell" : "buy", exchange: "binance", symbol: sym, trade_id: String(id) }); S.lastId = id; }
+        if (S.lastId == null || rows.length < 1000 || args.fromId == null) break;
+      }
+      const cut = S.trades[S.trades.length - 1].ts - 4 * 3600000; if (S.trades[0].ts < cut) S.trades = S.trades.filter(t => t.ts >= cut); schedule(); }));
+  }
+  function startXauTicker() { every(15000, g => binLoop(g, async () => { const p = await bin("futures_usds.symbolPriceTicker", { symbol: "XAUUSDT" }); if (g !== gen) return; const px = +(Array.isArray(p) ? p[0] && p[0].price : p && p.price); if (isFinite(px)) { S.xauPx = px; schedule(); } })); }
+  function tdvWatch(tool, input, onData, critical) {
+    unsubs.push(mcp.watchTool(TDV, tool, input, ev => {
+      if (ev.type === "data") { S.stamp.tdv = ev.result.cache ? ev.result.cache.storedAt : Date.now(); clearErr(TDV); onData(ev.result.payload); }
+      else if (critical || DENY.has(ev.error.code)) noteErr(TDV, ev.error);
+    }, { cache: { staleTime: 30000 }, refetchInterval: 60000 }));
+  }
+  function startTdvChart() {
+    const ins = I(), [, cnt] = TF[ui.tf], tvIv = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" }[ui.tf];
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = tvBars(p); schedule(); }, true);
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); schedule(); }, false);
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false);
+  }
+  function startQuotes() {
+    for (const [k, sym] of [["gc", "COMEX:GC1!"], ["spot", "OANDA:XAUUSD"], ["thb", "OANDA:USDTHB"]])
+      tdvWatch(QUOTE, { symbol: sym, columns: ["close", "change", "update_mode"] }, p => { const o = asObj(p); if (o && o.data) { S.quotes[k] = o.data; schedule(); } }, false);
+  }
+  function start() {
+    stopAll(); resetData(); const ins = I();
+    overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false); schedule();
+    if (ins.src === "bin") startBinance(); else startTdvChart();
+    if (ins.gold) { startQuotes(); startXauTicker(); }
+  }
+  function restartChartOnly() {
+    // timeframe change: keep book/trades/tracker, refetch chart only
+    const ins = I(); S.chart = []; ui.hover = null; $("tip").hidden = true; overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false);
+    if (ins.src === "bin") { const T = TOOLS[ins.mkt], g = gen; binLoop(g, async () => { const [iv, cnt] = TF[ui.tf]; const rows = await bin(T.k, { symbol: ins.symbol, interval: iv === "1D" ? "1d" : iv, limit: Math.min(cnt, T.kmax) }); if (g !== gen) return; S.chart = kl(rows); schedule(); }); }
+    else start();
+  }
+  async function approve() {
+    const src = S.approve; $("btnApprove").disabled = true;
+    try { if (src === TDV) await mcp.callTool(TDV, QUOTE, { symbol: "COMEX:GC1!", columns: ["close"] }); else await bin(I().src === "bin" ? TOOLS[I().mkt].k : "futures_usds.symbolPriceTicker", I().src === "bin" ? { symbol: I().symbol, interval: "5m", limit: 5 } : { symbol: "XAUUSDT" });
+      delete S.errs[src]; S.approve = null; start(); }
+    catch (e) { noteErr(src, e); } finally { $("btnApprove").disabled = false; }
+  }
+
+  // ---- hover --------------------------------------------------------------------------------
+  function onHover(ev) {
+    const cv = $("cvMain"), L = cv._L; if (!L) return;
+    const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+    if (x < L.plot.l || x > L.ws.r || y < L.plot.t || y > L.plot.b) { if (ui.hover) { ui.hover = null; $("tip").hidden = true; drawMain(); drawCvd(); } return; }
+    const i = Math.max(0, Math.min(L.n - 1, Math.floor((Math.min(x, L.plot.r - 1) - L.plot.l) / L.bw))), b = visBars()[i], xf = L.xf, [bu, se] = split(b), v = L.vs[i];
+    ui.hover = { i, y }; const p = L.lo + (L.plot.b - y) / (L.plot.b - L.plot.t) * (L.hi - L.lo), F = q => fmt(xf.a * q + xf.b, xf.dec);
+    let html = `${fDT(b.t)} · เมาส์ ${F(p)}<br>O ${F(b.o)}  H ${F(b.h)}<br>L ${F(b.l)}  C ${F(b.c)}<br>ปริมาณ ${fmtV(b.v)} · ซื้อ${exact(b) ? "" : "≈"} ${fmtV(bu)} ขาย${exact(b) ? "" : "≈"} ${fmtV(se)}` + (v ? `<br>VWAP ${F(v.vwap)}` : "");
+    const near = L.walls.slice().sort((a, z) => Math.abs(a.price - p) - Math.abs(z.price - p))[0];
+    if (near && Math.abs(near.price - p) <= (L.hi - L.lo) * 0.03) html += `<br>Wall ${near.side.toUpperCase()} ${F(near.price)} · ${fmtV(near.size)} · ${STATUS[near.status]} · ${fAge(near.age_ms)}`;
+    const tip = $("tip"); tip.innerHTML = html; tip.hidden = false;
+    const card = $("cardMain").getBoundingClientRect(), cx = ev.clientX - card.left, cy = ev.clientY - card.top;
+    tip.style.left = Math.max(8, Math.min(card.width - tip.offsetWidth - 8, cx + 14)) + "px"; tip.style.top = Math.max(8, cy - tip.offsetHeight - 12) + "px";
+    drawMain(); drawCvd();
+  }
+
+  // ---- controls -------------------------------------------------------------------------------
+  function seg(id, items, val, on) { $(id).innerHTML = items.map(([k, t, s]) => `<button type="button" data-k="${k}" aria-pressed="${k === val}">${t}${s ? `<small>${s}</small>` : ""}</button>`).join("");
+    $(id).onclick = e => { const b = e.target.closest("button[data-k]"); if (b) on(b.dataset.k); }; }
+  function renderControls() {
+    const ins = I();
+    if (ins.key === "gc" && ui.mode === "gc") { ui.mode = "native"; store.set("mode", "native"); }
+    seg("segInst", Object.values(INSTR).map(x => [x.key, x.btn, x.sub]), ui.inst, k => { if (k === ui.inst) return; ui.inst = k; store.set("inst", k); renderControls(); start(); });
+    $("segMode").hidden = !ins.gold;
+    seg("segMode", MODES.filter(m => !(ins.key === "gc" && m[0] === "gc")), ui.mode, k => { ui.mode = k; store.set("mode", k); renderControls(); schedule(); });
+    seg("segPlan", Object.entries(PLAN).map(([k, v]) => [k, v.label, `SL ${v.slK}×ATR วัน`]), ui.plan, k => { ui.plan = k; store.set("plan", k); renderControls(); schedule(); });
+    seg("segTf", Object.keys(TF).map(k => [k, k]), ui.tf, k => { if (k === ui.tf) return; ui.tf = k; store.set("tf", k); renderControls(); restartChartOnly(); });
+    if (ins.src === "bin") { const sel = $("selBig"); sel.innerHTML = ins.bigOpts.map(v => `<option value="${v}">${v} ${ins.unit}</option>`).join(""); sel.value = String(bigMin()); }
+    $("tgLayers").innerHTML = LAYERS.map(([k, t]) => `<button type="button" data-k="${k}" aria-pressed="${!!ui.layers[k]}">${t}</button>`).join("");
+    $("tgLayers").onclick = e => { const b = e.target.closest("button[data-k]"); if (!b) return; ui.layers[b.dataset.k] = !ui.layers[b.dataset.k]; store.set("layers", ui.layers); renderControls(); schedule(); };
+  }
+  function applyTheme(t) { if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); store.set("theme", t || ""); schedule(); }
+  async function init() {
+    if (!INSTR[ui.inst]) ui.inst = "xau";
+    renderControls(); renderStatus();
+    const saved = store.get("theme", ""); if (saved) applyTheme(saved);
+    $("btnTheme").addEventListener("click", () => { const cur = document.documentElement.getAttribute("data-theme"); applyTheme((cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark"); });
+    try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule); } catch { /* old browsers */ }
+    $("selBig").addEventListener("change", e => { ui.big[I().key] = +e.target.value; store.set("big", ui.big); schedule(); });
+    $("btnApprove").addEventListener("click", approve);
+    $("cvMain").addEventListener("mousemove", onHover);
+    $("cvMain").addEventListener("mouseleave", () => { ui.hover = null; $("tip").hidden = true; if (S.chart.length) { drawMain(); drawCvd(); } });
+    let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(schedule, 120); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && mcp) schedule(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    mcp = window.claude && window.claude.use ? await window.claude.use("mcp") : null;
+    if (!mcp) { overlay("เปิดหน้านี้ใน claude.ai เพื่อให้ดึงข้อมูลผ่าน connector Binance และ tdv ของคุณได้", false); $("status").textContent = "ไม่มีการเชื่อมต่อ connector ในมุมมองนี้"; return; }
+    start();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();
+</script>
+
+<script>
+"use strict";
+(() => {
+  const COT = [["2023-10-03",431226,100500,108061,85747,175533,16614,38810,127906,29119,45256,24500],["2023-10-10",436499,93934,120701,91619,163620,19010,37437,126398,28198,44470,25475],["2023-10-17",439581,104708,89605,84592,182625,11737,41703,126704,29069,40863,25602],["2023-10-24",463476,122456,66708,81233,206961,10642,50787,129013,35376,42129,25641],["2023-10-31",475808,140111,65271,79294,217816,11165,55350,120942,32357,44792,25510],["2023-11-07",484347,140609,62374,82014,223122,10487,55470,121044,33063,45484,25609],["2023-11-14",486634,132924,68609,83706,217660,12176,55241,121428,30367,45409,23766],["2023-11-21",508429,144381,65246,80946,225272,14081,59990,125320,32750,43959,25429],["2023-11-28",505658,169695,54802,76804,244788,14333,64941,120150,34959,45650,27142],["2023-12-05",487469,159907,50520,76376,253627,12631,62325,128933,34776,47483,24082],["2023-12-12",469939,149634,54106,76081,243774,13420,58535,123902,31197,46457,21882],["2023-12-19",481203,155697,47421,75017,254059,12836,60852,125275,32212,48019,22300],["2023-12-26",491343,152801,46347,74400,261732,13243,58256,137042,35778,48036,23409],["2024-01-02",500364,154384,45235,76117,269894,13674,55375,136322,37822,49200,21371],["2024-01-09",489849,134333,45874,78213,250913,11949,56950,137332,37177,50574,21487],["2024-01-16",489334,130931,47702,75791,242657,12864,53418,131429,34765,49640,22113],["2024-01-23",465872,111298,50265,78535,231679,13724,52673,129802,21361,45644,23025],["2024-01-30",430328,108093,52069,77882,214041,15272,49631,111129,19362,45364,22637],["2024-02-06",419121,114316,46247,77734,221357,14285,50903,114307,20638,41863,23360],["2024-02-13",420812,100642,66466,78854,199591,15888,48131,116863,19871,44228,22416],["2024-02-20",407063,98840,48917,77980,198940,10614,49065,112194,21855,41846,22697],["2024-02-27",411195,103885,47732,78743,197423,11378,51050,111063,25580,38943,22227],["2024-03-05",471616,145106,35343,77009,234914,11650,60537,119042,37512,44782,29283],["2024-03-12",516057,173994,32911,75076,244909,30471,78911,109068,48549,47992,31321],["2024-03-19",535047,172588,29692,77067,245387,32136,81346,106144,47438,49131,33203],["2024-03-26",503642,163006,27211,80421,251256,32765,80270,102641,39142,48004,28958],["2024-04-02",500045,173073,25993,80217,261044,32235,77122,108326,48156,48931,30467],["2024-04-09",505214,174617,32885,79228,261784,34191,76217,105182,44495,51559,29396],["2024-04-16",517193,169910,35174,78012,266867,37797,71700,108867,41680,50245,29410],["2024-04-23",516249,176400,34261,75873,270152,37917,70510,103135,42383,48914,24933],["2024-04-30",519791,171853,36826,73085,269856,37917,68644,106997,37814,50274,26986],["2024-05-07",529835,164780,38681,73131,268227,35488,67658,107364,33896,54701,27002],["2024-05-14",522952,171868,41433,75210,277761,35446,65005,105774,31713,52633,25019],["2024-05-21",530591,190605,42082,76171,297864,20490,57460,110124,28841,55264,26407],["2024-05-28",485430,174444,25616,69148,289454,18542,59186,112293,24536,51528,27163],["2024-06-04",447488,172560,20261,56738,282783,15962,55848,112006,27003,49807,21178],["2024-06-11",436857,168424,15459,55474,275178,15922,56729,108345,27384,50311,23726],["2024-06-18",444345,177639,17018,55910,281082,15030,57588,109508,27045,47659,23013],["2024-06-25",452190,174756,16554,58751,287636,15601,58204,110129,22102,48436,23177],["2024-07-02",454730,167688,16873,59925,279979,14424,59169,112429,21701,47694,24438],["2024-07-09",516324,181982,24515,62183,290421,14031,66422,121061,23753,50623,24769],["2024-07-16",579862,216502,31970,62675,311661,23789,84107,133325,32833,53814,29534],["2024-07-23",572306,197802,34942,58598,305308,15685,69900,143798,33584,53705,25854],["2024-07-30",510914,185586,33222,55083,283175,19913,64678,127778,33541,49931,23675],["2024-08-06",480645,180303,29517,56985,278874,16637,63782,117816,29853,51205,20920],["2024-08-13",505872,203844,25929,54827,294394,16717,69652,124925,35576,50388,25150],["2024-08-20",532867,222142,28837,53461,305972,15569,79564,133409,35461,52918,27665],["2024-08-27",521759,217976,17685,52822,306757,10714,79098,125354,31200,54689,26815],["2024-09-03",511136,212086,19996,55089,297347,11841,81470,127071,31603,51198,26869],["2024-09-10",511501,213645,23190,52865,284390,12568,87942,126361,34315,50937,26539],["2024-09-17",537627,241844,25489,45549,303089,12663,90250,127890,34179,52976,27915],["2024-09-24",564640,256435,37406,45705,305381,13517,93547,131137,34776,53444,29128],["2024-10-01",533107,247867,33405,42840,295138,12220,87446,122184,36715,53191,25598],["2024-10-08",520316,227596,33537,44853,277678,12830,83981,121295,37174,51440,25644],["2024-10-15",541232,233871,34450,43311,281271,13088,87786,123623,36610,50490,24266],["2024-10-22",573760,242427,37267,39452,282058,12942,95037,129386,38342,54214,25717],["2024-10-29",579468,234856,39683,40174,269225,12379,86999,131780,48300,53432,28414],["2024-11-05",558034,219687,36684,39763,253459,13066,82429,117129,44803,52637,24907],["2024-11-12",535981,203661,38365,36733,234859,13211,80667,112564,41409,56838,27707],["2024-11-19",502952,193355,38181,34758,226763,13787,84104,115999,36806,52421,24466],["2024-11-26",472660,203596,24306,32845,238285,14309,81389,99805,28757,46574,24392],["2024-12-03",462040,203580,22845,32964,256898,10967,73308,104031,25030,48337,21798],["2024-12-10",483346,218482,22404,33312,263738,11204,77649,105850,26342,46448,25163],["2024-12-17",466571,201880,18378,32522,245300,9971,82426,101098,22559,48388,25196],["2024-12-24",454646,186099,20602,31583,230130,9198,83987,103317,21185,47813,22106],["2024-12-31",458584,182128,15959,31829,229764,9983,83344,100779,19669,47357,23340],["2025-01-07",477043,191873,14232,32687,240366,10137,81104,99848,22578,47574,23839],["2025-01-14",526467,206968,11346,30150,258615,21043,95030,105600,21859,48250,25161],["2025-01-21",571387,226964,11095,30427,276429,20111,100717,110325,25410,50638,24814],["2025-01-28",577505,227871,17331,29725,272549,19532,100430,110500,21631,49224,24911],["2025-02-04",542004,240485,30952,21824,286555,19046,82490,116015,23040,49522,23855],["2025-02-11",528719,229071,34268,19501,268488,20935,81836,114695,24994,49509,24125],["2025-02-18",522330,222538,37209,16566,252218,22176,82595,111505,28160,50882,23485],["2025-02-25",512179,212694,32882,14682,242292,24007,84497,104254,22441,48803,22328],["2025-03-04",489270,204965,38307,16574,229110,24881,83460,98167,21564,49602,21748],["2025-03-11",511276,204907,37331,18459,226388,24799,82058,91265,22741,53747,24659],["2025-03-18",533566,220879,37045,16899,237687,23881,88261,100775,26677,52841,25605],["2025-03-25",511482,213505,38773,16248,232089,14682,77439,103067,28003,52852,24050],["2025-04-01",498746,204833,62834,24256,227002,11538,73853,123103,26668,50688,24061],["2025-04-08",445468,175393,44407,27128,206664,14087,66734,94440,24711,50486,19018],["2025-04-15",456628,168400,43546,29121,209428,14214,65819,103307,25951,51349,21647],["2025-04-22",465351,166360,45458,37696,194654,18110,63420,92536,38060,50904,24014],["2025-04-29",451868,150715,44820,34475,180162,17714,62788,89662,32239,50675,23232],["2025-05-06",452414,144383,42292,37106,183924,17705,62990,93062,32656,52632,23026],["2025-05-13",440842,144410,43183,33350,183024,17651,59184,93781,33799,51570,21572],["2025-05-20",448000,149149,41520,34444,193275,20202,59019,88913,32561,54053,20386],["2025-05-27",437538,147502,36686,39356,200751,15935,62127,86585,23217,56541,23138],["2025-06-03",415941,159966,36384,40187,212905,14319,62427,87016,22693,51996,19075],["2025-06-10",417143,160680,36589,38867,212220,13381,62746,85315,21925,54008,18771],["2025-06-17",441214,167646,37135,40135,224900,11066,64028,92940,22803,55840,18761],["2025-06-24",434958,163829,38701,40583,220728,12319,62734,92248,22372,55009,19453],["2025-07-01",437662,165086,34726,37260,223916,12005,61418,93545,21925,53324,19235],["2025-07-08",443144,164685,35743,35359,226901,13615,60427,97000,22974,56291,20905],["2025-07-15",448531,172657,35930,33649,237601,14716,61452,97570,21182,56976,19403],["2025-07-22",489423,194753,34819,33299,264274,11207,62569,117196,24092,54052,24753],["2025-07-29",445259,170918,36662,39149,250058,12294,60464,110323,20983,53216,17733],["2025-08-05",449647,186304,32317,36874,273003,21760,55777,105890,22827,52597,19501],["2025-08-12",446152,182337,34050,35951,259266,9324,49074,105778,24580,53656,20076],["2025-08-19",438541,173388,36003,39607,249567,9389,49394,101889,26684,56098,18723],["2025-08-26",443760,175494,33577,45622,254259,9620,51948,100273,27879,56712,20058],["2025-09-02",492908,196127,34625,47568,266164,8209,63511,119669,31641,56635,32267],["2025-09-09",509625,198907,35388,48287,259108,9864,72418,125968,27747,58990,47355],["2025-09-16",516221,195347,36376,46465,283452,10992,76376,131431,23992,60872,24911],["2025-09-23",528789,198826,38277,49618,280869,11851,79003,133982,27782,57683,26029],["2025-09-30",493748,184199,38972,41038,263877,10432,75829,134605,26924,57524,22196],["2025-10-07",485559,170587,40828,45558,243978,12169,77521,130211,28014,56574,24758],["2025-10-14",485788,152187,43877,51318,226728,14094,75551,126218,30612,59259,26308],["2025-10-21",472421,135503,43276,56832,209171,13924,71702,118348,33966,55921,22413],["2025-10-28",457122,138605,34446,48310,227143,12403,70597,127703,27198,52742,20379],["2025-11-04",450399,130688,30143,47195,224286,9805,69256,125884,24122,53661,19426],["2025-11-10",459997,134155,30068,43176,229253,9875,68621,131761,28779,56742,18988],["2025-11-18",471953,130222,32017,44947,231635,10061,68958,139334,27200,54239,18993],["2025-11-25",432946,136979,27670,39044,233755,9950,56642,116287,21008,53773,16958],["2025-12-02",418490,140143,19819,33860,240501,10094,58801,121188,23952,55812,18024],["2025-12-09",432569,143383,19835,34556,247742,10463,59856,125102,24764,55485,16792],["2025-12-16",471093,152873,20277,31970,262079,16057,60306,128047,26665,58795,18415],["2025-12-23",492103,160581,24311,30143,262385,17158,68442,129580,25150,62268,19442],["2025-12-30",481866,148642,22602,37010,257775,12958,67439,126950,21817,60217,16144],["2026-01-06",488116,146445,23232,37456,258949,13454,63996,127990,23571,60118,15715],["2026-01-13",527455,158825,24080,31166,277107,13998,65163,137358,20865,66220,20352],["2026-01-20",528004,163668,26224,29522,276922,18731,61020,132104,24778,62136,17217],["2026-01-27",488463,143321,25162,34124,241820,14609,55198,108779,21542,62677,19788],["2026-02-03",409694,118936,26864,40303,223447,14072,38706,95572,22040,56610,14436],["2026-02-10",404391,119232,27210,43244,222537,15737,34182,93576,25586,52916,15190],["2026-02-17",407078,123011,27118,41702,217086,13643,35041,90421,26399,51821,14954],["2026-02-24",420182,121233,25259,38848,219836,14800,34618,90416,27213,67772,26143],["2026-03-03",409789,123456,25539,39360,219152,15219,36010,90296,28068,55126,14688],["2026-03-10",413956,125077,26678,38318,221598,14826,34522,90368,25635,53424,13580],["2026-03-17",411388,130147,28104,36975,217789,15879,33713,85814,27988,52913,14134],["2026-03-24",403925,119562,27941,36069,217681,12761,34977,101299,24593,49273,13772],["2026-03-31",361409,120092,27278,30201,211931,10979,30889,87510,17122,50617,12179],["2026-04-07",354877,120726,30694,30165,204620,11713,31009,84642,18369,49117,11671],["2026-04-14",362274,125422,30281,28289,210841,13151,31681,84587,17202,51568,13012],["2026-04-21",365842,123681,30705,28115,210637,12633,33051,89212,18182,52223,13289],["2026-04-28",369530,122257,32505,28032,202653,12985,33177,89561,19742,49280,14038],["2026-05-05",367932,123353,29099,27319,207142,12898,32010,88461,19412,49252,13620],["2026-05-12",376496,127242,29227,25671,215727,11437,31639,92551,18944,49951,11315],["2026-05-19",379325,122894,29354,28950,202665,14800,32714,88124,21831,47082,15286],["2026-05-26",353489,124277,26831,29033,195289,12586,32096,76427,19613,47149,15643],["2026-06-02",326052,129367,17188,27505,213696,10275,30429,76729,12888,43656,13331],["2026-06-09",332709,126280,20417,28443,210179,10833,30133,81704,13730,42891,15692],["2026-06-16",339330,128043,14322,29455,219971,12191,29238,83084,16585,43966,16623],["2026-06-23",352167,131102,15707,27738,223806,15839,25175,85926,19982,39265,15200],["2026-06-30",369541,134577,14486,25821,229845,15161,32207,95042,21114,49035,21984],["2026-07-07",371776,134941,18780,25445,226741,14282,35268,98772,20687,45636,17600],["2026-07-14",383689,136905,16126,25177,220816,15840,34989,90405,24502,44419,16313],["2026-07-21",383368,141487,16656,24959,218837,15561,34882,83298,24219,46143,16854],["2026-07-28",384603,135093,15298,23661,215421,15367,35916,84529,22254,61384,31145],["2026-08-04",371551,139809,9043,20753,228388,15738,34594,87204,20336,44531,15674],["2026-08-11",400309,148634,10972,19092,243797,15716,43651,102302,22024,51051,16351],["2026-08-18",406260,154595,12947,18704,247361,16883,46644,102307,21766,51347,15118],["2026-08-25",427957,159819,15072,16656,261683,16861,51419,117340,18753,54725,18474],["2026-09-01",415196,149721,12950,17798,251227,17444,48733,110764,19411,52030,15436],["2026-09-08",411227,145804,10832,14542,253855,16588,47549,115203,18215,52554,14240],["2026-09-15",409899,142394,9278,14690,248350,16396,44457,115665,18443,47460,16077],["2026-09-22",412800,135699,8310,14626,250752,17719,44496,118283,19819,52437,15387],["2026-09-29",406456,131711,11393,14835,244539,18200,39463,118025,19711,48784,16449],["2026-10-06",396109,127101,16114,14604,239630,18860,38361,118302,18954,50464,16272],["2026-10-13",396345,124747,17658,13976,238070,18386,36823,120553,19763,50731,16079]]; // [date, OI, mmL, mmS, swL, swS, pmL, pmS, orL, orS, nrL, nrS]
+  const G = [
+    { label: "กองทุน (Managed Money)", L: 2, S: 3, tok: "--c1", tag: "กองทุน" },
+    { label: "ธนาคาร (Swap Dealers)", L: 4, S: 5, tok: "--c2", tag: "ธนาคาร" },
+    { label: "ผู้ผลิต/ผู้ค้าทอง", L: 6, S: 7, tok: "--c3", tag: "ผู้ผลิต" },
+    { label: "รายใหญ่อื่น (Other Reportables)", L: 8, S: 9 },
+    { label: "รายย่อย (Non-reportable)", L: 10, S: 11 },
+  ];
+  const TH_M = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const $ = id => document.getElementById(id);
+  const n = COT.length, net = (r, g) => r[g.L] - r[g.S];
+  const fmt = v => Math.round(v).toLocaleString("en-US");
+  const sgn = v => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v));
+  const dlabel = s => { const [y, m, d] = s.split("-").map(Number); return `${d} ${TH_M[m - 1]} ${y}`; };
+  const tok = () => { const c = getComputedStyle(document.documentElement), g = k => c.getPropertyValue(k).trim(); return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), c: [g("--c1"), g("--c2"), g("--c3")] }; };
+  let hover = null, L = null;
+
+  function table() {
+    const last = COT[n - 1], prev = COT[n - 2];
+    $("cotHint").textContent = `ข้อมูล ณ วันอังคาร ${dlabel(last[0])} · open interest ${fmt(last[1])} สัญญา`;
+    $("tblCot").innerHTML = G.map(g => {
+      const v = net(last, g), ch = v - net(prev, g), all = COT.map(r => net(r, g)), lo = Math.min(...all), hi = Math.max(...all);
+      const idx = hi > lo ? Math.round((v - lo) / (hi - lo) * 100) : 50;
+      return `<tr><td>${g.label}</td><td class="num">${fmt(last[g.L])}</td><td class="num">${fmt(last[g.S])}</td><td class="num ${v > 0 ? "up" : v < 0 ? "down" : ""}">${sgn(v)}</td><td class="num">${sgn(ch)}</td><td class="num">${idx}</td></tr>`;
+    }).join("");
+  }
+
+  function draw() {
+    const cv = $("cvCot"), dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    const T = tok(), lines = G.slice(0, 3);
+    const labelW = w < 520 ? 0 : 118;
+    const plot = { l: 62, r: w - 10 - labelW, t: 12, b: h - 24 };
+    let lo = 0, hi = 0; for (const r of COT) for (const g of lines) { const v = net(r, g); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+    const x = i => plot.l + i / (n - 1) * (plot.r - plot.l), y = v => plot.b - (v - lo) / (hi - lo) * (plot.b - plot.t);
+    ctx.font = "11px 'IBM Plex Mono', ui-monospace, monospace"; ctx.textBaseline = "middle";
+    const span = hi - lo, raw = span / 6, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= 6);
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      ctx.strokeStyle = Math.abs(v) < 1e-9 ? T.axis : T.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(plot.l, Math.round(y(v)) + 0.5); ctx.lineTo(plot.r, Math.round(y(v)) + 0.5); ctx.stroke();
+      ctx.fillStyle = T.muted; ctx.textAlign = "right"; ctx.fillText(Math.abs(v) < 1e-9 ? "0" : (v > 0 ? "+" : "−") + Math.abs(v / 1000).toFixed(0) + "k", plot.l - 8, y(v));
+    }
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    COT.forEach((r, i) => { const [yy, mm, dd] = r[0].split("-").map(Number); const pm = i ? Number(COT[i - 1][0].split("-")[1]) : 0; if ((mm === 1 || mm === 7) && pm !== mm) { ctx.fillStyle = T.muted; ctx.fillText(`${TH_M[mm - 1]} ${yy}`, Math.min(plot.r - 24, Math.max(plot.l + 24, x(i))), h - 6); } });
+    lines.forEach((g, k) => {
+      ctx.strokeStyle = T.c[k]; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
+      COT.forEach((r, i) => i ? ctx.lineTo(x(i), y(net(r, g))) : ctx.moveTo(x(i), y(net(r, g)))); ctx.stroke();
+      const ey = y(net(COT[n - 1], g)); ctx.beginPath(); ctx.arc(x(n - 1), ey, 4.5, 0, Math.PI * 2); ctx.fillStyle = T.surface; ctx.fill(); ctx.beginPath(); ctx.arc(x(n - 1), ey, 3.5, 0, Math.PI * 2); ctx.fillStyle = T.c[k]; ctx.fill();
+    });
+    if (labelW) {
+      const labs = lines.map((g, k) => ({ k, y: y(net(COT[n - 1], g)), t: `${g.tag} ${sgn(net(COT[n - 1], g))}` })).sort((a, b) => a.y - b.y);
+      for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 15) labs[i].y = labs[i - 1].y + 15;
+      ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = "12px 'IBM Plex Sans Thai', system-ui, sans-serif";
+      for (const lb of labs) { ctx.fillStyle = T.ink2; ctx.fillText(lb.t, plot.r + 10, lb.y); }
+    }
+    if (hover != null) { ctx.save(); ctx.strokeStyle = T.axis; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(hover), plot.t); ctx.lineTo(x(hover), plot.b); ctx.stroke(); ctx.restore(); }
+    L = { plot, x };
+  }
+
+  function onMove(ev) {
+    if (!L) return;
+    const r = $("cvCot").getBoundingClientRect(), px = ev.clientX - r.left;
+    if (px < L.plot.l || px > L.plot.r) { hover = null; $("tipCot").hidden = true; draw(); return; }
+    hover = Math.round((px - L.plot.l) / (L.plot.r - L.plot.l) * (n - 1));
+    const row = COT[hover], tip = $("tipCot");
+    tip.innerHTML = `${dlabel(row[0])}<br>` + G.slice(0, 3).map(g => `${g.tag} ${sgn(net(row, g))}`).join("<br>") + `<br>OI ${fmt(row[1])}`;
+    tip.hidden = false;
+    const card = $("cardCot").getBoundingClientRect(), cx = ev.clientX - card.left, cy = ev.clientY - card.top;
+    tip.style.left = Math.max(8, Math.min(card.width - tip.offsetWidth - 8, cx + 14)) + "px"; tip.style.top = Math.max(8, cy - tip.offsetHeight - 12) + "px";
+    draw();
+  }
+
+  function init() {
+    table(); draw();
+    $("cvCot").addEventListener("mousemove", onMove);
+    $("cvCot").addEventListener("mouseleave", () => { hover = null; $("tipCot").hidden = true; draw(); });
+    let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(draw, 120); });
+    new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw); } catch { /* old browsers */ }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();
+</script>
