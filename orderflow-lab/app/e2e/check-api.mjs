@@ -137,6 +137,9 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["1440", {
   const walls = await page.locator("#panel-walls table.data").first().locator("tbody tr").count().catch(() => 0);
   const apiWalls = d.book?.walls.length ?? 0;
   check(`${name} analyze: walls listed as the API computed them (${apiWalls})`, apiWalls === 0 ? walls === 0 : walls === apiWalls, `${walls} rows`);
+  const ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
+  check(`${name} analyze: the API's walls are drawn on the chart (${Math.min(8, apiWalls)} lines)`, +ds.walls === Math.min(8, apiWalls), JSON.stringify(ds));
+  check(`${name} analyze: no OI layer button for ${ins.market_type}`, ins.market_type !== "spot" || (await page.locator('[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:text-is("✓ OI"), [aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:text-is("OI")').count()) === 0);
   const wallText = await page.textContent("#panel-walls");
   check(`${name} analyze: wall method stated`, d.book ? wallText.includes(d.book.method.slice(0, 20)) : true);
   check(`${name} analyze: big-trade method stated`, wallText.includes(d.big_trades.method.slice(0, 20)) || (await page.textContent("main")).includes(d.big_trades.method.slice(0, 20)));

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, go, persisted } from "../state";
 import type { Lookback, MarketDetails, Quote, Series, Timeframe } from "../data/types";
 import { SourceError, errorText } from "../data/source";
-import { PriceChart, type Layers } from "../components/PriceChart";
+import { DEFAULT_LAYERS, PriceChart, type Layers } from "../components/PriceChart";
 import { Coin, DataBadge, KIND_TEXT, Loading, Seg, Sheet, Side, SourceTag, StreamBadge } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { GLOSSARY } from "../content/glossary";
@@ -17,6 +17,12 @@ const PRICE_TYPE = { last_trade: "ซื้อขายล่าสุด", mark
 const WALL_STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ลดลง" };
 const OUTCOME = { price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
 export const ENGINE_VERSION = "demo-0.1";
+/** chart layers in the desk's order; the third field is the glossary entry behind the ⓘ button */
+const LAYER_CHIPS: [keyof Layers, string, string | null][] = [
+  ["wall", "กำแพง", "wall"], ["big", "ไม้ใหญ่", "bigtrade"], ["vwap", "VWAP", "vwap"], ["assist", "Assist ±σ", null],
+  ["poc", "POC / Value area", "poc"], ["range", "Range", null], ["round", "เลขกลม", null], ["cvd", "CVD", "cvd"], ["oi", "OI", "oi"],
+];
+const LAYER_NAME = Object.fromEntries(LAYER_CHIPS.map(([k, l]) => [k, l])) as Record<keyof Layers, string>;
 /** snapshots record which pipeline produced their numbers */
 export const ENGINE_BY_SOURCE = { demo: ENGINE_VERSION, api: "api-0.1", connector: "connector-0.1" } as const;
 
@@ -29,7 +35,9 @@ export function Analyze({ params }: { params: URLSearchParams }) {
   const ins = instruments.find((i) => i.id === id) ?? instruments[0];
   const [tf, setTf] = useState<Timeframe>(() => persisted.read("tf", "5m"));
   const [lb, setLb] = useState<Lookback>(() => persisted.read("lookback", "24h"));
-  const [layers, setLayers] = useState<Layers>(() => persisted.read("layers", { vwap: true, poc: false, cvd: true }));
+  // older saved choices only had vwap/poc/cvd: the new layers start from their defaults
+  const [layers, setLayers] = useState<Layers>(() => ({ ...DEFAULT_LAYERS, ...persisted.read<Partial<Layers>>("layers", {}) }));
+  const [notes, setNotes] = useState<Partial<Record<keyof Layers, string>>>({});
   const [series, setSeries] = useState<Series | Err | null>(null);
   const [details, setDetails] = useState<MarketDetails | Err | null>(null);
   const [quote, setQuote] = useState<Quote | Err | null>(null);
@@ -113,22 +121,35 @@ export function Analyze({ params }: { params: URLSearchParams }) {
               <div className="row"><span className="field-label" style={{ margin: 0, minWidth: 74 }}>ช่วงข้อมูล</span>
                 <Seg label="ช่วงข้อมูลย้อนหลัง" value={lb} options={LBS} onChange={(v) => { setLb(v); persisted.write("lookback", v); }} /></div>
               <div className="toggles" role="group" aria-label="ชั้นข้อมูลบนกราฟ">
-                {([["vwap", "VWAP"], ["poc", "POC / Value area"], ["cvd", "CVD"]] as const).map(([k, label]) => (
+                {LAYER_CHIPS.filter(([k]) => !(k === "oi" && ins.market === "spot")).map(([k, label, term]) => (
                   <span key={k} className="row" style={{ gap: 0 }}>
                     <button type="button" className="toggle" aria-pressed={layers[k]} onClick={() => setL(k)}>{layers[k] ? "✓ " : ""}{label}</button>
-                    <button type="button" className="info-btn" aria-label={`อธิบาย ${label}`} onClick={() => setTerm(k === "poc" ? "poc" : k)}><Icon name="info" /></button>
+                    {term && <button type="button" className="info-btn" aria-label={`อธิบาย ${label}`} onClick={() => setTerm(term)}><Icon name="info" /></button>}
                   </span>
                 ))}
               </div>
+              <ul className="chart-key" aria-label="สัญลักษณ์บนกราฟ">
+                {layers.wall && <li><i className="sw wall" />กำแพง (ทึบ = อยู่มา ≥ 5 นาที, ประ = ใหม่, หนา = ใหญ่; เขียว = รอซื้อ, แดง = รอขาย)</li>}
+                {layers.big && <li><i className="sw big" />ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย, จุดใหญ่ = ปริมาณมาก)</li>}
+                {layers.vwap && <li><i className="sw vwap" />VWAP</li>}
+                {layers.assist && <li><i className="sw assist" />Assist ±2σ (ทึบ) ±3σ (ประ) รอบ VWAP</li>}
+                {layers.poc && <li><i className="sw poc" />POC / Value area ของช่วงที่เลือก</li>}
+                {layers.range && <li><i className="sw range" />Range วันก่อนหน้า: Y-Hi / Top / Y-POC / Bottom / Y-Lo</li>}
+                {layers.round && <li><i className="sw round" />เลขกลม</li>}
+                {layers.oi && ins.market !== "spot" && <li><i className="sw oi" />แผง OI (ม่วง) ใต้กราฟ</li>}
+              </ul>
             </div>
             {!series ? <Loading lines={6} /> : series instanceof SourceError ? <p className="error">{errorText(series)}</p> : (
               <>
                 <PriceChart ins={ins} series={series} layers={layers} viewKey={`${ins.id}|${tf}|${lb}`}
-                  profile={okDetails?.profile ?? null} onCapture={(fn) => (capture.current = fn)} />
+                  details={okDetails} onCapture={(fn) => (capture.current = fn)} onNotes={setNotes} />
                 <p className="caption">
                   {layers.cvd && <>แผงล่าง: CVD · {series.cvdAnchor.label} · หน่วย {ins.qtyUnit} · ล่าสุด {lastCvd == null ? "ไม่ทราบ (ไม่มีข้อมูลฝั่งผู้กด)" : fmtSigned(lastCvd, 1, ` ${ins.qtyUnit}`)}<br /></>}
                   {layers.vwap && <>VWAP: {series.vwapMethod}<br /></>}
                   {layers.poc && okDetails?.profile && <>POC: {okDetails.profile.method} · ช่วงละ {okDetails.profile.binSize} {ins.quote}<br /></>}
+                  {layers.oi && ins.market !== "spot" && okDetails?.oi?.series.length ? <>แผง OI: Open Interest หน่วย {okDetails.oi.unit} ราย 5 นาที ค่าของแต่ละแท่ง = ค่าล่าสุด ณ เวลาปิดแท่ง<br /></> : null}
+                  {layers.assist && <>Assist: VWAP ± 2 และ 3 เท่าของส่วนเบี่ยงเบนมาตรฐาน (ถ่วงด้วย volume) ของราคาเฉลี่ยแท่ง<br /></>}
+                  {(Object.entries(notes) as [keyof Layers, string][]).map(([k, v]) => <span key={k}>{LAYER_NAME[k]}: {v}<br /></span>)}
                   เวลาบนแกนเป็น UTC+7 · ลากเพื่อเลื่อน ล้อเมาส์หรือบีบนิ้วเพื่อซูม
                 </p>
               </>

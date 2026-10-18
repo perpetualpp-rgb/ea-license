@@ -73,6 +73,20 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["320", { 
   await page.waitForTimeout(300);
   check("timeframe and lookback are separate controls", (await page.locator('[aria-label="ขนาดแท่งเทียน"] [aria-checked=true]').textContent()) === "1h" &&
     (await page.locator('[aria-label="ช่วงข้อมูลย้อนหลัง"] [aria-checked=true]').textContent()) === "3 วัน");
+  // the desk's chart layers: walls, big trades, OI pane on by default; Assist, Range, round numbers on demand
+  const chips = await page.locator('[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle').allTextContents();
+  check("layer buttons match the desk", ["กำแพง", "ไม้ใหญ่", "VWAP", "Assist", "POC", "Range", "เลขกลม", "CVD", "OI"].every((x) => chips.some((c) => c.includes(x))), chips.join(" | "));
+  await page.waitForFunction(() => Number(document.querySelector(".chart-box")?.dataset.walls) > 0, null, { timeout: 8000 }).catch(() => undefined);
+  let ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
+  check("chart draws walls, big-trade markers and the OI pane", +ds.walls > 0 && +ds.big > 0 && +ds.oi > 0, JSON.stringify(ds));
+  for (const name of ["Assist", "Range", "เลขกลม"]) await page.click(`[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:has-text("${name}")`);
+  await page.waitForTimeout(300);
+  ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
+  check("Range (previous day, 3-day view) and round numbers are drawn when switched on", +ds.range === 5 && +ds.round > 0, JSON.stringify(ds));
+  check("chart key explains every visible layer", /กำแพง \(ทึบ/.test(await page.textContent(".chart-key")) && /Range วันก่อนหน้า/.test(await page.textContent(".chart-key")));
+  await page.click('button:has-text("แท่งล่าสุด")');
+  await page.click('button:has-text("รีเซ็ตมุมมอง")');
+  for (const name of ["Assist", "Range", "เลขกลม"]) await page.click(`[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:has-text("${name}")`);
   const caption = await page.textContent(".caption");
   check("CVD caption names anchor and unit", /07:00 UTC\+7/.test(caption) && /หน่วย BTC/.test(caption), caption.slice(0, 100));
   await page.click('button[aria-label="อธิบาย CVD"]');

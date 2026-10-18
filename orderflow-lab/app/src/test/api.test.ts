@@ -146,6 +146,7 @@ describe("market endpoints recorded from the real API", () => {
     expect(d.bigTrades).toHaveLength(serverDetails.big_trades.items.length);
     expect(d.bigMethod).toBe(serverDetails.big_trades.method);
     expect(d.oi).toMatchObject({ value: Number(serverDetails.oi.value), unit: serverDetails.oi.unit, change5mPct: Number(serverDetails.oi.change_5m_pct) });
+    expect(d.oi!.series[0].t).toBe(Date.parse(serverDetails.oi.series[0].t) / 1000); // unix seconds, like demo and connector
     expect(d.oi?.funding).toMatchObject({ ratePct: Number(serverDetails.funding.rate_pct), kind: "estimated", nextAt: Date.parse(serverDetails.funding.next_at) });
     expect(d.profile?.poc).toBe(Number(serverDetails.profile.poc));
     expect(d.prices.map((p) => p.type)).toEqual(["last_trade", "mark", "index"]);

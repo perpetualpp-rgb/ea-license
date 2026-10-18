@@ -155,6 +155,9 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["320", { 
   const oi = await page.textContent("#panel-oi");
   check(`${name} analyze: OI in base asset and estimated funding`, /81\.2K BTC/.test(oi) && /ประมาณการรอบถัดไป/.test(oi) && /\+0\.0100%/.test(oi), oi.replace(/\s+/g, " ").slice(0, 160));
   const prices = await page.textContent(".price-types");
+  await page.waitForFunction(() => Number(document.querySelector(".chart-box")?.dataset.oi) > 0, null, { timeout: 8000 }).catch(() => undefined);
+  const ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
+  check(`${name} analyze: walls and OI drawn on the chart from the connector data`, +ds.walls > 0 && +ds.oi > 0, JSON.stringify(ds));
   check(`${name} analyze: last, mark and index typed separately`, /ซื้อขายล่าสุด/.test(prices) && /Mark/.test(prices) && /Index/.test(prices) && !/ไม่มีในตลาดนี้/.test(prices));
   await realLabels(page, `${name} analyze`);
   await audit(page, `${name} analyze`);

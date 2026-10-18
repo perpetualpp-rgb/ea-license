@@ -250,6 +250,20 @@ table.data .r { text-align: right; }
 @media (min-width: 1024px) { .desktop-only { display: flex !important; } .mobile-only { display: none !important; } }
 /* the chart library's attribution link (TradingView logo) gets a full-size touch target */
 .chart-box a { min-width: 44px; min-height: 44px; display: inline-flex !important; align-items: center; justify-content: center; }
-@media (max-width: 599px) { .chart-legend .ohlv { display: none; } }
+@media (max-width: 599px) { .chart-legend { max-width: calc(100% - 80px); } }
+.chart-legend span { display: block; }
+.chart-legend .flow { color: var(--muted); }
+.chart-tools { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 6px; }
+.chart-key { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; color: var(--ink-2); }
+.chart-key li { display: inline-flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; width: 18px; height: 0; border-top: 2px solid; flex: none; }
+.sw.wall { border-top: 3px solid #b42318; box-shadow: 0 4px 0 -1px #0b7a43; }
+.sw.big { width: 10px; height: 10px; border: 0; border-radius: 50%; background: #0b7a43; box-shadow: 12px 0 0 #b42318; margin-right: 12px; }
+.sw.vwap { border-color: #2563eb; }
+.sw.assist { border-top: 1px dashed rgba(37, 99, 235, 0.7); }
+.sw.poc { border-top: 2px dashed #8a5a00; }
+.sw.range { border-top: 1px dashed #566a7d; }
+.sw.round { border-top: 1px dotted #94a3b8; }
+.sw.oi { border-color: #7c3aed; }
 .ico { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--raised); flex: none; }
 .ico svg { width: 22px; height: 22px; }

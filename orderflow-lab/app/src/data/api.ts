@@ -139,7 +139,7 @@ export function mapDetails(r: ApiDetails): MarketDetails {
     value: r.oi ? num(r.oi.value) : null, unit: r.oi?.unit ?? r.units.size,
     change5mPct: r.oi ? num(r.oi.change_5m_pct) : null, change1hPct: r.oi ? num(r.oi.change_1h_pct) : null,
     funding: r.funding ? { ratePct: Number(r.funding.rate_pct), kind: r.funding.kind, nextAt: ms(r.funding.next_at) } : null,
-    series: (r.oi?.series ?? []).map((p) => ({ t: Date.parse(p.t), v: Number(p.value) })),
+    series: (r.oi?.series ?? []).map((p) => ({ t: Math.floor(Date.parse(p.t) / 1000), v: Number(p.value) })),
   } : null;
   return {
     walls: (r.book?.walls ?? []).map((w) => ({ side: w.side, price: Number(w.price), size: Number(w.size), ageSec: w.age_s, status: w.status })),

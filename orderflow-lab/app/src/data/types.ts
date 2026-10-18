@@ -118,6 +118,7 @@ export interface OiInfo {
   change5mPct: number | null;
   change1hPct: number | null;
   funding: { ratePct: number; kind: "estimated" | "settled"; nextAt: number | null } | null;
+  /** t = unix seconds */
   series: { t: number; v: number }[];
 }
 

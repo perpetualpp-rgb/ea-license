@@ -87,3 +87,66 @@ export function profile(bars: Bar[], bin: number, vaPct = 0.7) {
 export function sessionStart(nowSec: number): number {
   return Math.floor(nowSec / 86400) * 86400;
 }
+
+/**
+ * VWAP with volume-weighted standard deviation of typical price around it, from the anchor
+ * (the desk's "Assist" bands: ±2σ and ±3σ). sd is null until there is volume.
+ */
+export function vwapBands(bars: Bar[], anchorT: number): ({ vwap: number; sd: number } | null)[] {
+  let pv = 0, p2v = 0, vol = 0;
+  return bars.map((b) => {
+    if (b.t < anchorT) return null;
+    const tp = (b.h + b.l + b.c) / 3;
+    pv += tp * b.v;
+    p2v += tp * tp * b.v;
+    vol += b.v;
+    if (vol <= 0) return null;
+    const m = pv / vol;
+    return { vwap: m, sd: Math.sqrt(Math.max(0, p2v / vol - m * m)) };
+  });
+}
+
+/** 1, 2, 2.5 or 5 × a power of ten, the largest that is ≤ x (BTC 82,000 / 160 → 500, / 5000 → 10) */
+export function niceStep(x: number): number {
+  if (!(x > 0)) return 1;
+  const mag = 10 ** Math.floor(Math.log10(x) + 1e-12);
+  return [5, 2.5, 2, 1].map((m) => m * mag).find((s) => s <= x + 1e-12)!;
+}
+
+/** Round-number levels inside [lo, hi]: step ≈ price / 160 on the 1-2-2.5-5 series (BTC ~80,000 → 500,
+ *  gold ~4,000 → 25), doubled until at most `max` levels fit. */
+export function roundLevels(lo: number, hi: number, max = 24): { step: number; levels: number[] } {
+  if (!(hi >= lo) || !(hi > 0)) return { step: 0, levels: [] };
+  let step = niceStep(hi / 160);
+  while ((hi - lo) / step > max) step *= 2;
+  const levels: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) levels.push(Number(v.toFixed(10)));
+  return { step, levels };
+}
+
+/**
+ * The previous session (UTC day, 00:00 UTC = 07:00 UTC+7) before the newest bar: high, low and an
+ * estimated POC / 70 % value area. null with a reason when the loaded bars do not cover ≥ 80 % of it.
+ */
+export function prevSession(bars: Bar[], bin: number): { hi: number; lo: number; poc: number | null; vaLow: number | null; vaHigh: number | null; start: number } | { reason: string } {
+  if (bars.length < 2) return { reason: "ยังไม่มีแท่งพอ" };
+  const step = Math.min(...bars.slice(1).map((b, i) => b.t - bars[i].t).filter((d) => d > 0));
+  const today = sessionStart(bars[bars.length - 1].t);
+  const start = today - 86400;
+  const prev = bars.filter((b) => b.t >= start && b.t < today);
+  if (prev.length * step < 0.8 * 86400) return { reason: "ข้อมูลที่โหลดไม่ครอบคลุมวันก่อนหน้า เลือกช่วง 3 วันเพื่อดู" };
+  const p = profile(prev, bin);
+  return { hi: Math.max(...prev.map((b) => b.h)), lo: Math.min(...prev.map((b) => b.l)), poc: p.poc, vaLow: p.vaLow, vaHigh: p.vaHigh, start };
+}
+
+/** Step-resample a sparse series (e.g. 5-minute OI) onto bar times: each bar gets the newest
+ *  value at or before its close; bars before the first point get null. */
+export function stepOnBars(bars: Bar[], points: { t: number; v: number }[], barSec: number): (number | null)[] {
+  const pts = [...points].sort((a, z) => a.t - z.t);
+  let j = -1;
+  return bars.map((b) => {
+    const close = b.t + barSec;
+    while (j + 1 < pts.length && pts[j + 1].t <= close) j++;
+    return j >= 0 && pts[j].t >= b.t - 3 * Math.max(barSec, 300) ? pts[j].v : null;
+  });
+}

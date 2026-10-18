@@ -1,8 +1,9 @@
+import type { Bar } from "../data/types";
 import { describe, expect, it } from "vitest";
 import { dec, div, mul, toFixed } from "../domain/decimal";
 import { evaluateTrade, type PersonalTrade } from "../domain/accounting";
 import { tradeStats } from "../domain/stats";
-import { aggregate, cvd, profile, vwap } from "../domain/indicators";
+import { aggregate, cvd, niceStep, profile, vwap, vwapBands, roundLevels, prevSession, stepOnBars } from "../domain/indicators";
 import { dedupeKey, evaluateRule, mergeEvents, type AlertRule, type EvalContext } from "../domain/alerts";
 import type { StreamQuality } from "../data/types";
 
@@ -141,5 +142,35 @@ describe("alert rules", () => {
     const s2 = evaluateRule(rule, ctx({ now: T0 + 20_000 })); // same 5-minute bucket, e.g. after a reconnect
     if (s1.state !== "triggered" || s2.state !== "triggered") throw new Error("expected triggers");
     expect(mergeEvents(mergeEvents([], [s1.event]), [s2.event])).toHaveLength(1);
+  });
+});
+
+describe("chart layers (desk parity)", () => {
+  const bar = (t: number, c: number, v = 10): Bar => ({ t, o: c, h: c + 1, l: c - 1, c, v, buyV: v / 2 });
+  it("Assist bands: VWAP ± k·σ with volume-weighted σ of typical price", () => {
+    const b = vwapBands([bar(0, 100, 10), bar(60, 110, 30)], 0);
+    expect(b[0]).toEqual({ vwap: 100, sd: 0 });
+    expect(b[1]!.vwap).toBeCloseTo(107.5, 9);
+    expect(b[1]!.sd).toBeCloseTo(Math.sqrt((10 * 7.5 ** 2 + 30 * 2.5 ** 2) / 40), 9);
+  });
+  it("round numbers: BTC ≈ 500 steps, gold ≈ 25, never more than 24 levels", () => {
+    expect(roundLevels(81_000, 82_100).step).toBe(500);
+    expect(roundLevels(81_000, 82_100).levels).toEqual([81_000, 81_500, 82_000]);
+    expect(roundLevels(4_150, 4_210).step).toBe(25);
+    expect(roundLevels(60_000, 90_000).levels.length).toBeLessThanOrEqual(24);
+    expect([niceStep(82_000 / 5000), niceStep(4_157 / 5000), niceStep(1)]).toEqual([10, 0.5, 1]); // same bins as the server's profile
+  });
+  it("Range needs ≥ 80 % of the previous UTC day loaded, and says so otherwise", () => {
+    const day = 86_400 * 20_000;
+    const full = Array.from({ length: 2 * 288 }, (_, i) => bar(day - 86_400 + i * 300, 100 + (i % 10)));
+    const r = prevSession(full, 1);
+    expect("reason" in r).toBe(false);
+    if (!("reason" in r)) { expect(r.hi).toBe(110); expect(r.lo).toBe(99); expect(r.start).toBe(day - 86_400); }
+    const partial = full.slice(150);
+    expect(prevSession(partial, 1)).toMatchObject({ reason: expect.stringContaining("3 วัน") });
+  });
+  it("OI is stepped onto bars by close time, null before the first reading", () => {
+    const bars = [bar(0, 1), bar(900, 1), bar(1800, 1)];
+    expect(stepOnBars(bars, [{ t: 1200, v: 5 }, { t: 1500, v: 6 }, { t: 2400, v: 7 }], 900)).toEqual([null, 6, 7]);
   });
 });

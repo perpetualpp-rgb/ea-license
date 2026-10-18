@@ -9,10 +9,10 @@
 |---|---|---|
 | Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 119 ผ่าน |
 | Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
-| แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 80 ผ่าน |
-| แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 46 ผ่าน |
-| แอป e2e รุ่น claude.ai (connector จำลอง) | `node e2e/check-artifact.mjs` | 82 ผ่าน, เรียกเฉพาะเครื่องมือใน allowlist |
-| **แอป e2e กับเซิร์ฟเวอร์ที่รันจริง + ข้อมูลจริงจาก Binance spot** | `DATA=... node e2e/check-api.mjs` | 40 ผ่าน: ราคา/24 ชม./แท่ง/กำแพง/OI/คุณภาพข้อมูลบนจอตรงกับ API, สมาชิกหน่วงเห็นป้ายหน่วง, token ผิดขึ้นให้ล็อกอินใหม่, ไม่เรียก host อื่น |
+| แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 84 ผ่าน |
+| แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 50 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ) |
+| แอป e2e รุ่น claude.ai (connector จำลอง) | `node e2e/check-artifact.mjs` | 85 ผ่าน, เรียกเฉพาะเครื่องมือใน allowlist, กำแพงและ OI วาดบนกราฟ |
+| **แอป e2e กับเซิร์ฟเวอร์ที่รันจริง + ข้อมูลจริงจาก Binance spot** | `DATA=... node e2e/check-api.mjs` | 44 ผ่าน: ราคา/24 ชม./แท่ง/กำแพง (ในแผงและบนกราฟ)/OI/คุณภาพข้อมูลบนจอตรงกับ API, สมาชิกหน่วงเห็นป้ายหน่วง, token ผิดขึ้นให้ล็อกอินใหม่, ไม่เรียก host อื่น |
 | bundle รุ่น production ไม่มีโค้ด connector | `npm run build:single` | ผ่าน |
 | Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error |
 | openapi.json ตรงกับโค้ด | `cd orderflow-lab/server && python3 -m app.openapi_export --check` | ตรงกัน |
