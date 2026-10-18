@@ -6,8 +6,8 @@
 
 Hours are UTC and follow the timestamp the writer passes, which is when the
 row reached the collector (the exchange event time for live trades, klines and
-liquidations; the collector clock for book samples, meta rows and backfilled
-trades). A row backfilled later therefore sits in a later file, possibly on a
+liquidations; the collector clock for book samples, meta rows, backfilled
+trades and klines fetched over REST). A row backfilled later therefore sits in a later file, possibly on a
 later day: readers must use the timestamp inside the row (``row[0]``), read
 neighbouring partitions, and dedupe.
 
@@ -19,7 +19,8 @@ Durability, honestly:
   last fsync (up to ~5 s of every stream); a plain crash of the process loses
   only what was still in Python's buffer (under ~1 s). The collector writes its
   checkpoint (last trade id, gap ledger) only after ``sync()``, so trades in
-  the lost window are fetched again over REST; book samples, klines, mark,
+  the lost window are fetched again over REST, and so are klines (the next
+  start's REST history skips the minutes still on disk); book samples, mark,
   OI, liquidations and meta rows from that window are gone.
 * A torn last line (crash mid-write) is skipped by ``read_rows`` and is
   newline-terminated before more rows are appended, so it never corrupts the

@@ -11,5 +11,6 @@
   "book_every_s": 1,
   "store_depth_diffs": false,
   "mark_every_s": 5,
-  "oi_every_s": 60
+  "oi_every_s": 60,
+  "kline_history_min": 1440
 }

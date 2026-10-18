@@ -114,6 +114,25 @@ class Coverage(unittest.TestCase):
             self.assertEqual((future["book"]["pct"], future["kline"]["pct"]), (None, None))
             self.assertIn("N/A", render(MK, SYM, future))
 
+    def test_rest_klines_are_not_websocket_coverage(self):
+        with tempfile.TemporaryDirectory() as root:
+            start = D0 + 12 * H                                          # fresh start at noon: 24 h of history over REST
+            lost = range(D0 + 18 * H, D0 + 18 * H + 5 * M, M)            # socket down 18:00-18:05
+            write(root, "kline", [[t, 1, 1, 1, 1, 0, 0, 0] for t in range(start, D0 + DAY_MS, M) if t not in lost])
+            write(root, "kline", [[t, 1, 1, 1, 1, 0, 0, 0] for t in range(start - DAY_MS, start, M)], filed_at=start)
+            write(root, "kline", [[t, 1, 1, 1, 1, 0, 0, 0] for t in lost[:3]], filed_at=D0 + 18 * H + 6 * M)
+            write(root, "meta", [[start, "connected"], [start + S, "kline_history", start - DAY_MS, start - M, 1440],
+                                 [D0 + 18 * H + 6 * M, "kline_backfill", lost[0], lost[2], 3],
+                                 [D0 + 18 * H + 6 * M, "kline_gap", lost[3], lost[4], "REST failed 6 times: timed out"]])
+            k = coverage(root, MK, SYM, DAY, now_ms=D0 + 2 * DAY_MS)["kline"]
+            self.assertEqual((k["minutes"], k["rest_minutes"], k["complete_minutes"], k["lost_minutes"]), (715, 723, 1438, 2))
+            self.assertAlmostEqual(k["pct"], 100.0 * 715 / 1440)          # socket only: not inflated by the history
+            self.assertAlmostEqual(k["complete_pct"], 100.0 * 1438 / 1440)
+            self.assertIn("REST", render(MK, SYM, coverage(root, MK, SYM, DAY, now_ms=D0 + 2 * DAY_MS)))
+            prev = coverage(root, MK, SYM, "2026-10-17", now_ms=D0 + 2 * DAY_MS)  # only REST candles: the collector did not run
+            self.assertFalse(prev["evidence"])
+            self.assertEqual((prev["kline"]["pct"], prev["kline"]["rest_minutes"], prev["kline"]["complete_pct"]), (None, 720, 50.0))
+
     def test_meta_events_and_unrecoverable_ids(self):
         with tempfile.TemporaryDirectory() as root:
             t = D0 + H

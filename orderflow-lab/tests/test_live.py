@@ -7,20 +7,26 @@ import asyncio
 import glob
 import gzip
 import hashlib
+import importlib.util
 import json
 import os
+import sys
 import tempfile
+import types
 import unittest
+import urllib.error
+from collections import Counter
+from pathlib import Path
 from unittest import mock
 
 import live.collector as collector_mod
 from live.book import LocalBook
-from live.check import coverage
+from live.check import coverage, day_start
 from live.collector import Collector
 from live.sink import HourlySink, compress, hour_path, read_manifest, read_rows, stream_files
 
 H = 3600 * 1000
-T0 = 1792300000000  # 2026-10-18 04:26:40 UTC
+T0 = 1792300000000  # 2026-10-18 05:06:40 UTC
 
 
 class FrozenClock:
@@ -510,6 +516,289 @@ class Backfill(unittest.TestCase):
             self.assertEqual(sym.n["lost"], 4)
             meta = [r[1:4] for r in stream_rows(root, "futures", "XAUUSDT", "meta")]
             self.assertEqual(meta, [["trade_gap", 2, 2], ["trade_gap", 5, 6], ["trade_gap", 9, 9], ["backfill", 2, 9]])
+
+
+# -- 1m klines over REST: history at start, the disconnected span after a reconnect ---------------
+MIN = 60_000
+HI = T0 // MIN * MIN - MIN          # open time of the newest candle closed at T0; HI + MIN is still open
+SPOT = {"markets": {"spot": {"rest": "http://x", "ws": "ws://x", "symbols": ["BTCUSDT"]}}, "book": {"BTCUSDT": {"bucket": 10}}}
+
+
+def rest_kline(t, close=None):
+    """A /api/v3/klines (or /fapi/v1/klines) row: open, o, h, l, c, v, close time, quote v, trades, taker buy base, ..."""
+    return [t, "100.0", "101.5", "99.5", "100.5", "12.5", t + 59_999 if close is None else close, "1250", 42, "7.25", "725", "0"]
+
+
+def ws_kline(symbol, t, closed=True, E=None):
+    return {"stream": "x", "data": {"e": "kline", "s": symbol, "E": t + MIN + 5 if E is None else E,
+                                    "k": {"t": t, "o": "100", "h": "102", "l": "99", "c": "101", "v": "3", "n": 9, "V": "1", "x": closed}}}
+
+
+def kline_rest(calls, fail=None):
+    """Fake REST: candles from startTime to endTime (at most ``limit``); ``fail(n, params)`` may return an error to raise."""
+    async def rest(market, name, params):
+        calls.append((market, name, params["startTime"], params["endTime"], params["limit"]))
+        err = fail(len(calls), params) if fail else None
+        if err is not None:
+            raise err
+        rows, t = [], params["startTime"]
+        while t <= params["endTime"] and len(rows) < params["limit"]:
+            rows.append(rest_kline(t))
+            t += MIN
+        return rows
+    return rest
+
+
+async def settle_klines(sym, timeout=5.0):
+    for _ in range(int(timeout / 0.01)):
+        await asyncio.sleep(0.01)
+        if not sym.kline_busy:
+            return
+    raise AssertionError("kline jobs did not finish")
+
+
+def history_run(root, cfg, market, symbol, rest, clock=None, before=None, attempts=None):
+    """Run the start-up history fetch only; ``before(col)`` runs first (e.g. socket klines already written)."""
+    async def scenario():
+        col = collector(root, clock or FrozenClock(T0), cfg)
+        col.rest = rest
+        if attempts:
+            col.kline_attempts = attempts
+        if before:
+            before(col)
+        col.start_kline_history()
+        sym = col.syms[(market, symbol)]
+        await settle_klines(sym)
+        col.sink.close()
+        return col, sym
+    return asyncio.run(scenario())
+
+
+class KlineHistory(unittest.TestCase):
+    def test_default_and_pages_by_market_limit(self):
+        self.assertEqual(Collector(SPOT, tempfile.gettempdir(), os.devnull).kline_history_min, 1440)
+        for market, n, limits in (("spot", 1440, [1000, 440]), ("futures", 1440, [1440]), ("futures", 3100, [1500, 1500, 100])):
+            with self.subTest(market=market, n=n), tempfile.TemporaryDirectory() as root:
+                cfg = {"markets": {market: {"rest": "http://x", "ws": "ws://x", "symbols": ["BTCUSDT"]}}, "kline_history_min": n}
+                calls = []
+                col, sym = history_run(root, cfg, market, "BTCUSDT", kline_rest(calls))
+                lo = HI - (n - 1) * MIN
+                self.assertEqual([c[4] for c in calls], limits)
+                self.assertEqual([c[2] for c in calls], [lo + sum(limits[:i]) * MIN for i in range(len(limits))])
+                self.assertTrue(all(c[:2] == (market, "klines") and c[3] == HI + MIN - 1 for c in calls))
+                opens = [r[0] for r in stream_rows(root, market, "BTCUSDT", "kline")]
+                self.assertEqual(sorted(opens), list(range(lo, HI + 1, MIN)))   # every minute exactly once
+                self.assertEqual([r[1:] for r in stream_rows(root, market, "BTCUSDT", "meta")], [["kline_history", lo, HI, n]])
+                self.assertEqual((sym.n["kline_rest"], sym.n["kline"], sym.n["kline_missing"]), (n, 0, 0))
+
+    def test_only_closed_candles_are_written(self):
+        async def rest(market, name, params):
+            # answers past endTime up to the open HI + MIN candle, and says HI closes at the clock time (not before it)
+            return [rest_kline(t, close=T0 if t == HI else None) for t in range(params["startTime"], HI + 2 * MIN, MIN)]
+
+        with tempfile.TemporaryDirectory() as root:
+            history_run(root, {**SPOT, "kline_history_min": 5}, "spot", "BTCUSDT", rest)
+            self.assertEqual([r[0] for r in stream_rows(root, "spot", "BTCUSDT", "kline")], list(range(HI - 4 * MIN, HI, MIN)))
+            self.assertEqual([r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")],
+                             [["kline_history", HI - 4 * MIN, HI - MIN, 4], ["kline_gap", HI, HI, "not closed by the collector clock"]])
+
+    def test_no_minute_written_twice_with_the_socket_or_an_earlier_run(self):
+        with tempfile.TemporaryDirectory() as root:
+            earlier = HourlySink(root)                                   # an earlier run left HI - 20 min on disk
+            earlier.write("spot", "BTCUSDT", "kline", HI - 20 * MIN + MIN, [HI - 20 * MIN, 1.0, 1.0, 1.0, 1.0, 0.0, 0, 0.0])
+            earlier.close()
+            calls = []
+            col, sym = history_run(root, {**SPOT, "kline_history_min": 30}, "spot", "BTCUSDT", kline_rest(calls),
+                                   before=lambda c: c.handle("spot", ws_kline("BTCUSDT", HI - 10 * MIN)))  # socket, this run
+            col.handle("spot", ws_kline("BTCUSDT", HI))                  # the socket repeats a minute REST wrote: skipped
+            col.handle("spot", ws_kline("BTCUSDT", HI + MIN))            # a new minute: written
+            col.sink.close()
+            opens = [r[0] for r in stream_rows(root, "spot", "BTCUSDT", "kline")]
+            lo = HI - 29 * MIN
+            self.assertEqual(max(Counter(opens).values()), 1)
+            self.assertEqual(sorted(opens), list(range(lo, HI + 2 * MIN, MIN)))
+            self.assertEqual([r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")],
+                             [["kline_history", lo, HI - 21 * MIN, 9], ["kline_history", HI - 19 * MIN, HI - 11 * MIN, 9],
+                              ["kline_history", HI - 9 * MIN, HI, 10]])
+            self.assertEqual((sym.n["kline"], sym.n["kline_rest"]), (2, 28))
+            # live.check keeps the REST candles out of the socket coverage
+            k = coverage(root, "spot", "BTCUSDT", "2026-10-18", now_ms=T0)["kline"]
+            expected = (T0 - day_start("2026-10-18")) // MIN               # minutes closed by T0
+            self.assertEqual((k["minutes"], k["rest_minutes"], k["complete_minutes"], k["expected"]), (2, 28, 30, expected))
+            self.assertAlmostEqual(k["pct"], 100.0 * 2 / expected)
+
+    def test_rest_failure_is_retried_then_recorded_as_kline_gap(self):
+        lo = HI - 9 * MIN
+        with tempfile.TemporaryDirectory() as root:                      # one transient failure: retried, nothing lost
+            calls = []
+            history_run(root, {**SPOT, "kline_history_min": 10}, "spot", "BTCUSDT",
+                        kline_rest(calls, fail=lambda n, p: ConnectionError("reset by peer") if n == 1 else None))
+            self.assertEqual(len(calls), 2)
+            self.assertEqual([r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")],
+                             [["kline_retry", lo, HI, lo, 1, "reset by peer"], ["kline_history", lo, HI, 10]])
+
+        with tempfile.TemporaryDirectory() as root:                      # never answers: kline_gap after the attempts
+            calls = []
+
+            async def scenario():
+                col = collector(root, FrozenClock(T0), {**SPOT, "kline_history_min": 10})
+                col.rest, col.kline_attempts = kline_rest(calls, fail=lambda n, p: TimeoutError("timed out")), 3
+                col.start_kline_history()
+                sym = col.syms[("spot", "BTCUSDT")]
+                await settle_klines(sym)
+                col.on_connect("spot")                                    # the socket then connects
+                col.handle("spot", ws_kline("BTCUSDT", HI + MIN, closed=False))
+                await settle_klines(sym)
+                col.sink.close()
+                return sym
+
+            sym = asyncio.run(scenario())
+            self.assertEqual(len(calls), 3)                              # the recorded gap is not asked for again
+            meta = [r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")]
+            self.assertEqual(meta[:3], [["kline_retry", lo, HI, lo, i, "timed out"] for i in (1, 2, 3)])
+            self.assertEqual(meta[3:], [["kline_gap", lo, HI, "REST failed 3 times: timed out"], ["connected"]])
+            self.assertEqual((stream_rows(root, "spot", "BTCUSDT", "kline"), sym.n["kline_missing"]), ([], 10))
+
+        with tempfile.TemporaryDirectory() as root:                      # second page fails: the first page stays
+            lo = HI - 1439 * MIN
+            history_run(root, SPOT, "spot", "BTCUSDT", kline_rest([], fail=lambda n, p: OSError("reset") if n > 1 else None),
+                        attempts=2)
+            meta = [r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")]
+            self.assertEqual(meta, [["kline_retry", lo, HI, lo + 1000 * MIN, 1, "reset"], ["kline_retry", lo, HI, lo + 1000 * MIN, 2, "reset"],
+                                    ["kline_history", lo, lo + 999 * MIN, 1000], ["kline_gap", lo + 1000 * MIN, HI, "REST failed 2 times: reset"]])
+            self.assertEqual(len(stream_rows(root, "spot", "BTCUSDT", "kline")), 1000)
+
+    def test_blocked_451_and_403_are_recorded_not_retried(self):
+        lo = HI - 9 * MIN
+        for code, err, text in ((451, collector_mod.Blocked("http://x/api/v3/klines"), collector_mod.BLOCKED),
+                                (403, urllib.error.HTTPError("http://x/api/v3/klines", 403, "Forbidden", {}, None), collector_mod.BLOCKED_403)):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as root:
+                calls = []
+                col, sym = history_run(root, {**SPOT, "kline_history_min": 10}, "spot", "BTCUSDT", kline_rest(calls, fail=lambda n, p: err))
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(col.blocked, {"spot": text})
+                self.assertEqual([r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")], [["kline_gap", lo, HI, f"blocked ({code})"]])
+
+
+class KlineReconnect(unittest.TestCase):
+    def test_disconnected_span_is_backfilled(self):
+        m0 = HI - 5 * MIN                                                # m0 + 6 min is the candle open at T0
+
+        async def scenario(root):
+            col = collector(root, FrozenClock(T0), {**CFG, "kline_history_min": 0})
+            calls = []
+            col.rest = kline_rest(calls)
+            sym = col.syms[("futures", "XAUUSDT")]
+            col.on_connect("futures")
+            col.handle("futures", ws_kline("XAUUSDT", m0, closed=False))  # history off: nothing to measure from yet
+            col.handle("futures", ws_kline("XAUUSDT", m0))
+            col.handle("futures", ws_kline("XAUUSDT", m0 + MIN))
+            col.meta(sym, "disconnected", "reset")                       # what market_loop writes, then it reconnects
+            col.on_connect("futures")
+            col.handle("futures", ws_kline("XAUUSDT", m0 + 6 * MIN, closed=False))
+            await settle_klines(sym)
+            col.handle("futures", ws_kline("XAUUSDT", m0 + 6 * MIN))
+            col.sink.close()
+            return sym, calls
+
+        with tempfile.TemporaryDirectory() as root:
+            sym, calls = asyncio.run(scenario(root))
+            self.assertEqual(calls, [("futures", "klines", m0 + 2 * MIN, m0 + 6 * MIN - 1, 4)])
+            opens = [r[0] for r in stream_rows(root, "futures", "XAUUSDT", "kline")]
+            self.assertEqual(sorted(opens), list(range(m0, m0 + 7 * MIN, MIN)))
+            self.assertEqual([r[1:] for r in stream_rows(root, "futures", "XAUUSDT", "meta")],
+                             [["connected"], ["disconnected", "reset"], ["connected"], ["kline_backfill", m0 + 2 * MIN, m0 + 5 * MIN, 4]])
+            self.assertEqual((sym.n["kline"], sym.n["kline_rest"]), (3, 4))
+
+    def test_reconnect_through_the_websocket_loop(self):
+        """run() with a fake socket: history at start, a disconnect, the missed minutes over REST, --minutes-style stop."""
+        clock = FrozenClock(T0)
+        calls = []
+        box = {}
+
+        class Socket:
+            def __init__(self, script):
+                self.script = list(script)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def recv(self):
+                item = self.script.pop(0)
+                if isinstance(item, Exception):
+                    raise item
+                if callable(item):
+                    return await item()
+                clock.t = max(clock.t, item["data"]["E"])                # the socket's event time drives the clock
+                return json.dumps(item)
+
+        async def until_backfilled():
+            sym = box["col"].syms[("spot", "BTCUSDT")]
+            for _ in range(500):
+                if sym.n["kline_rest"] >= 33 and not sym.kline_busy:
+                    break
+                await asyncio.sleep(0.01)
+            box["col"].stop.set()
+            raise ConnectionError("closed")
+
+        sessions = [Socket([ws_kline("BTCUSDT", HI + MIN, closed=False, E=T0 + 1000), ws_kline("BTCUSDT", HI + MIN, E=HI + 2 * MIN + 100),
+                            ConnectionError("reset by peer")]),
+                    Socket([ws_kline("BTCUSDT", HI + 5 * MIN, closed=False, E=HI + 5 * MIN + 5000), until_backfilled])]
+        client = types.ModuleType("websockets.asyncio.client")
+        client.connect = lambda url, **kw: sessions.pop(0)
+        fake = {"websockets": types.ModuleType("websockets"), "websockets.asyncio": types.ModuleType("websockets.asyncio"),
+                "websockets.asyncio.client": client}
+
+        with tempfile.TemporaryDirectory() as root, mock.patch.dict(sys.modules, fake):
+            col = box["col"] = collector(root, clock, {**SPOT, "kline_history_min": 30})
+            col.rest, col.reconnect_base_s = kline_rest(calls), 0.01
+            asyncio.run(col.run())
+            lo = HI - 29 * MIN
+            self.assertEqual([c[2:] for c in calls], [(lo, HI + MIN - 1, 30), (HI + 2 * MIN, HI + 5 * MIN - 1, 3)])
+            opens = [r[0] for r in stream_rows(root, "spot", "BTCUSDT", "kline")]
+            self.assertEqual(sorted(opens), list(range(lo, HI + 5 * MIN, MIN)))  # 30 history, HI+1 socket, HI+2..HI+4 REST
+            meta = [r[1:] for r in stream_rows(root, "spot", "BTCUSDT", "meta")]
+            self.assertEqual([m for m in meta if m[0].startswith("kline")],
+                             [["kline_history", lo, HI, 30], ["kline_backfill", HI + 2 * MIN, HI + 4 * MIN, 3]])
+            self.assertEqual(Counter(m[0] for m in meta)["connected"], 2)
+            self.assertEqual(col.reconnects["spot"], 1)
+            with open(os.path.join(root, "status.json")) as fh:
+                st = json.load(fh)["symbols"]["spot:BTCUSDT"]
+            self.assertEqual((st["kline"], st["kline_rest"], st["kline_missing"], st["kline_jobs"]), (1, 33, 0, 0))
+
+
+class KlineRowsIngestable(unittest.TestCase):
+    def rows(self, root):
+        history_run(root, {**SPOT, "kline_history_min": 3}, "spot", "BTCUSDT", kline_rest([]),
+                    before=lambda c: c.handle("spot", ws_kline("BTCUSDT", HI - 3 * MIN)))
+        return stream_rows(root, "spot", "BTCUSDT", "kline")
+
+    def test_rest_rows_have_the_socket_row_format(self):
+        with tempfile.TemporaryDirectory() as root:
+            rows = sorted(self.rows(root))
+            self.assertEqual(rows[0], [HI - 3 * MIN, 100.0, 102.0, 99.0, 101.0, 3.0, 9, 1.0])           # socket
+            self.assertEqual(rows[-1], [HI, 100.0, 101.5, 99.5, 100.5, 12.5, 42, 7.25])                 # REST
+            for r in rows:
+                self.assertEqual([type(x) for x in r], [int, float, float, float, float, float, int, float])
+
+    @unittest.skipUnless(importlib.util.find_spec("psycopg"), "server/ingest.py needs psycopg")
+    def test_server_ingest_loads_them(self):
+        spec = importlib.util.spec_from_file_location("ingest_under_test", Path(__file__).resolve().parents[1] / "server" / "ingest.py")
+        ingest = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ingest)
+        with tempfile.TemporaryDirectory() as root:
+            self.rows(root)
+            ing = ingest.Ingestor(None, Path(root))
+            got = []
+            ing._copy_insert = lambda tmp_cols, target, cols, data, conflict: got.extend(data) or len(data)
+            lines = [(ln, ingest.parse(ln)) for p, _, _ in ingest.iter_files(Path(root)) if "/kline/" in p.as_posix()
+                     for ln in ingest.read_lines(p)]
+            n, bad = ing.load_klines(1, lines)
+            self.assertEqual((n, bad), (4, 0))
+            self.assertEqual(sorted(g[2] for g in got), [ingest.ms(HI - k * MIN) for k in (3, 2, 1, 0)])
 
 
 if __name__ == "__main__":
