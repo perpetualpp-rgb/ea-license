@@ -69,10 +69,10 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["320", { 
   await page.waitForSelector(".chart-box canvas");
   check("observation opens analysis with OI panel open", await page.evaluate(() => document.getElementById("panel-oi")?.hasAttribute("open")));
   await page.click('[role=radio]:has-text("1h")');
-  await page.click('[role=radio]:has-text("3 วัน")');
+  await page.selectOption('select[aria-label="ช่วงข้อมูลย้อนหลัง"]', "3d"); // phones: a dropdown, so the chart stays near the top
   await page.waitForTimeout(300);
   check("timeframe and lookback are separate controls", (await page.locator('[aria-label="ขนาดแท่งเทียน"] [aria-checked=true]').textContent()) === "1h" &&
-    (await page.locator('[aria-label="ช่วงข้อมูลย้อนหลัง"] [aria-checked=true]').textContent()) === "3 วัน");
+    (await page.inputValue('select[aria-label="ช่วงข้อมูลย้อนหลัง"]')) === "3d");
   // the desk's chart layers: walls, big trades, OI pane on by default; Assist, Range, round numbers on demand
   const chips = await page.locator('[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle').allTextContents();
   check("layer buttons match the desk", ["กำแพง", "ไม้ใหญ่", "VWAP", "Assist", "POC", "Range", "เลขกลม", "CVD", "OI"].every((x) => chips.some((c) => c.includes(x))), chips.join(" | "));
@@ -84,8 +84,10 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["320", { 
   ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
   check("Range (previous day, 3-day view) and round numbers are drawn when switched on", +ds.range === 5 && +ds.round > 0, JSON.stringify(ds));
   check("chart key explains every visible layer", /กำแพง \(ทึบ/.test(await page.textContent(".chart-key")) && /Range วันก่อนหน้า/.test(await page.textContent(".chart-key")));
-  await page.click('button:has-text("แท่งล่าสุด")');
-  await page.click('button:has-text("รีเซ็ตมุมมอง")');
+  await page.click('button[aria-label="ไปแท่งล่าสุด"]');
+  await page.click('button[aria-label="ขยายกราฟเต็มจอ"]');
+  check("full-screen chart opens and closes", (await page.locator(".chart-wrap.full").count()) === 1);
+  await page.click('button[aria-label="ปิดกราฟเต็มจอ"]');
   for (const name of ["Assist", "Range", "เลขกลม"]) await page.click(`[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:has-text("${name}")`);
   const caption = await page.textContent(".caption");
   check("CVD caption names anchor and unit", /07:00 UTC\+7/.test(caption) && /หน่วย BTC/.test(caption), caption.slice(0, 100));
@@ -106,7 +108,7 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["320", { 
   await page.waitForTimeout(400);
 
   // market snapshot → journal, survives reload, review creates a revision
-  await page.click('.mobile-only button:has-text("บันทึกภาพตลาด")');
+  await page.click('button.mobile-only:has-text("บันทึกภาพตลาด")');
   await page.waitForSelector("[role=dialog] img.entry-thumb");
   await page.fill('[role=dialog] textarea >> nth=0', "CVD เพิ่มขึ้นขณะราคายืนเหนือ VWAP");
   await page.click('[role=dialog] button:has-text("CVD")');

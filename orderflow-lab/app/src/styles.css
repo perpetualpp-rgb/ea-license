@@ -162,9 +162,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
 @media (min-width: 1024px) { .an-grid { grid-template-columns: minmax(0, 1fr) 360px; align-items: start; } .an-side { position: sticky; top: 16px; } }
 .chart-box { position: relative; height: 420px; }
 @media (min-width: 1024px) { .chart-box { height: 560px; } }
-@media (max-width: 360px) { .chart-box { height: 360px; } }
-.chart-legend { position: absolute; left: 8px; top: 6px; z-index: 3; pointer-events: none; font-size: 12px; color: var(--ink-2); background: rgba(255, 255, 255, 0.85);
-  padding: 2px 8px; border-radius: 8px; font-variant-numeric: tabular-nums; max-width: calc(100% - 90px); }
+@media (max-width: 599px) { .chart-box { height: clamp(300px, 56svh, 500px); } }
 .controls { display: grid; gap: 10px; margin: 12px 0; }
 .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; }
@@ -250,10 +248,31 @@ table.data .r { text-align: right; }
 @media (min-width: 1024px) { .desktop-only { display: flex !important; } .mobile-only { display: none !important; } }
 /* the chart library's attribution link (TradingView logo) gets a full-size touch target */
 .chart-box a { min-width: 44px; min-height: 44px; display: inline-flex !important; align-items: center; justify-content: center; }
-@media (max-width: 599px) { .chart-legend { max-width: calc(100% - 80px); } }
-.chart-legend span { display: block; }
-.chart-legend .flow { color: var(--muted); }
-.chart-tools { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 6px; }
+.chart-wrap { position: relative; }
+.chart-bar { display: flex; align-items: center; gap: 4px; margin: 8px 0 4px; }
+.cbtn { min-width: 44px; height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink);
+  font-size: 17px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.cbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); }
+.chart-readout { min-height: 36px; font-size: 12px; line-height: 18px; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-bottom: 2px; }
+.chart-readout span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chart-readout .flow { color: var(--muted); }
+.chart-readout .meta { color: var(--muted); font-size: 11px; }
+.chart-hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+@media (max-width: 599px) { .wide-only { display: none; } }
+/* full screen: the chart takes the whole viewport, like TradingView on a phone */
+.chart-wrap.full { position: fixed; inset: 0; z-index: 1000; background: var(--surface); display: flex; flex-direction: column;
+  padding: calc(8px + env(safe-area-inset-top)) 12px calc(8px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+.chart-wrap.full .chart-box { flex: 1 1 auto; height: auto; min-height: 0; }
+.chart-full-head { display: grid; gap: 6px; }
+.chart-full-head .chip-row { margin-top: 0; }
+.chip-row { margin-top: 10px; }
+@media (max-width: 599px) {
+  .chip-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .chip-row::-webkit-scrollbar { display: none; }
+  .chip-row .toggle { white-space: nowrap; }
+}
+.chart-key-wrap { margin-top: 4px; }
+.chart-key-wrap > summary { min-height: 44px; display: flex; align-items: center; color: var(--accent-ink); cursor: pointer; font-size: 14px; }
 .chart-key { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; color: var(--ink-2); }
 .chart-key li { display: inline-flex; align-items: center; gap: 6px; }
 .sw { display: inline-block; width: 18px; height: 0; border-top: 2px solid; flex: none; }
@@ -267,3 +286,42 @@ table.data .r { text-align: right; }
 .sw.oi { border-color: #7c3aed; }
 .ico { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--raised); flex: none; }
 .ico svg { width: 22px; height: 22px; }
+
+/* ---- phones: the chart comes first ---------------------------------------------- */
+.main { position: relative; }
+.top-account { position: absolute; top: 12px; right: 16px; z-index: 2; }
+.page-head { padding-right: 56px; }
+.an-caution { margin-top: 8px; }
+.an-price { align-items: baseline; margin-top: 6px; }
+.an-price .big { font-size: 28px; font-weight: 700; }
+.full-scroll { display: flex; gap: 8px; align-items: center; overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.full-scroll::-webkit-scrollbar { display: none; }
+.full-scroll > * { flex: none; }
+.full-scroll .chip-row { margin-top: 0; flex-wrap: nowrap; overflow: visible; }
+@media (max-width: 599px) {
+  .main { padding-left: 12px; padding-right: 12px; }
+  .top-account { top: 6px; right: 12px; }
+  .an-head { flex-wrap: nowrap; align-items: center; margin: 0 0 8px; gap: 8px; }
+  .an-head .titles { flex: 0 1 auto; }
+  .an-head h1 { font-size: 20px; white-space: nowrap; }
+  .an-head select { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 10px; text-overflow: ellipsis; }
+  .an-card { padding: 12px; margin: 0 -12px; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; } /* edge to edge, like a chart app */
+  .an-name { flex-wrap: nowrap; align-items: flex-start; }
+  .an-name > .grow { flex: 1 1 auto !important; }
+  .an-name .coin { width: 32px; height: 32px; font-size: 13px; }
+  .lb-pick { min-height: 44px; padding: 0 10px; font-size: 15px; }
+  .an-caution { margin-top: 6px; font-size: 12px; padding: 2px 8px; }
+  .an-price { margin-top: 4px; gap: 6px; }
+  .an-price .big { font-size: 22px; }
+  .an-price .muted.small { font-size: 12px; }
+  .an-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+  .an-controls .row { flex-wrap: nowrap; }
+  .an-controls .seg button, .full-scroll .seg button { padding: 0 9px; }
+}
+@media (max-height: 700px) { .chart-wrap.full .chart-hint { display: none; } }
+@media (max-width: 360px) {
+  .an-head h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } /* the bottom tab names the page */
+  .an-name .coin { display: none; }
+  .an-controls .seg button { min-width: 44px; padding: 0 6px; }
+  .lb-pick { padding: 0 6px; }
+}

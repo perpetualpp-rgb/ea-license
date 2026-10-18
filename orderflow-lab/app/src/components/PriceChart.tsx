@@ -2,7 +2,7 @@
 // POC/value area, the previous session's range, round numbers, order-book walls as price lines,
 // big trades as markers, and CVD / open-interest panes. Drag to pan, wheel/pinch to zoom
 // (TradingView Lightweight Charts, Apache-2.0).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BaselineSeries, CandlestickSeries, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle,
   type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesMarker, type Time, type UTCTimestamp,
@@ -28,6 +28,12 @@ interface Props {
   onCapture?: (capture: () => string | null) => void;
   /** what each layer could or could not draw, for the caption under the chart */
   onNotes?: (notes: Partial<Record<keyof Layers, string>>) => void;
+  /** controls shown at the top of the full-screen chart (timeframe, layers) */
+  fullHeader?: ReactNode;
+  /** when the data on screen was last fetched, shown so a still chart is not mistaken for a frozen one */
+  updatedAt?: number | null;
+  /** phones show the freshness label here instead of a badge above the chart */
+  freshness?: string;
 }
 
 const C = {
@@ -37,6 +43,7 @@ const C = {
 const local = (t: number) => (t + BKK_OFFSET_S) as UTCTimestamp; // the axis shows Bangkok time (UTC+7)
 const fmtV = (v: number) => (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
 const LONG_WALL_S = 300; // a wall seen ≥ 5 minutes is drawn solid, newer ones dashed
+const narrowNow = () => typeof window !== "undefined" && window.innerWidth < 600;
 
 type Api = {
   chart: IChartApi; candles: ISeriesApi<"Candlestick">; vol: ISeriesApi<"Histogram">; vw: ISeriesApi<"Line">;
@@ -44,12 +51,25 @@ type Api = {
   cvd: ISeriesApi<"Baseline"> | null; oi: ISeriesApi<"Line"> | null; panesKey: string; lines: IPriceLine[];
 };
 
-export function PriceChart({ ins, series, layers, details, viewKey, onCapture, onNotes }: Props) {
+export function PriceChart({ ins, series, layers, details, viewKey, onCapture, onNotes, fullHeader, updatedAt, freshness }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const api = useRef<Api | null>(null);
   const [legend, setLegend] = useState<{ ohlc: string; flow: string; wall: string } | null>(null);
   const [drawn, setDrawn] = useState<Record<string, number>>({});
+  const [full, setFull] = useState(false);
   const fitted = useRef("");
+
+  // full screen: the page behind stops scrolling, so every drag belongs to the chart (TradingView-like);
+  // Escape or ✕ closes it
+  useEffect(() => {
+    api.current?.chart.applyOptions({ handleScroll: { vertTouchDrag: full } });
+    if (!full) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  }, [full]);
 
   useEffect(() => {
     if (!box.current) return;
@@ -75,6 +95,10 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
       .map((s) => chart.addSeries(LineSeries, { ...line, color: C.band, lineWidth: 1, lineStyle: s }));
     const markers = createSeriesMarkers(candles, []);
     api.current = { chart, candles, vol, vw, bands, markers, cvd: null, oi: null, panesKey: "", lines: [] };
+    // the visible range is mirrored on the element so tests (and screen readers' summary) can follow pans and zooms
+    chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+      if (r && box.current) { box.current.dataset.from = r.from.toFixed(1); box.current.dataset.to = r.to.toFixed(1); }
+    });
     onCapture?.(() => {
       try { return chart.takeScreenshot().toDataURL("image/jpeg", 0.82); } catch { return null; }
     });
@@ -115,13 +139,13 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
         a.cvd = a.chart.addSeries(BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, topLineColor: C.buy, bottomLineColor: C.sell,
           topFillColor1: "rgba(11,122,67,0.22)", topFillColor2: "rgba(11,122,67,0.03)", bottomFillColor1: "rgba(180,35,24,0.03)", bottomFillColor2: "rgba(180,35,24,0.22)",
           priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.01, formatter: (v: number) => fmtNum(v, Math.abs(v) >= 100 ? 0 : 2) } }, 1);
-        a.chart.panes()[1]?.setHeight(100);
+        a.chart.panes()[1]?.setHeight(narrowNow() ? 64 : 100);
       }
       if (wantOi) {
         const pane = layers.cvd ? 2 : 1;
         a.oi = a.chart.addSeries(LineSeries, { color: C.oi, lineWidth: 2, priceLineVisible: false,
           priceFormat: { type: "custom", minMove: 0.01, formatter: (v: number) => (Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}K` : fmtNum(v, 0)) } }, pane);
-        a.chart.panes()[pane]?.setHeight(90);
+        a.chart.panes()[pane]?.setHeight(narrowNow() ? 56 : 90);
       }
       a.panesKey = key;
     }
@@ -151,7 +175,8 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
         const [t, side] = k.split("|");
         const buy = side === "buy";
         mk.push({ time: local(+t), position: buy ? "belowBar" : "aboveBar", shape: "circle", color: buy ? C.buy : C.sell,
-          size: 0.6 + 1.6 * Math.sqrt(v / mx), text: v >= 0.4 * mx ? fmtV(v) : "" });
+          size: narrowNow() ? 0.4 + 0.9 * Math.sqrt(v / mx) : 0.6 + 1.6 * Math.sqrt(v / mx), // phones: smaller dots without numbers
+          text: !narrowNow() && v >= 0.4 * mx ? fmtV(v) : "" });
       }
       mk.sort((x, z) => (x.time as number) - (z.time as number));
       count.big = mk.length;
@@ -164,7 +189,7 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
     // levels as price lines; phones keep only axis labels so titles do not cover the candles
     for (const l of a.lines) a.candles.removePriceLine(l);
     a.lines = [];
-    const narrow = (box.current?.clientWidth ?? 0) < 600;
+    const narrow = narrowNow();
     const pl = (price: number | null, title: string, color: string, lineStyle: LineStyle, lineWidth: 1 | 2 | 3 | 4, axis = true) => {
       if (price == null || !Number.isFinite(price)) return;
       a.lines.push(a.candles.createPriceLine({ price, color, lineStyle, lineWidth, title: narrow ? "" : title, axisLabelVisible: axis }));
@@ -195,7 +220,7 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
       count.round = levels.length;
     }
     if (layers.wall) {
-      const act = (details?.walls ?? []).slice(0, 8);
+      const act = (details?.walls ?? []).slice(0, narrow ? 5 : 8); // phones: the five largest, so labels stay readable
       const mx = Math.max(1e-9, ...act.map((w) => w.size));
       for (const w of act) {
         pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? C.buy : C.sell,
@@ -211,7 +236,7 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
 
     if (fitted.current !== viewKey && bars.length) {
       const n = bars.length;
-      a.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - (box.current!.clientWidth < 600 ? 70 : 150)), to: n + 4 });
+      a.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - (narrowNow() ? 60 : 150)), to: n + 4 });
       fitted.current = viewKey;
     }
     const walls = layers.wall ? details?.walls ?? [] : [];
@@ -240,26 +265,52 @@ export function PriceChart({ ins, series, layers, details, viewKey, onCapture, o
     return () => a.chart.unsubscribeCrosshairMove(onMove);
   }, [series, layers, details, ins, viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toLatest = () => api.current?.chart.timeScale().scrollToRealTime();
+  // buttons do what the gestures do, for hosts that keep touch gestures for themselves
+  const ts = () => api.current?.chart.timeScale();
+  const pan = (dir: -1 | 1) => {
+    const r = ts()?.getVisibleLogicalRange();
+    if (!r) return;
+    const step = (r.to - r.from) * 0.3 * dir;
+    ts()!.setVisibleLogicalRange({ from: r.from + step, to: r.to + step });
+  };
+  const zoom = (k: number) => {
+    const r = ts()?.getVisibleLogicalRange();
+    if (!r) return;
+    const w = Math.max(10, Math.min(series.bars.length + 20, (r.to - r.from) * k));
+    ts()!.setVisibleLogicalRange({ from: r.to - w, to: r.to });
+  };
+  const toLatest = () => ts()?.scrollToRealTime();
   const reset = () => {
     const n = series.bars.length;
-    api.current?.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - ((box.current?.clientWidth ?? 0) < 600 ? 70 : 150)), to: n + 4 });
+    ts()?.setVisibleLogicalRange({ from: Math.max(0, n - (narrowNow() ? 60 : 150)), to: n + 4 });
   };
   const last = series.bars[series.bars.length - 1];
   const hi = Math.max(...series.bars.map((b) => b.h));
   const lo = Math.min(...series.bars.map((b) => b.l));
   const summary = last ? `กราฟแท่งเทียน ${ins.symbol} ${series.bars.length} แท่ง ราคาปิดล่าสุด ${fmtNum(last.c, ins.priceDecimals)} ${ins.quote} สูงสุดในช่วง ${fmtNum(hi, ins.priceDecimals)} ต่ำสุด ${fmtNum(lo, ins.priceDecimals)}`
     + (drawn.wall ? ` · กำแพง ${drawn.wall} ระดับ` : "") + (drawn.big ? ` · ไม้ใหญ่ ${drawn.big} จุด` : "") : "ยังไม่มีข้อมูลกราฟ";
+  const updated = updatedAt ? new Date(updatedAt).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour12: false }) : null;
   return (
-    <>
-      <div className="chart-tools">
-        <button type="button" className="btn small" onClick={toLatest}>⇥ แท่งล่าสุด</button>
-        <button type="button" className="btn small" onClick={reset}>รีเซ็ตมุมมอง</button>
+    <div className={`chart-wrap${full ? " full" : ""}`} role={full ? "dialog" : undefined} aria-modal={full || undefined} aria-label={full ? `กราฟ ${ins.symbol} เต็มจอ` : undefined}>
+      {full && fullHeader && <div className="chart-full-head">{fullHeader}</div>}
+      <div className="chart-bar" role="toolbar" aria-label="เลื่อนและซูมกราฟ">
+        <button type="button" className="cbtn" aria-label="เลื่อนไปแท่งก่อนหน้า" onClick={() => pan(-1)}>◀</button>
+        <button type="button" className="cbtn" aria-label="เลื่อนไปแท่งถัดไป" onClick={() => pan(1)}>▶</button>
+        <button type="button" className="cbtn" aria-label="ซูมออก" onClick={() => zoom(1.5)}>−</button>
+        <button type="button" className="cbtn" aria-label="ซูมเข้า" onClick={() => zoom(1 / 1.5)}>+</button>
+        <button type="button" className="cbtn" aria-label="ไปแท่งล่าสุด" onClick={toLatest}>⇥</button>
+        <button type="button" className="cbtn wide-only" onClick={reset}>รีเซ็ตมุมมอง</button>
+        <span className="grow" />
+        <button type="button" className="cbtn" aria-label={full ? "ปิดกราฟเต็มจอ" : "ขยายกราฟเต็มจอ"} aria-pressed={full} onClick={() => setFull(!full)}>{full ? "✕" : "⤢"}</button>
+      </div>
+      {/* the readout sits above the chart, never over the candles; it shows the newest bar until a bar is touched */}
+      <div className="chart-readout" aria-live="off">
+        {legend ? <><span>{legend.ohlc}</span><span className="flow">{legend.flow}</span>{legend.wall && <span className="flow">{legend.wall}</span>}
+          {(updated || freshness) && <span className="meta">{updated ? `⟳ อัปเดต ${updated}` : ""}{freshness ? ` · ${freshness}` : ""}</span>}</> : <span>&nbsp;</span>}
       </div>
       <div className="chart-box" ref={box} role="img" aria-label={summary}
-        data-walls={drawn.wall ?? 0} data-big={drawn.big ?? 0} data-oi={drawn.oi ?? 0} data-round={drawn.round ?? 0} data-range={drawn.range ?? 0}>
-        {legend && <div className="chart-legend"><span>{legend.ohlc}</span><span className="flow">{legend.flow}</span>{legend.wall && <span className="flow">{legend.wall}</span>}</div>}
-      </div>
-    </>
+        data-walls={drawn.wall ?? 0} data-big={drawn.big ?? 0} data-oi={drawn.oi ?? 0} data-round={drawn.round ?? 0} data-range={drawn.range ?? 0} />
+      <p className="chart-hint">{full ? "ลากเพื่อเลื่อน · บีบนิ้วเพื่อซูม · ลากแกนราคาเพื่อยืดหด · แตะค้างเพื่ออ่านค่าแท่ง" : "ลากเพื่อเลื่อน · บีบนิ้วเพื่อซูม · แตะค้างเพื่ออ่านค่าแท่ง · ⤢ เต็มจอ"}</p>
+    </div>
   );
 }

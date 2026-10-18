@@ -10,7 +10,8 @@
 | Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 119 ผ่าน |
 | Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
 | แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 84 ผ่าน |
-| แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 50 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ) |
+| แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 51 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ และกราฟเต็มจอเปิด/ปิดได้) |
+| **แอปบนมือถือ (สัมผัสจริงผ่าน CDP)** | `node e2e/check-mobile.mjs` | 53 ผ่าน บน Pixel 7, 412×640 (ขนาดในแอป Claude), 375×667, 320×568: กราฟเริ่มในจอแรก ไม่มีอะไรบังกราฟ ลากนิ้วเลื่อน/บีบนิ้วซูมได้ ปุ่ม ◀ ▶ − + ⇥ ทำงาน เต็มจอให้กราฟ ≥ 55% ของจอและการลากไม่เลื่อนหน้า |
 | แอป e2e รุ่น claude.ai (connector จำลอง) | `node e2e/check-artifact.mjs` | 85 ผ่าน, เรียกเฉพาะเครื่องมือใน allowlist, กำแพงและ OI วาดบนกราฟ |
 | **แอป e2e กับเซิร์ฟเวอร์ที่รันจริง + ข้อมูลจริงจาก Binance spot** | `DATA=... node e2e/check-api.mjs` | 44 ผ่าน: ราคา/24 ชม./แท่ง/กำแพง (ในแผงและบนกราฟ)/OI/คุณภาพข้อมูลบนจอตรงกับ API, สมาชิกหน่วงเห็นป้ายหน่วง, token ผิดขึ้นให้ล็อกอินใหม่, ไม่เรียก host อื่น |
 | bundle รุ่น production ไม่มีโค้ด connector | `npm run build:single` | ผ่าน |

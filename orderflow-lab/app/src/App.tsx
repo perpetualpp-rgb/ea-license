@@ -66,9 +66,8 @@ function Shell() {
         {!online && <div className="offline" role="status">ออฟไลน์ — อ่านบันทึกในเครื่องได้ บันทึกใหม่จะเก็บเป็นร่างในเครื่อง</div>}
         <SourceBanner />
         <main className="main" id="main">
-          <div className="row" style={{ justifyContent: "flex-end", marginBottom: -4 }}>
-            <button type="button" className="icon-btn" aria-label="ตั้งค่าและบัญชี" onClick={() => setSettings(true)}><Icon name="user" /></button>
-          </div>
+          {/* the account button sits in the corner of the page title row instead of taking a row of its own */}
+          <button type="button" className="icon-btn top-account" aria-label="ตั้งค่าและบัญชี" onClick={() => setSettings(true)}><Icon name="user" /></button>
           {page}
         </main>
       </div>

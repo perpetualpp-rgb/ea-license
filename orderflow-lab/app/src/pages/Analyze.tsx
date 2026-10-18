@@ -29,6 +29,19 @@ export const ENGINE_BY_SOURCE = { demo: ENGINE_VERSION, api: "api-0.1", connecto
 type Err = SourceError;
 const asErr = (e: unknown) => (e instanceof SourceError ? e : new SourceError("server", String(e)));
 
+/** true below 600 px (phones), following rotation and resizing */
+function useNarrow() {
+  const q = "(max-width: 599px)";
+  const [n, setN] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setN(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return n;
+}
+
 export function Analyze({ params }: { params: URLSearchParams }) {
   const { source, instruments } = useApp();
   const id = params.get("id") ?? persisted.read("asset", "") ?? "";
@@ -43,20 +56,25 @@ export function Analyze({ params }: { params: URLSearchParams }) {
   const [quote, setQuote] = useState<Quote | Err | null>(null);
   const [term, setTerm] = useState<string | null>(null);
   const [snapOpen, setSnapOpen] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const phone = useNarrow();
   const capture = useRef<() => string | null>(() => null);
   const panel = params.get("panel");
 
+  // candles and price every 10 s so the forming bar moves; walls, OI and the rest every 30 s
   useEffect(() => {
     if (!ins) return;
     let live = true;
-    const load = () => {
-      source.series(ins.id, tf, lb).then((s) => live && setSeries(s)).catch((e) => live && setSeries(asErr(e)));
-      source.details(ins.id, tf, lb).then((d) => live && setDetails(d)).catch((e) => live && setDetails(asErr(e)));
+    const fast = () => {
+      source.series(ins.id, tf, lb).then((s) => { if (live) { setSeries(s); setUpdatedAt(Date.now()); } }).catch((e) => live && setSeries(asErr(e)));
       source.quote(ins.id).then((q) => live && setQuote(q)).catch((e) => live && setQuote(asErr(e)));
     };
-    load();
-    const t = setInterval(load, 30_000);
-    return () => { live = false; clearInterval(t); };
+    const slow = () => source.details(ins.id, tf, lb).then((d) => live && setDetails(d)).catch((e) => live && setDetails(asErr(e)));
+    fast();
+    slow();
+    const t1 = setInterval(fast, 10_000);
+    const t2 = setInterval(slow, 30_000);
+    return () => { live = false; clearInterval(t1); clearInterval(t2); };
   }, [source, ins, tf, lb]);
 
   useEffect(() => { if (panel) document.getElementById(`panel-${panel}`)?.scrollIntoView({ block: "start" }); }, [panel, details]);
@@ -67,6 +85,39 @@ export function Analyze({ params }: { params: URLSearchParams }) {
   const okDetails = details && !(details instanceof SourceError) ? details : null;
   const okQuote = quote && !(quote instanceof SourceError) ? quote : null;
   const lastCvd = okSeries ? cvd(okSeries.bars, okSeries.cvdAnchor.startT).at(-1) ?? null : null;
+
+  const tfSeg = <Seg label="ขนาดแท่งเทียน" value={tf} options={TFS} onChange={(v) => { setTf(v); persisted.write("tf", v); }} />;
+  const pickLb = (v: Lookback) => { setLb(v); persisted.write("lookback", v); };
+  const lbSeg = <Seg label="ช่วงข้อมูลย้อนหลัง" value={lb} options={LBS} onChange={pickLb} />;
+  // phones: the lookback is a short dropdown so both pickers share one line above the chart
+  const lbPick = phone ? (
+    <select className="btn lb-pick" aria-label="ช่วงข้อมูลย้อนหลัง" value={lb} onChange={(e) => pickLb(e.target.value as Lookback)}>
+      {LBS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  ) : lbSeg;
+  // one row that scrolls sideways on phones, so the chart stays near the top of the screen
+  const chips = (
+    <div className="toggles chip-row" role="group" aria-label="ชั้นข้อมูลบนกราฟ">
+      {LAYER_CHIPS.filter(([k]) => !(k === "oi" && ins.market === "spot")).map(([k, label, t]) => (
+        <span key={k} className="row" style={{ gap: 0, flexWrap: "nowrap" }}>
+          <button type="button" className="toggle" aria-pressed={layers[k]} onClick={() => setL(k)}>{layers[k] ? "✓ " : ""}{label}</button>
+          {t && <button type="button" className="info-btn" aria-label={`อธิบาย ${label}`} onClick={() => setTerm(t)}><Icon name="info" /></button>}
+        </span>
+      ))}
+    </div>
+  );
+  const key = (
+    <ul className="chart-key" aria-label="สัญลักษณ์บนกราฟ">
+      {layers.wall && <li><i className="sw wall" />กำแพง (ทึบ = อยู่มา ≥ 5 นาที, ประ = ใหม่, หนา = ใหญ่; เขียว = รอซื้อ, แดง = รอขาย)</li>}
+      {layers.big && <li><i className="sw big" />ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย, จุดใหญ่ = ปริมาณมาก)</li>}
+      {layers.vwap && <li><i className="sw vwap" />VWAP</li>}
+      {layers.assist && <li><i className="sw assist" />Assist ±2σ (ทึบ) ±3σ (ประ) รอบ VWAP</li>}
+      {layers.poc && <li><i className="sw poc" />POC / Value area ของช่วงที่เลือก</li>}
+      {layers.range && <li><i className="sw range" />Range วันก่อนหน้า: Y-Hi / Top / Y-POC / Bottom / Y-Lo</li>}
+      {layers.round && <li><i className="sw round" />เลขกลม</li>}
+      {layers.oi && ins.market !== "spot" && <li><i className="sw oi" />แผง OI (ม่วง) ใต้กราฟ</li>}
+    </ul>
+  );
 
   const side = (
     <div className="stack">
@@ -86,9 +137,9 @@ export function Analyze({ params }: { params: URLSearchParams }) {
 
   return (
     <>
-      <header className="page-head">
+      <header className="page-head an-head">
         <button type="button" className="icon-btn" aria-label="กลับไปภาพรวม" onClick={() => go("/overview")}><Icon name="back" /></button>
-        <div className="titles"><h1>วิเคราะห์</h1><p>หลักฐานบนกราฟ ไม่ใช่คำแนะนำซื้อขาย</p></div>
+        <div className="titles"><h1>วิเคราะห์</h1><p className="wide-only">หลักฐานบนกราฟ ไม่ใช่คำแนะนำซื้อขาย</p></div>
         <label className="sr-only" htmlFor="asset-pick">เลือกสินทรัพย์</label>
         <select id="asset-pick" className="btn" value={ins.id} onChange={(e) => { persisted.write("asset", e.target.value); go("/analyze", { id: e.target.value }); }}>
           {instruments.map((i) => <option key={i.id} value={i.id}>{i.symbol} · {i.market === "spot" ? "Spot" : "Perp"}</option>)}
@@ -97,52 +148,37 @@ export function Analyze({ params }: { params: URLSearchParams }) {
 
       <div className="an-grid">
         <div style={{ minWidth: 0 }}>
-          <section className="card" aria-label={`${ins.symbol} กราฟ`}>
-            <div className="row">
+          <section className="card an-card" aria-label={`${ins.symbol} กราฟ`}>
+            <div className="row an-name">
               <Coin base={ins.base} />
               <div className="grow" style={{ flexBasis: 200 }}>
                 <div style={{ fontWeight: 700 }}>{ins.symbol}</div>
                 <div className="tiny muted">{marketLine(ins)}</div>
               </div>
-              {okSeries && <DataBadge f={{ kind: okSeries.freshness.kind, asOf: null }} />}
-              <SourceTag mode={source.mode} />
+              {okSeries && <span className="wide-only"><DataBadge f={{ kind: okSeries.freshness.kind, asOf: null }} /></span>}
+              <span className="wide-only"><SourceTag mode={source.mode} /></span>
             </div>
-            {ins.caution && <p className="badge caution" style={{ marginTop: 8 }}>{ins.caution}</p>}
+            {ins.caution && <p className="badge caution an-caution">{ins.caution}</p>}
             {okQuote && (
-              <div className="row" style={{ alignItems: "baseline", marginTop: 6 }}>
-                <span className="num" style={{ fontSize: 28, fontWeight: 700 }}>{fmtPrice(okQuote.price, ins.priceDecimals, ins.quote)}</span>
+              <div className="row an-price">
+                <span className="num big">{fmtPrice(okQuote.price, ins.priceDecimals, ins.quote)}</span>
                 <span className={`num ${okQuote.changePct == null ? "muted" : okQuote.changePct >= 0 ? "buy" : "sell"}`} style={{ fontWeight: 700 }}>{okQuote.changePct == null ? "ยังไม่มีข้อมูล" : `${okQuote.changePct >= 0 ? "▲" : "▼"} ${fmtSigned(okQuote.changePct, 2, "%")}`}</span>
                 <span className="muted small">24 ชม. · ราคาซื้อขายล่าสุด</span>
               </div>
             )}
-            <div className="controls">
-              <div className="row"><span className="field-label" style={{ margin: 0, minWidth: 74 }}>แท่งเทียน</span>
-                <Seg label="ขนาดแท่งเทียน" value={tf} options={TFS} onChange={(v) => { setTf(v); persisted.write("tf", v); }} /></div>
-              <div className="row"><span className="field-label" style={{ margin: 0, minWidth: 74 }}>ช่วงข้อมูล</span>
-                <Seg label="ช่วงข้อมูลย้อนหลัง" value={lb} options={LBS} onChange={(v) => { setLb(v); persisted.write("lookback", v); }} /></div>
-              <div className="toggles" role="group" aria-label="ชั้นข้อมูลบนกราฟ">
-                {LAYER_CHIPS.filter(([k]) => !(k === "oi" && ins.market === "spot")).map(([k, label, term]) => (
-                  <span key={k} className="row" style={{ gap: 0 }}>
-                    <button type="button" className="toggle" aria-pressed={layers[k]} onClick={() => setL(k)}>{layers[k] ? "✓ " : ""}{label}</button>
-                    {term && <button type="button" className="info-btn" aria-label={`อธิบาย ${label}`} onClick={() => setTerm(term)}><Icon name="info" /></button>}
-                  </span>
-                ))}
-              </div>
-              <ul className="chart-key" aria-label="สัญลักษณ์บนกราฟ">
-                {layers.wall && <li><i className="sw wall" />กำแพง (ทึบ = อยู่มา ≥ 5 นาที, ประ = ใหม่, หนา = ใหญ่; เขียว = รอซื้อ, แดง = รอขาย)</li>}
-                {layers.big && <li><i className="sw big" />ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย, จุดใหญ่ = ปริมาณมาก)</li>}
-                {layers.vwap && <li><i className="sw vwap" />VWAP</li>}
-                {layers.assist && <li><i className="sw assist" />Assist ±2σ (ทึบ) ±3σ (ประ) รอบ VWAP</li>}
-                {layers.poc && <li><i className="sw poc" />POC / Value area ของช่วงที่เลือก</li>}
-                {layers.range && <li><i className="sw range" />Range วันก่อนหน้า: Y-Hi / Top / Y-POC / Bottom / Y-Lo</li>}
-                {layers.round && <li><i className="sw round" />เลขกลม</li>}
-                {layers.oi && ins.market !== "spot" && <li><i className="sw oi" />แผง OI (ม่วง) ใต้กราฟ</li>}
-              </ul>
+            {/* phones: both pickers on one line without the text labels (the radio groups keep their names) */}
+            <div className="controls an-controls">
+              <div className="row"><span className="field-label wide-only" style={{ margin: 0, minWidth: 74 }}>แท่งเทียน</span>{tfSeg}</div>
+              <div className="row"><span className="field-label wide-only" style={{ margin: 0, minWidth: 74 }}>ช่วงข้อมูล</span>{lbPick}</div>
             </div>
             {!series ? <Loading lines={6} /> : series instanceof SourceError ? <p className="error">{errorText(series)}</p> : (
               <>
-                <PriceChart ins={ins} series={series} layers={layers} viewKey={`${ins.id}|${tf}|${lb}`}
-                  details={okDetails} onCapture={(fn) => (capture.current = fn)} onNotes={setNotes} />
+                <PriceChart ins={ins} series={series} layers={layers} viewKey={`${ins.id}|${tf}|${lb}`} updatedAt={updatedAt}
+                  freshness={phone ? KIND_TEXT[series.freshness.kind] + (series.freshness.delayMin ? ` ${series.freshness.delayMin} นาที` : "") : undefined}
+                  details={okDetails} onCapture={(fn) => (capture.current = fn)} onNotes={setNotes}
+                  fullHeader={<div className="full-scroll">{tfSeg}{lbSeg}{chips}</div>} />
+                {chips}
+                {phone ? <details className="chart-key-wrap"><summary>สัญลักษณ์บนกราฟ</summary>{key}</details> : key}
                 <p className="caption">
                   {layers.cvd && <>แผงล่าง: CVD · {series.cvdAnchor.label} · หน่วย {ins.qtyUnit} · ล่าสุด {lastCvd == null ? "ไม่ทราบ (ไม่มีข้อมูลฝั่งผู้กด)" : fmtSigned(lastCvd, 1, ` ${ins.qtyUnit}`)}<br /></>}
                   {layers.vwap && <>VWAP: {series.vwapMethod}<br /></>}
@@ -150,14 +186,14 @@ export function Analyze({ params }: { params: URLSearchParams }) {
                   {layers.oi && ins.market !== "spot" && okDetails?.oi?.series.length ? <>แผง OI: Open Interest หน่วย {okDetails.oi.unit} ราย 5 นาที ค่าของแต่ละแท่ง = ค่าล่าสุด ณ เวลาปิดแท่ง<br /></> : null}
                   {layers.assist && <>Assist: VWAP ± 2 และ 3 เท่าของส่วนเบี่ยงเบนมาตรฐาน (ถ่วงด้วย volume) ของราคาเฉลี่ยแท่ง<br /></>}
                   {(Object.entries(notes) as [keyof Layers, string][]).map(([k, v]) => <span key={k}>{LAYER_NAME[k]}: {v}<br /></span>)}
-                  เวลาบนแกนเป็น UTC+7 · ลากเพื่อเลื่อน ล้อเมาส์หรือบีบนิ้วเพื่อซูม
+                  เวลาบนแกนเป็น UTC+7 · หลักฐานบนกราฟ ไม่ใช่คำแนะนำซื้อขาย
                 </p>
+                <button type="button" className="btn primary block mobile-only" style={{ marginTop: 12 }} onClick={() => setSnapOpen(true)} disabled={!okSeries}>
+                  <Icon name="camera" /> บันทึกภาพตลาด
+                </button>
               </>
             )}
           </section>
-          <div className="sticky-cta mobile-only">
-            <button type="button" className="btn primary block" onClick={() => setSnapOpen(true)} disabled={!okSeries}><Icon name="camera" /> บันทึกภาพตลาด</button>
-          </div>
         </div>
         <aside className="an-side" aria-label="รายละเอียด">{side}</aside>
       </div>

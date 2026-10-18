@@ -124,7 +124,10 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["1440", {
   await page.waitForSelector(".chart-box canvas");
   const tf = await page.locator('[aria-label="ขนาดแท่งเทียน"] [aria-checked=true]').textContent();
   const now = Date.now();
-  const lb = { "6 ชม.": 6, "24 ชม.": 24, "3 วัน": 72 }[await page.locator('[aria-label="ช่วงข้อมูลย้อนหลัง"] [aria-checked=true]').textContent()];
+  const lbSel = page.locator('select[aria-label="ช่วงข้อมูลย้อนหลัง"]');
+  const lb = (await lbSel.count())
+    ? { "6h": 6, "24h": 24, "3d": 72 }[await lbSel.inputValue()]
+    : { "6 ชม.": 6, "24 ชม.": 24, "3 วัน": 72 }[await page.locator('[aria-label="ช่วงข้อมูลย้อนหลัง"] [aria-checked=true]').textContent()];
   const bars = await get(`/v1/instruments/${ins.instrument_id}/bars?tf=${tf}&source=kline&from=${new Date(now - lb * 3600e3).toISOString()}&to=${new Date(now).toISOString()}`);
   await page.waitForFunction(() => /\d+ แท่ง/.test(document.querySelector(".chart-box")?.getAttribute("aria-label") ?? ""));
   const label = await page.getAttribute(".chart-box", "aria-label");
@@ -138,7 +141,8 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["1440", {
   const apiWalls = d.book?.walls.length ?? 0;
   check(`${name} analyze: walls listed as the API computed them (${apiWalls})`, apiWalls === 0 ? walls === 0 : walls === apiWalls, `${walls} rows`);
   const ds = await page.evaluate(() => ({ ...document.querySelector(".chart-box").dataset }));
-  check(`${name} analyze: the API's walls are drawn on the chart (${Math.min(8, apiWalls)} lines)`, +ds.walls === Math.min(8, apiWalls), JSON.stringify(ds));
+  const maxWalls = viewport.width < 600 ? 5 : 8; // phones draw the five largest so axis labels stay readable
+  check(`${name} analyze: the API's walls are drawn on the chart (${Math.min(maxWalls, apiWalls)} lines)`, +ds.walls === Math.min(maxWalls, apiWalls), JSON.stringify(ds));
   check(`${name} analyze: no OI layer button for ${ins.market_type}`, ins.market_type !== "spot" || (await page.locator('[aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:text-is("✓ OI"), [aria-label="ชั้นข้อมูลบนกราฟ"] .toggle:text-is("OI")').count()) === 0);
   const wallText = await page.textContent("#panel-walls");
   check(`${name} analyze: wall method stated`, d.book ? wallText.includes(d.book.method.slice(0, 20)) : true);
