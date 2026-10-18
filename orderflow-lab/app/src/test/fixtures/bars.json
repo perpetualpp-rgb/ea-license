@@ -1,0 +1,16 @@
+{
+  "instrument_id": 1, "tf": "5m", "source": "kline",
+  "method": "exchange 1m klines bucketed with date_bin in UTC; delta = taker buy - taker sell volume",
+  "units": { "price": "USDT", "volume": "BTC" },
+  "access": { "level": "realtime", "delay_minutes": 0, "data_until": null, "valid_until": null },
+  "from": "2026-10-18T08:30:00Z", "to": "2026-10-18T08:47:00Z",
+  "bars": [
+    { "t": "2026-10-18T08:30:00Z", "open": "67000.10", "high": "67050.00", "low": "66990.00", "close": "67040.20", "volume": "12.500",
+      "taker_buy_volume": "7.000", "taker_sell_volume": "5.500", "unknown_side_volume": null, "delta": "1.500", "trades": 900, "complete": true },
+    { "t": "2026-10-18T08:35:00Z", "open": "67040.20", "high": "67060.00", "low": "67000.00", "close": "67010.00", "volume": "8.000",
+      "taker_buy_volume": null, "taker_sell_volume": null, "unknown_side_volume": null, "delta": null, "trades": 610, "complete": true },
+    { "t": "2026-10-18T08:40:00Z", "open": null, "high": null, "low": null, "close": null, "volume": null,
+      "taker_buy_volume": null, "taker_sell_volume": null, "unknown_side_volume": null, "delta": null, "trades": null, "complete": false }
+  ],
+  "gaps": []
+}

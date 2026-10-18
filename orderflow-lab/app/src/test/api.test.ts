@@ -1,0 +1,98 @@
+import { describe, expect, it, vi, afterEach } from "vitest";
+import { ApiSource, mapBars, mapInstrument, type ApiBars } from "../data/api";
+import instrumentsFx from "./fixtures/instruments.json";
+import barsFx from "./fixtures/bars.json";
+import specRaw from "../../../server/openapi.json?raw";
+// recorded from the running API by server/tests/test_frontend_contract.py (fails there if they drift)
+import serverInstruments from "./fixtures/server-instruments.json";
+import serverBars from "./fixtures/server-bars-5m.json";
+
+const spec = JSON.parse(specRaw);
+const required = (name: string): string[] => spec.components.schemas[name].required;
+
+describe("fixtures follow server/openapi.json", () => {
+  it("have every required field", () => {
+    for (const k of required("InstrumentList")) expect(instrumentsFx).toHaveProperty(k);
+    for (const i of instrumentsFx.items) for (const k of required("Instrument")) expect(i).toHaveProperty(k);
+    for (const k of required("BarsResponse")) expect(barsFx).toHaveProperty(k);
+    for (const b of barsFx.bars) for (const k of required("Bar")) expect(b).toHaveProperty(k);
+    for (const k of required("Access")) expect(barsFx.access).toHaveProperty(k);
+  });
+  it("timeframes the app asks for exist in the API enum", () => {
+    const tfs = spec.paths["/v1/instruments/{instrument_id}/bars"].get.parameters.find((p: { name: string }) => p.name === "tf").schema.enum;
+    for (const tf of ["1m", "5m", "15m", "1h"]) expect(tfs).toContain(tf);
+  });
+});
+
+describe("mapInstrument", () => {
+  it("maps ids, units and decimals; keeps unsupported markets out", () => {
+    const [lin, inv, fut] = instrumentsFx.items.map((r) => mapInstrument(r as never));
+    expect(lin).toMatchObject({ id: "1", market: "perpetual", contract: "linear", qtyUnit: "BTC", priceDecimals: 1 });
+    expect(lin?.caution).toBeUndefined();
+    expect(inv).toMatchObject({ id: "2", contract: "inverse", qtyUnit: "สัญญา (100 USD)" });
+    expect(inv?.caution).toContain("ยังไม่ได้ตรวจ");
+    expect(fut).toBeNull();
+  });
+});
+
+describe("mapBars", () => {
+  const now = Date.parse("2026-10-18T08:47:00Z");
+  it("parses decimal strings and ISO time; drops price holes instead of zero-filling", () => {
+    const s = mapBars(barsFx as ApiBars, "5m", now);
+    expect(s.bars).toHaveLength(2);
+    expect(s.bars[0]).toEqual({ t: Date.parse("2026-10-18T08:30:00Z") / 1000, o: 67000.1, h: 67050, l: 66990, c: 67040.2, v: 12.5, buyV: 7 });
+    expect(s.bars[1].buyV).toBeNull(); // no aggressor split -> CVD must show as unavailable, not 0
+    expect(s.freshness).toEqual({ kind: "live", asOf: Date.parse("2026-10-18T08:40:00Z") });
+    expect(s.vwapMethod).toBe(barsFx.method);
+  });
+  it("never says live when delayed, stale, gapped or empty", () => {
+    const fx = barsFx as ApiBars;
+    expect(mapBars({ ...fx, access: { ...fx.access, level: "delayed", delay_minutes: 15 } }, "5m", now).freshness).toMatchObject({ kind: "delayed", delayMin: 15 });
+    expect(mapBars(fx, "5m", now + 3600e3).freshness.kind).toBe("stale");
+    const gap = { stream: "kline", reason: "disconnected", status: "open" as const, gap_start: "2026-10-18T08:36:00Z", gap_end: null };
+    expect(mapBars({ ...fx, gaps: [gap] }, "5m", now).freshness.kind).toBe("approximate");
+    expect(mapBars({ ...fx, gaps: [{ ...gap, status: "recovered" }] }, "5m", now).freshness.kind).toBe("live");
+    expect(mapBars({ ...fx, bars: [] }, "5m", now).freshness).toEqual({ kind: "unavailable", asOf: null });
+  });
+});
+
+describe("ApiSource requests", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("calls only the Flow Lab API with the bearer token and the contract's query names", async () => {
+    const calls: { url: string; auth?: string }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, auth: (init.headers as Record<string, string>).Authorization });
+      return new Response(JSON.stringify(url.includes("/bars") ? barsFx : instrumentsFx), { status: 200 });
+    });
+    const src = new ApiSource("https://api.flowlab.test/", () => "tok", () => Date.parse("2026-10-18T08:47:00Z"));
+    expect((await src.instruments()).map((i) => i.id)).toEqual(["1", "2"]);
+    await src.series("1", "5m", "6h");
+    const u = new URL(calls[1].url);
+    expect(u.origin + u.pathname).toBe("https://api.flowlab.test/v1/instruments/1/bars");
+    expect(Object.fromEntries(u.searchParams)).toEqual({ tf: "5m", from: "2026-10-18T02:47:00.000Z", to: "2026-10-18T08:47:00.000Z", source: "kline" });
+    expect(calls.every((c) => c.auth === "Bearer tok" && c.url.startsWith("https://api.flowlab.test/v1/"))).toBe(true);
+  });
+  it("maps HTTP errors to user-facing codes and refuses without a URL", async () => {
+    await expect(new ApiSource(null).instruments()).rejects.toMatchObject({ code: "not_configured" });
+    for (const [status, code] of [[401, "unauthorized"], [429, "rate_limited"], [404, "not_supported"], [500, "server"]] as const) {
+      vi.stubGlobal("fetch", async () => new Response("{}", { status }));
+      await expect(new ApiSource("https://api.flowlab.test").instruments()).rejects.toMatchObject({ code });
+    }
+  });
+});
+
+describe("responses recorded from the real API", () => {
+  it("instrument list maps to a usable instrument", () => {
+    const [i] = serverInstruments.items.map((r) => mapInstrument(r as never));
+    expect(i).toMatchObject({ id: "1", symbol: "BTCTESTUSDT", market: "perpetual", contract: "linear", qtyUnit: "BTC", priceDecimals: 2 });
+    expect(i?.caution).toContain("ยังไม่ได้ตรวจ"); // spec_status unverified
+  });
+  it("bars keep the partial last bucket, the no-aggressor bar and the open gap visible", () => {
+    const s = mapBars(serverBars as ApiBars, "5m", Date.parse("2026-01-05T10:47:00Z"));
+    expect(s.bars).toHaveLength(serverBars.bars.length);
+    expect(s.bars.map((b) => b.v).reduce((a, b) => a + b, 0)).toBeCloseTo(serverBars.bars.reduce((a, b) => a + Number(b.volume), 0), 9);
+    expect(s.bars.filter((b) => b.buyV === null)).toHaveLength(1);
+    expect(s.freshness.kind).toBe("approximate"); // open kline gap in range
+    expect(s.freshness.asOf).toBe(Date.parse("2026-01-05T10:47:00Z")); // forming bucket: data only up to `to`, not 10:50
+  });
+});

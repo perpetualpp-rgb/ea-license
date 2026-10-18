@@ -1,0 +1,17 @@
+{
+  "access": { "level": "delayed", "delay_minutes": 15, "data_until": "2026-10-18T08:45:00Z", "valid_until": null },
+  "items": [
+    { "instrument_id": 1, "venue": "binance", "symbol": "BTCUSDT", "market_type": "perpetual", "contract_type": "linear",
+      "base_asset": "BTC", "quote_asset": "USDT", "settlement_asset": "USDT", "contract_multiplier": "1", "multiplier_unit": "base",
+      "tick_size": "0.10", "qty_step": "0.001", "session_timezone": "UTC", "spec_status": "verified", "metadata_version": 1,
+      "source_notice": "", "latest_trade_at": "2026-10-18T08:44:59Z", "latest_kline_close_at": "2026-10-18T08:45:00Z", "latest_book_at": null },
+    { "instrument_id": 2, "venue": "binance", "symbol": "BTCUSD_PERP", "market_type": "perpetual", "contract_type": "inverse",
+      "base_asset": "BTC", "quote_asset": "USD", "settlement_asset": "BTC", "contract_multiplier": "100", "multiplier_unit": "quote",
+      "tick_size": "0.1", "qty_step": "1", "session_timezone": "UTC", "spec_status": "unverified", "metadata_version": 1,
+      "source_notice": "", "latest_trade_at": null, "latest_kline_close_at": null, "latest_book_at": null },
+    { "instrument_id": 3, "venue": "cme", "symbol": "GCZ6", "market_type": "future", "contract_type": "linear",
+      "base_asset": "XAU", "quote_asset": "USD", "settlement_asset": "USD", "contract_multiplier": "100", "multiplier_unit": "base",
+      "tick_size": "0.1", "qty_step": "1", "session_timezone": "America/Chicago", "spec_status": "unverified", "metadata_version": 1,
+      "source_notice": "fixture only", "latest_trade_at": null, "latest_kline_close_at": null, "latest_book_at": null }
+  ]
+}

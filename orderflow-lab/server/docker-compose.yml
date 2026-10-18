@@ -1,0 +1,21 @@
+# UNTESTED option: no Docker daemon was available when this was written. Verify the image
+# tag before use. The migration creates hypertables only when the timescaledb extension
+# exists (klines, book_snapshots); without it everything still works on plain PostgreSQL.
+#
+#   cp .env.example .env   # then set FLOWLAB_DB_OWNER_PASSWORD
+#   docker compose up -d db
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowlab_owner
+      POSTGRES_PASSWORD: ${FLOWLAB_DB_OWNER_PASSWORD:?set FLOWLAB_DB_OWNER_PASSWORD in .env}
+      POSTGRES_DB: flowlab
+      TZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432"   # local only; put the API, not the database, behind the public network
+    volumes:
+      - flowlab-pg:/var/lib/postgresql/data
+volumes:
+  flowlab-pg:
