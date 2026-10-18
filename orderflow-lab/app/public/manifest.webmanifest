@@ -1,0 +1,12 @@
+{
+  "name": "Flow Lab",
+  "short_name": "Flow Lab",
+  "description": "ดูตลาด ตั้งแจ้งเตือน และจดบันทึกการวิเคราะห์",
+  "lang": "th",
+  "start_url": "./#/overview",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f8fc",
+  "theme_color": "#086477",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
