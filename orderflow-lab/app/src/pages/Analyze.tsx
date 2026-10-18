@@ -92,7 +92,7 @@ export function Analyze({ params }: { params: URLSearchParams }) {
           <section className="card" aria-label={`${ins.symbol} กราฟ`}>
             <div className="row">
               <Coin base={ins.base} />
-              <div className="grow">
+              <div className="grow" style={{ flexBasis: 200 }}>
                 <div style={{ fontWeight: 700 }}>{ins.symbol}</div>
                 <div className="tiny muted">{marketLine(ins)}</div>
               </div>
@@ -300,7 +300,7 @@ function SnapshotForm({ onClose, build, symbol }: { onClose: () => void; symbol:
             <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{preview.snap.values.map((v) => <li key={v.label}>{v.label}: <span className="num">{v.value}</span></li>)}</ul>
           </div>
         )}
-        <p className="badge local" style={{ borderRadius: 10, padding: "8px 12px" }}>ยังไม่มีเซิร์ฟเวอร์: บันทึกจะเก็บเป็นร่างในเครื่องนี้เท่านั้น</p>
+        <p className="badge local" style={{ borderRadius: 10, padding: "8px 12px" }}>บันทึกจะเก็บเป็นร่างในเครื่องนี้เท่านั้น ยังไม่ส่งขึ้นเซิร์ฟเวอร์</p>
         <button type="submit" className="btn primary block" disabled={busy || !preview}>{busy ? "กำลังบันทึก…" : "บันทึกเป็นร่างในเครื่อง"}</button>
       </form>
     </Sheet>

@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DemoSource } from "./data/demo";
 import { ApiSource } from "./data/api";
-import type { ConnectorIssue, MarketSource, SourceMode } from "./data/source";
+import { SourceError, type ConnectorIssue, type MarketSource, type SourceMode } from "./data/source";
 import type { AlertEvent, Instrument, Lookback, Timeframe } from "./data/types";
 import { IdbKV, JournalStore, MemoryKV, type KV } from "./journal/store";
 import type { AlertRule } from "./domain/alerts";
@@ -69,7 +69,10 @@ interface Ctx {
   /** the connector was chosen but cannot be used: demo data is shown and this says why */
   connectorIssue: ConnectorIssue | null;
   retryConnector: () => Promise<void>;
+  /** instruments of the current source only (empty while a newly chosen source loads) */
   instruments: Instrument[];
+  /** why the current source's instrument list could not be loaded */
+  instrumentsError: SourceError | null;
   store: JournalStore;
   journalVersion: number;
   bumpJournal: () => void;
@@ -100,7 +103,10 @@ export function AppProvider({ children, toast }: { children: ReactNode; toast: (
     if (settings.dataMode === "connector" && !issue) { const c = getConn(); if (c) return c; }
     return new DemoSource();
   }, [settings, issue]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [instruments, setInstruments] = useState<Instrument[]>([]);
+  // the list is kept with the source it came from, so a page never pairs a new source with old ids
+  const [inst, setInst] = useState<{ src: MarketSource | null; list: Instrument[]; error: SourceError | null }>({ src: null, list: [], error: null });
+  const instruments = inst.src === source ? inst.list : [];
+  const instrumentsError = inst.src === source ? inst.error : null;
   const store = useMemo(() => new JournalStore(makeKV()), []);
   const [journalVersion, setJV] = useState(0);
   const [rules, setRulesState] = useState<AlertRule[]>(() => read("rules", []));
@@ -109,7 +115,8 @@ export function AppProvider({ children, toast }: { children: ReactNode; toast: (
 
   useEffect(() => {
     let live = true;
-    source.instruments().then((l) => live && setInstruments(l)).catch(() => live && setInstruments([]));
+    source.instruments().then((list) => live && setInst({ src: source, list, error: null }))
+      .catch((e) => live && setInst({ src: source, list: [], error: e instanceof SourceError ? e : new SourceError("server", String(e)) }));
     return () => { live = false; };
   }, [source]);
   useEffect(() => {
@@ -129,7 +136,7 @@ export function AppProvider({ children, toast }: { children: ReactNode; toast: (
   };
 
   const value: Ctx = {
-    source, settings, instruments, store, journalVersion, rules, events, toast, online,
+    source, settings, instruments, instrumentsError, store, journalVersion, rules, events, toast, online,
     connectorIssue: settings.dataMode === "connector" ? issue : null,
     retryConnector,
     setSettings: (s) => { setSettingsState(s); write(SETTINGS_KEY, s); },

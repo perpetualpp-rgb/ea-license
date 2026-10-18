@@ -17,10 +17,13 @@ PER_USER_TABLES = {"users", "entitlements", "idempotency_records", "market_snaps
                    "alert_events", "alert_deliveries"}
 
 
+MIGRATIONS = ["0001_init", "0002_market_state"]
+
+
 def test_migration_applied_once_and_second_run_is_noop(dsns, admin):
-    assert dsns["applied"] == ["0001_init"]
+    assert dsns["applied"] == MIGRATIONS
     assert migrate.apply_migrations(dsns["admin"]) == []
-    assert admin.execute("SELECT count(*) AS n FROM schema_migrations").fetchone()["n"] == 1
+    assert admin.execute("SELECT count(*) AS n FROM schema_migrations").fetchone()["n"] == len(MIGRATIONS)
 
 
 def test_fresh_database_migrates_twice_cleanly(dsns):
@@ -30,7 +33,7 @@ def test_fresh_database_migrates_twice_cleanly(dsns):
         conn.execute(f"CREATE DATABASE {name}")
     dsn = pg.dsn(dbname=name)
     # roles already exist cluster-wide from the main test database: the DO block must tolerate that
-    assert migrate.apply_migrations(dsn) == ["0001_init"]
+    assert migrate.apply_migrations(dsn) == MIGRATIONS
     assert migrate.apply_migrations(dsn) == []
     assert any("applied" in line for line in migrate.status(dsn))
 
@@ -149,6 +152,10 @@ def test_market_tables_are_read_only_for_api(app_conn, admin, instrument):
     seed_market(admin, inst, minutes=2)
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         app_conn.execute("DELETE FROM trades WHERE instrument_id = %s", [inst["instrument_id"]])
+    for table in ("mark_prices", "open_interest", "liquidations"):        # migration 0002
+        assert app_conn.execute(f"SELECT count(*) AS n FROM {table}").fetchone()["n"] >= 0
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            app_conn.execute(f"DELETE FROM {table}")
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         app_conn.execute("UPDATE instruments SET tick_size = 1 WHERE instrument_id = %s", [inst["instrument_id"]])
 

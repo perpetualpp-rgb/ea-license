@@ -103,7 +103,7 @@ export function Journal() {
           <button type="button" className="btn" disabled={!entries?.length && !trades?.length} onClick={() => exp(`flowlab-journal-${stamp}.json`, journalJson(entries ?? [], trades ?? []), "application/json")}><Icon name="download" /> JSON ทั้งหมด</button>
         </div>
         <p className="badge local" style={{ marginTop: 10, borderRadius: 10, padding: "8px 12px" }}>
-          ยังไม่มีเซิร์ฟเวอร์: บันทึกทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ล้างข้อมูลเบราว์เซอร์แล้วจะหาย ควรส่งออกเก็บไว้เป็นระยะ
+          บันทึกทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ยังไม่ส่งขึ้นเซิร์ฟเวอร์ ล้างข้อมูลเบราว์เซอร์แล้วจะหาย ควรส่งออกเก็บไว้เป็นระยะ
         </p>
       </section>
 

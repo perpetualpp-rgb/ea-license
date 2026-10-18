@@ -14,7 +14,7 @@ export function marketLine(ins: Instrument) {
 }
 
 export function Overview() {
-  const { source, instruments } = useApp();
+  const { source, instruments, instrumentsError } = useApp();
   const [sel, setSel] = useState<string>(() => persisted.read("asset", ""));
   const [quotes, setQuotes] = useState<Record<string, Quote | SourceError>>({});
   const [obs, setObs] = useState<Observation[] | SourceError | null>(null);
@@ -39,6 +39,7 @@ export function Overview() {
 
   const pick = (id: string) => { setSel(id); persisted.write("asset", id); };
 
+  if (instrumentsError) return <><Head /><p className="card" role="alert">{errorText(instrumentsError)}</p></>;
   if (!instruments.length) return <><Head /><Loading lines={4} /></>;
   const q = current && quotes[current.id];
   return (

@@ -11,6 +11,10 @@ Rows (live/collector.py):
     book   [ts, updateId, mid, bids, asks]     -> book_snapshots key instrument+kind+captured_ts
     meta   [ts, event, ...]                    -> raw_events (+ data_quality gaps)
     mark / oi / liq                            -> raw_events  key UUIDv5 of the source line
+                                                  and a typed copy (migration 0002):
+    mark   [E, mark, index, funding, nextFunding] -> mark_prices   key instrument+event_ts
+    oi     [time, openInterest]                -> open_interest key instrument+event_ts
+    liq    [T, side, price, avgPrice, qty, status] -> liquidations key instrument+T+side+price+qty
 
 Re-running inserts nothing new (ON CONFLICT DO NOTHING on business keys); a file whose
 checksum is unchanged since the last run is skipped (manifest in ingested_files). Rows
@@ -20,8 +24,12 @@ Numbers are parsed as Decimal and stored as NUMERIC (no float round-trip).
 
 Gaps (data_quality) come from two sources and keep their label until the data is there:
 * meta events: disconnect/reconnect windows and restarts (book, kline), book resyncs,
-  the collector's backfill and trade_gap reports (trade id ranges);
+  the collector's backfill and trade_gap reports (trade id ranges), kline_gap reports
+  (minutes the collector could not fetch over REST);
 * a scan for missing aggregate trade ids around the ids loaded in this run.
+1m klines the collector fetched over REST (meta kline_history / kline_backfill) are tagged
+klines.source = 'rest_backfill'; they, and trades in a backfill id range, are not taken as
+evidence that the collector was receiving when a restart is measured.
 This script never contacts an exchange.
 """
 from __future__ import annotations
@@ -44,7 +52,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-TOOL_VERSION = "ingest/0.1.0"
+TOOL_VERSION = "ingest/0.2.0"
 UTC = timezone.utc
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 RAW_NS = uuid.UUID("0b7c2f4e-9d1a-5c3b-8e6f-1a2b3c4d5e6f")
@@ -53,6 +61,7 @@ PATH_RE = re.compile(r"^(?P<market>[a-z]+)/(?P<symbol>[A-Z0-9]+)/(?P<stream>[a-z
 MARKETS = {"futures": ("perpetual", "linear"), "spot": ("spot", "spot")}
 QUOTES = ("USDT", "USDC", "FDUSD", "BUSD", "TUSD", "BTC", "ETH", "BNB", "EUR", "TRY", "BRL")
 RAW_STREAMS = {"meta", "mark", "oi", "liq"}
+NORMALIZED = {"mark": "load_mark", "oi": "load_oi", "liq": "load_liq"}   # also kept in raw_events
 STREAMS = {"trades", "kline", "book"} | RAW_STREAMS
 MIN_RESTART_GAP = timedelta(seconds=2)
 
@@ -192,6 +201,10 @@ class Ingestor:
                 n, bad = self.load_book(iid, symbol, rows)
             else:
                 n, bad = self.load_raw(iid, market, symbol, stream, rows, rel)
+                if stream in NORMALIZED:
+                    # every row the raw copy rejected is rejected here too (both need a valid time)
+                    n_norm, bad = getattr(self, NORMALIZED[stream])(iid, rows)
+                    self.stats[f"{stream}_normalized_inserted"] += n_norm
             rejected += bad
             self.conn.execute(
                 "INSERT INTO ingested_files (relpath, size_bytes, sha256, rows_read, rows_rejected, last_run_id)"
@@ -295,6 +308,68 @@ class Ingestor:
                                  " ingestion_run_id uuid, source_file text", "raw_events", cols, data,
                                  "(event_id)"), bad
 
+    # -- futures market state (typed copies of the raw rows) -------------------------------
+    def load_mark(self, iid: int, rows) -> Tuple[int, int]:
+        """[E, mark, index, funding, nextFunding]. The collector writes 0 for a field the stream
+        did not send: index 0 -> NULL, and without a next funding time the rate is unknown -> NULL."""
+        data, bad = [], 0
+        for _, r in rows:
+            try:
+                ts, mark = ms(r[0]), Decimal(str(r[1]))
+                if not mark.is_finite() or mark <= 0:
+                    raise ValueError("mark price must be > 0")
+                index = Decimal(str(r[2])) if len(r) > 2 and r[2] is not None else None
+                index = index if index is not None and index.is_finite() and index > 0 else None
+                nxt = int(r[4]) if len(r) > 4 and r[4] else 0
+                rate = Decimal(str(r[3])) if nxt and len(r) > 3 and r[3] is not None else None
+                if rate is not None and not rate.is_finite():
+                    rate = None
+                data.append((iid, ts, dtext(mark), dtext(index) if index is not None else None,
+                             dtext(rate) if rate is not None else None, ms(nxt) if nxt else None, self.run_id))
+            except (IndexError, TypeError, ValueError, ArithmeticError):
+                bad += 1
+        cols = ["instrument_id", "event_ts", "mark_price", "index_price", "funding_rate", "next_funding_ts",
+                "ingestion_run_id"]
+        return self._copy_insert("instrument_id bigint, event_ts timestamptz, mark_price numeric, index_price numeric,"
+                                 " funding_rate numeric, next_funding_ts timestamptz, ingestion_run_id uuid",
+                                 "mark_prices", cols, data, "(instrument_id, event_ts)"), bad
+
+    def load_oi(self, iid: int, rows) -> Tuple[int, int]:
+        """[time, openInterest]"""
+        data, bad = [], 0
+        for _, r in rows:
+            try:
+                ts, oi = ms(r[0]), Decimal(str(r[1]))
+                if not oi.is_finite() or oi < 0:
+                    raise ValueError("open interest must be >= 0")
+                data.append((iid, ts, dtext(oi), self.run_id))
+            except (IndexError, TypeError, ValueError, ArithmeticError):
+                bad += 1
+        return self._copy_insert("instrument_id bigint, event_ts timestamptz, open_interest numeric,"
+                                 " ingestion_run_id uuid", "open_interest",
+                                 ["instrument_id", "event_ts", "open_interest", "ingestion_run_id"], data,
+                                 "(instrument_id, event_ts)"), bad
+
+    def load_liq(self, iid: int, rows) -> Tuple[int, int]:
+        """[T, side, price, avgPrice, qty, status]; side is the liquidation order's side."""
+        data, bad = [], 0
+        for _, r in rows:
+            try:
+                ts = ms(r[0])
+                side = {"SELL": "sell", "BUY": "buy"}.get(str(r[1]).upper(), "unknown")
+                price, avg, qty = Decimal(str(r[2])), Decimal(str(r[3])), Decimal(str(r[4]))
+                if not (price.is_finite() and qty.is_finite() and avg.is_finite()) or price <= 0 or qty <= 0:
+                    raise ValueError("price and qty must be > 0")
+                status = str(r[5]) if len(r) > 5 and r[5] is not None else "unknown"
+                data.append((iid, ts, side, dtext(price), dtext(avg) if avg > 0 else None, dtext(qty), status[:40],
+                             self.run_id))
+            except (IndexError, TypeError, ValueError, ArithmeticError):
+                bad += 1
+        return self._copy_insert("instrument_id bigint, event_ts timestamptz, side text, price numeric,"
+                                 " avg_price numeric, qty numeric, status text, ingestion_run_id uuid", "liquidations",
+                                 ["instrument_id", "event_ts", "side", "price", "avg_price", "qty", "status",
+                                  "ingestion_run_id"], data, "(instrument_id, event_ts, side, price, qty)"), bad
+
     # -- data quality -------------------------------------------------------------------
     def _upsert_gap(self, iid: int, stream: str, key: str, reason: str, status: str, start, end,
                     first_id=None, last_id=None, expected=None, present=None, details=None) -> None:
@@ -353,20 +428,49 @@ class Ingestor:
         self._upsert_gap(iid, "kline", key, reason, status, start, end, expected=expected or None,
                          present=present, details=details)
 
-    def _last_data_before(self, iid: int, ts: datetime) -> Optional[datetime]:
+    def _last_data_before(self, iid: int, ts: datetime, rest_ids: List[Tuple[int, int]]) -> Optional[datetime]:
+        """Newest sign that the collector's WebSocket was receiving before ``ts``. Rows the collector
+        fetched over REST afterwards (kline history/backfill, trade id backfill in ``rest_ids``) fill
+        the downtime with old event times, so they are not evidence that it was up."""
         row = self.conn.execute(
             "SELECT greatest("
             " (SELECT max(captured_ts) FROM book_snapshots WHERE instrument_id = %(i)s AND captured_ts < %(t)s),"
             " (SELECT max(open_time) + interval '60 seconds' FROM klines WHERE instrument_id = %(i)s"
-            "   AND interval_s = 60 AND open_time + interval '60 seconds' <= %(t)s),"
+            "   AND interval_s = 60 AND open_time <= %(t)s - interval '60 seconds' AND source = 'exchange_kline'),"
             " (SELECT max(event_ts) FROM trades WHERE instrument_id = %(i)s AND event_ts < %(t)s"
-            "   AND quality = 'ok')) AS t", {"i": iid, "t": ts}).fetchone()
+            "   AND quality = 'ok' AND NOT EXISTS (SELECT 1 FROM unnest(%(lo)s::bigint[], %(hi)s::bigint[]) r(lo, hi)"
+            "   WHERE agg_trade_id BETWEEN r.lo AND r.hi))) AS t",
+            {"i": iid, "t": ts, "lo": [a for a, _ in rest_ids], "hi": [b for _, b in rest_ids]}).fetchone()
         return row["t"]
+
+    def _tag_rest_klines(self, iid: int, metas: List[dict]) -> None:
+        """kline_history / kline_backfill [ts, event, first_open_ms, last_open_ms, count]: the minutes
+        the collector wrote from REST. Re-tagged on every run (rows may be loaded after their meta)."""
+        for m in metas:
+            p = m["payload"]
+            if len(p) >= 4 and p[1] in ("kline_history", "kline_backfill"):
+                try:
+                    lo, hi = ms(p[2]), ms(p[3])
+                except (TypeError, ValueError, ArithmeticError):
+                    continue
+                cur = self.conn.execute(
+                    "UPDATE klines SET source = 'rest_backfill' WHERE instrument_id = %s AND interval_s = 60"
+                    " AND open_time BETWEEN %s AND %s AND source = 'exchange_kline'", [iid, lo, hi])
+                self.stats["klines_tagged_rest"] += cur.rowcount
 
     def derive_quality(self, iid: int) -> None:
         metas = self.conn.execute(
             "SELECT received_ts AS ts, payload FROM raw_events WHERE instrument_id = %s AND stream = 'meta'"
             " ORDER BY received_ts, event_id", [iid]).fetchall()
+        self._tag_rest_klines(iid, metas)
+        rest_ids = []          # trade id ranges fetched over REST: [ts, "backfill", lo, hi, recovered]
+        for m in metas:
+            p = m["payload"]
+            if len(p) >= 4 and p[1] == "backfill":
+                try:
+                    rest_ids.append((int(p[2]), int(p[3])))
+                except (TypeError, ValueError):
+                    continue
         seen_connect = False
         disconnect: Optional[Tuple[datetime, str]] = None
         book_broken: Optional[Tuple[datetime, str, str]] = None
@@ -386,7 +490,7 @@ class Ingestor:
                                     d_ts, ts, {"message": msg[:200]})
                     disconnect = None
                 elif seen_connect:
-                    last = self._last_data_before(iid, ts)
+                    last = self._last_data_before(iid, ts, rest_ids)
                     if last is not None and ts - last > MIN_RESTART_GAP:
                         self._kline_gap(iid, f"restart:{key_ms}", "collector_restart", last, ts,
                                         {"note": "collector stopped without a disconnect record"})
@@ -401,6 +505,11 @@ class Ingestor:
                     s_ts, reason, key = book_broken
                     self._window_gap(iid, key, reason, s_ts, ts, {"synced_update_id": p[2] if len(p) > 2 else None})
                     book_broken = None
+            elif ev == "kline_gap" and len(p) >= 4:
+                # minutes the collector could not get over REST [first_open_ms, last_open_ms, reason];
+                # re-evaluated on every run, so a later history fetch that fills them flips it to recovered
+                self._kline_gap(iid, f"kline_gap:{p[2]}-{p[3]}", "collector_kline_gap", ms(p[2]),
+                                ms(p[3]) + timedelta(minutes=1), {"reason": str(p[4])[:200] if len(p) > 4 else ""})
             elif ev in ("backfill", "trade_gap") and len(p) >= 4:
                 lo, hi = int(p[2]), int(p[3])
                 status, expected, present, before, after = self._id_range_status(iid, lo, hi, final=True)

@@ -247,6 +247,111 @@
         "title": "BarsResponse",
         "type": "object"
       },
+      "BigTrade": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "description": "taker side",
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "side",
+          "price",
+          "size"
+        ],
+        "title": "BigTrade",
+        "type": "object"
+      },
+      "BigTrades": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BigTrade"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          }
+        },
+        "required": [
+          "threshold",
+          "items",
+          "method"
+        ],
+        "title": "BigTrades",
+        "type": "object"
+      },
+      "BookState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WallEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "boolean"
+          },
+          "walls": {
+            "items": {
+              "$ref": "#/components/schemas/Wall"
+            },
+            "title": "Walls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "synced",
+          "walls",
+          "events",
+          "method"
+        ],
+        "title": "BookState",
+        "type": "object"
+      },
       "CashflowCreate": {
         "properties": {
           "amount": {
@@ -444,6 +549,31 @@
         "title": "CashflowResult",
         "type": "object"
       },
+      "Change24h": {
+        "properties": {
+          "pct": {
+            "description": "(price / ref_price - 1) x 100, two decimals",
+            "title": "Pct",
+            "type": "string"
+          },
+          "ref_at": {
+            "description": "close time of the 1m kline 24 h (+-5 min) before last_trade.at",
+            "title": "Ref At",
+            "type": "string"
+          },
+          "ref_price": {
+            "title": "Ref Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pct",
+          "ref_price",
+          "ref_at"
+        ],
+        "title": "Change24h",
+        "type": "object"
+      },
       "Delivery": {
         "properties": {
           "attempts": {
@@ -494,6 +624,105 @@
           "delivered_at"
         ],
         "title": "Delivery",
+        "type": "object"
+      },
+      "DetailsResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "big_trades": {
+            "$ref": "#/components/schemas/BigTrades"
+          },
+          "book": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "funding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "oi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OiState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            },
+            "title": "Prices",
+            "type": "array"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "items": {
+              "$ref": "#/components/schemas/StreamQuality"
+            },
+            "title": "Quality",
+            "type": "array"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "from",
+          "to",
+          "units",
+          "book",
+          "big_trades",
+          "profile",
+          "oi",
+          "funding",
+          "prices",
+          "quality"
+        ],
+        "title": "DetailsResponse",
         "type": "object"
       },
       "Entry": {
@@ -1517,6 +1746,45 @@
         "title": "FillResult",
         "type": "object"
       },
+      "FundingState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "estimated",
+              "settled"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "rate_pct": {
+            "title": "Rate Pct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rate_pct",
+          "kind",
+          "next_at",
+          "at"
+        ],
+        "title": "FundingState",
+        "type": "object"
+      },
       "Gap": {
         "properties": {
           "detected_at": {
@@ -1809,6 +2077,64 @@
         "title": "InstrumentList",
         "type": "object"
       },
+      "LastTrade": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "source": {
+            "description": "trade = newest trade; kline = newest closed 1m kline close",
+            "enum": [
+              "trade",
+              "kline"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "at",
+          "source"
+        ],
+        "title": "LastTrade",
+        "type": "object"
+      },
+      "MarkQuote": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "index",
+          "at"
+        ],
+        "title": "MarkQuote",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "created_at": {
@@ -1992,6 +2318,268 @@
         "title": "MetricEventList",
         "type": "object"
       },
+      "Observation": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "evidence": {
+            "enum": [
+              "chart",
+              "oi",
+              "walls"
+            ],
+            "title": "Evidence",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "cvd",
+              "oi",
+              "wall",
+              "bigtrade",
+              "funding"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "object"
+          },
+          "window_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window S"
+          }
+        },
+        "required": [
+          "kind",
+          "at",
+          "window_s",
+          "evidence",
+          "values",
+          "units"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "ObservationsResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "at",
+          "items"
+        ],
+        "title": "ObservationsResponse",
+        "type": "object"
+      },
+      "OiPoint": {
+        "properties": {
+          "t": {
+            "title": "T",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "value"
+        ],
+        "title": "OiPoint",
+        "type": "object"
+      },
+      "OiState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "change_1h_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 1H Pct"
+          },
+          "change_5m_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 5M Pct"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/OiPoint"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "at",
+          "change_5m_pct",
+          "change_1h_pct",
+          "series"
+        ],
+        "title": "OiState",
+        "type": "object"
+      },
+      "PricePoint": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "type": {
+            "enum": [
+              "last_trade",
+              "mark",
+              "index"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "type",
+          "value",
+          "at"
+        ],
+        "title": "PricePoint",
+        "type": "object"
+      },
+      "ProfileState": {
+        "properties": {
+          "bin_size": {
+            "title": "Bin Size",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "poc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poc"
+          },
+          "va_high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Va High"
+          },
+          "va_low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Va Low"
+          }
+        },
+        "required": [
+          "bin_size",
+          "poc",
+          "va_low",
+          "va_high",
+          "method"
+        ],
+        "title": "ProfileState",
+        "type": "object"
+      },
       "QualityResponse": {
         "properties": {
           "access": {
@@ -2038,6 +2626,67 @@
           "gaps"
         ],
         "title": "QualityResponse",
+        "type": "object"
+      },
+      "QuoteResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "change_24h": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Change24h"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when no 1m kline closed 24 h (+-5 min) before"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "last_trade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastTrade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarkQuote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for spot or when no mark row was collected"
+          },
+          "spark": {
+            "description": "1m kline closes every 30 min over the 24 h before last_trade.at, oldest first, at most 49",
+            "items": {
+              "$ref": "#/components/schemas/SparkPoint"
+            },
+            "title": "Spark",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "last_trade",
+          "mark",
+          "change_24h",
+          "spark"
+        ],
+        "title": "QuoteResponse",
         "type": "object"
       },
       "Revision": {
@@ -2612,6 +3261,24 @@
         "title": "SnapshotCreate",
         "type": "object"
       },
+      "SparkPoint": {
+        "properties": {
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "t": {
+            "title": "T",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "close"
+        ],
+        "title": "SparkPoint",
+        "type": "object"
+      },
       "StreamCoverage": {
         "properties": {
           "coverage_pct": {
@@ -2674,6 +3341,64 @@
           "has_data"
         ],
         "title": "StreamCoverage",
+        "type": "object"
+      },
+      "StreamQuality": {
+        "properties": {
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "stale",
+              "book_resync",
+              "disconnected",
+              "incomplete",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stream": {
+            "enum": [
+              "trades",
+              "book",
+              "kline",
+              "oi",
+              "mark",
+              "liquidations"
+            ],
+            "title": "Stream",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stream",
+          "status",
+          "last_at",
+          "note"
+        ],
+        "title": "StreamQuality",
         "type": "object"
       },
       "TradeCreate": {
@@ -3462,6 +4187,97 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "Wall": {
+        "properties": {
+          "age_s": {
+            "title": "Age S",
+            "type": "integer"
+          },
+          "mult": {
+            "description": "size / median size of the nearest levels on that side",
+            "title": "Mult",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "bid",
+              "ask"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "holding",
+              "adding",
+              "pulling"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "size",
+          "mult",
+          "age_s",
+          "status"
+        ],
+        "title": "Wall",
+        "type": "object"
+      },
+      "WallEvent": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "price_reached",
+              "removed",
+              "unknown"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "bid",
+              "ask"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "size",
+          "outcome",
+          "at"
+        ],
+        "title": "WallEvent",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -4210,6 +5026,91 @@
         ]
       }
     },
+    "/v1/instruments/{instrument_id}/details": {
+      "get": {
+        "operationId": "get_details_v1_instruments__instrument_id__details_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "default: 6 h before `to`",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default: 6 h before `to`",
+              "title": "From"
+            }
+          },
+          {
+            "description": "default and maximum: the entitlement cut-off",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default and maximum: the entitlement cut-off",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Walls, big trades, volume profile, OI, funding, prices and per-stream quality of a window",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
     "/v1/instruments/{instrument_id}/metric-events": {
       "get": {
         "operationId": "get_metric_events_v1_instruments__instrument_id__metric_events_get",
@@ -4307,6 +5208,72 @@
         ]
       }
     },
+    "/v1/instruments/{instrument_id}/observations": {
+      "get": {
+        "operationId": "get_observations_v1_instruments__instrument_id__observations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "default and maximum: the entitlement cut-off",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default and maximum: the entitlement cut-off",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Up to five facts at `to` (not forecasts), most notable first",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
     "/v1/instruments/{instrument_id}/quality": {
       "get": {
         "operationId": "get_quality_v1_instruments__instrument_id__quality_get",
@@ -4383,6 +5350,53 @@
           }
         ],
         "summary": "Per-stream coverage of a window and the gaps inside it",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/quote": {
+      "get": {
+        "operationId": "get_quote_v1_instruments__instrument_id__quote_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Last price, mark/index, 24 h change and a 24 h sparkline (as of the entitlement cut-off)",
         "tags": [
           "market data"
         ]

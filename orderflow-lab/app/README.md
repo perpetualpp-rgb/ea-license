@@ -21,6 +21,7 @@ npm run build:single   # ทั้งสองรุ่น → dist/flow-lab-sin
 npm run check:bundle   # ล้มเหลวถ้า bundle production มี "tool_execute" / "callTool" / ชื่อ endpoint ของ Binance
 NODE_PATH=$(npm root -g) node e2e/check.mjs           # ทดสอบทุก flow ของรุ่น production ใน Chromium ที่ 320/390/1440 px (ต้อง build ก่อน, ต้องมี playwright)
 NODE_PATH=$(npm root -g) node e2e/check-artifact.mjs  # ทดสอบ dist/flow-lab-artifact.html กับ connector จำลอง (ต้อง build:single ก่อน)
+DATA=<โฟลเดอร์ข้อมูลของ collector> NODE_PATH=$(npm root -g) node e2e/check-api.mjs   # รุ่น production กับเซิร์ฟเวอร์ที่รันจริง (PostgreSQL + ingest + API)
 ```
 
 ## หน้าจอ
@@ -38,7 +39,7 @@ NODE_PATH=$(npm root -g) node e2e/check-artifact.mjs  # ทดสอบ dist/flo
 src/data/types.ts      รูปแบบข้อมูลที่ทุกหน้าใช้
 src/data/source.ts     interface MarketSource + ข้อความ error ที่ผู้ใช้เข้าใจ
 src/data/demo.ts       DemoSource: ข้อมูลตัวอย่างแบบ deterministic (ป้าย demo)
-src/data/api.ts        ApiSource: เรียกเฉพาะ API ของ Flow Lab (server/) ไม่เรียก exchange หรือ connector
+src/data/api.ts        ApiSource: เรียกเฉพาะ API ของ Flow Lab (server/) ไม่เรียก exchange หรือ connector (e2e ตรวจว่าไม่มี host อื่น)
 src/data/connector.ts  ConnectorSource: Binance ผ่าน connector ของเจ้าของ (มีเฉพาะในรุ่น artifact) อ่านอย่างเดียวตาม allowlist
 src/domain/engine.ts   พอร์ต TypeScript ของ web/engine.js (กำแพง + tracker, เกณฑ์ไม้ใหญ่, profile) เทสต์เทียบผลกับ JS ตัวจริง
 src/lib/build.ts       บอกว่าเป็นรุ่น artifact หรือไม่ (import.meta.env.MODE)
@@ -46,6 +47,7 @@ src/domain/            indicators (CVD/VWAP/profile), decimal, accounting, stats
 src/journal/           store (IndexedDB/หน่วยความจำ, idempotent, revisions, snapshot แก้ไม่ได้), export
 src/pages/             4 หน้า
 e2e/check.mjs          ทดสอบ flow จริงในเบราว์เซอร์ + ถ่ายภาพ
+e2e/check-api.mjs      เปิดเซิร์ฟเวอร์จริง (server/devstack.py) แล้วเทียบตัวเลขบนจอกับคำตอบของ API
 ```
 
 สลับแหล่งข้อมูลได้ที่ ตั้งค่า → แหล่งข้อมูลตลาด หน้าจอไม่ต้องแก้
@@ -54,9 +56,9 @@ e2e/check.mjs          ทดสอบ flow จริงในเบราว์
 
 | เรื่อง | สถานะ |
 |---|---|
-| ราคา, แท่งเทียน, CVD, OI, funding, กำแพง, ไม้ใหญ่, เหตุการณ์ | รุ่น production: **ข้อมูลตัวอย่าง** จาก `DemoSource` (หรือจาก API ถ้าตั้ง URL) · รุ่น artifact: **ข้อมูลจริง** จาก Binance ผ่าน connector ของเจ้าของ (ตารางด้านล่าง) ถ้า connector ใช้ไม่ได้จะกลับเป็นข้อมูลตัวอย่างพร้อมบอกเหตุผล |
-| ApiSource | เรียก `/v1/instruments` และ `/v1/instruments/{id}/bars` ตาม `server/openapi.json` แปลง id ตัวเลข, ราคาแบบ decimal string และเวลา ISO แล้ว (เทสต์ `src/test/api.test.ts` เทียบ fixture กับ field ที่ openapi บังคับ); แท่งที่ไม่มีราคาถูกเว้นเป็นช่อง ไม่เติม 0; ป้าย "สด" ขึ้นเฉพาะเมื่อสิทธิ์ realtime และแท่งล่าสุดปิดภายใน 2 แท่ง, มี gap ที่ยังไม่กู้ = "ประมาณ"; quote, observations, details, alerts ยังไม่ต่อกับ API จึงขึ้นว่า "ตลาดหรือสัญญานี้ยังไม่รองรับ" ไม่เดาค่า · ยังไม่ได้ทดสอบกับ server ที่รันจริงผ่านเบราว์เซอร์ |
-| เข้าสู่ระบบ / สมาชิก / สิทธิ์ข้อมูลหน่วง | ยังไม่มีในหน้าแอป (backend ออกแบบไว้ใน `server/`) |
+| ราคา, แท่งเทียน, CVD, OI, funding, กำแพง, ไม้ใหญ่, เหตุการณ์ | รุ่น production: **ข้อมูลจริงจากเซิร์ฟเวอร์ Flow Lab** เมื่อตั้ง URL + token (ตั้งค่า → แหล่งข้อมูลตลาด) ถ้าไม่ตั้งเป็น **ข้อมูลตัวอย่าง** จาก `DemoSource` · รุ่น artifact: **ข้อมูลจริง** จาก Binance ผ่าน connector ของเจ้าของ (ตารางด้านล่าง) ถ้า connector ใช้ไม่ได้จะกลับเป็นข้อมูลตัวอย่างพร้อมบอกเหตุผล |
+| ApiSource | เรียก `/v1/instruments`, `/bars`, `/quote`, `/details`, `/observations` และ `/v1/alerts/events` ตาม `server/openapi.json` (เทสต์ `src/test/api.test.ts` ใช้ response ที่บันทึกจาก API จริงโดย `server/tests/test_frontend_contract.py`); ค่าที่ไม่มีเป็น null ไม่เติม 0; "ข้อมูลสด" เฉพาะสิทธิ์ realtime และเวลาของตลาดไม่เกิน 120 วินาที, สมาชิกไม่มีแพ็กเกจ = "ข้อมูลหน่วง" 15 นาที; token ผิดขึ้น "ต้องเข้าสู่ระบบใหม่" · **ทดสอบกับเซิร์ฟเวอร์ที่รันจริงแล้ว**: `e2e/check-api.mjs` เปิด PostgreSQL + ingest ไฟล์จาก collector + API (`server/devstack.py`) แล้วตรวจว่าตัวเลขบนจอตรงกับคำตอบของ API |
+| เข้าสู่ระบบ / สมาชิก / สิทธิ์ข้อมูลหน่วง | สิทธิ์หน่วง/realtime ทำงานที่เซิร์ฟเวอร์และแอปแสดงตามนั้นแล้ว แต่ยังไม่มีหน้าล็อกอินจริง: ใช้ token สำหรับทดสอบจาก `server/devstack.py` |
 | บันทึกและเทรดส่วนตัว | เก็บ **ในเบราว์เซอร์เครื่องนี้เท่านั้น** (IndexedDB) ทุกรายการมีป้าย "ร่างในเครื่อง" ไม่มีข้อความว่าบันทึกบนเซิร์ฟเวอร์แล้ว ล้างข้อมูลเบราว์เซอร์แล้วหาย |
 | แจ้งเตือน | ประเมินกฎในหน้าแอปขณะเปิดอยู่เท่านั้น Telegram ยังไม่พร้อม (ต้องผูกผ่านเซิร์ฟเวอร์) |
 | ภาพกราฟในบันทึก | เก็บเป็น JPEG data URL + SHA-256 ในเครื่อง ยังไม่มี object storage |

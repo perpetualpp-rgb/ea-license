@@ -37,6 +37,8 @@ function decimals(tick: string | null): number {
   return frac ? frac.length : 0;
 }
 
+const VENUE_NAME: Record<string, string> = { binance: "Binance" };
+
 /** null for markets the screens cannot show yet (future, cfd, index) — never guessed into another type */
 export function mapInstrument(r: ApiInstrument): Instrument | null {
   if (r.market_type !== "perpetual" && r.market_type !== "spot") return null;
@@ -44,7 +46,7 @@ export function mapInstrument(r: ApiInstrument): Instrument | null {
   const unitAsset = r.multiplier_unit === "quote" ? r.quote_asset : r.base_asset;
   const qtyUnit = Number(r.contract_multiplier) === 1 ? unitAsset : `สัญญา (${r.contract_multiplier} ${unitAsset})`;
   return {
-    id: String(r.instrument_id), venue: r.venue, symbol: r.symbol, market: r.market_type,
+    id: String(r.instrument_id), venue: VENUE_NAME[r.venue] ?? r.venue, symbol: r.symbol, market: r.market_type,
     base: r.base_asset, quote: r.quote_asset, qtyUnit, contract: r.contract_type,
     priceDecimals: decimals(r.tick_size),
     ...(r.spec_status === "unverified" ? { caution: "สเปกสัญญายังไม่ได้ตรวจกับประกาศของตลาด" } : {}),
@@ -73,7 +75,8 @@ export function mapBars(res: ApiBars, tf: Timeframe, nowMs: number): Series {
     bars,
     freshness: { kind, asOf, ...(res.access.level === "delayed" ? { delayMin: res.access.delay_minutes } : {}) },
     cvdAnchor: { label: "เริ่มนับจากแท่งแรกของช่วงที่เลือก (UTC)", startT: bars[0]?.t ?? 0 },
-    vwapMethod: res.method,
+    // VWAP is computed in the app from these bars (domain/indicators.vwap), anchored like CVD
+    vwapMethod: `typical price (H+L+C)/3 × volume ของแท่ง ${tf} เริ่มจากแท่งแรกของช่วงที่เลือก (ประมาณจากแท่ง ไม่ใช่ VWAP จากทุกรายการซื้อขาย)`,
   };
 }
 

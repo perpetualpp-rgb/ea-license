@@ -1,0 +1,38 @@
+{
+ "access": {
+  "data_until": "2026-01-05T10:47:00Z",
+  "delay_minutes": 0,
+  "level": "realtime",
+  "valid_until": null
+ },
+ "change_24h": {
+  "pct": "1.62",
+  "ref_at": "2026-01-04T10:46:00Z",
+  "ref_price": "98.5"
+ },
+ "instrument_id": 1,
+ "last_trade": {
+  "at": "2026-01-05T10:46:30Z",
+  "price": "100.1",
+  "source": "trade"
+ },
+ "mark": {
+  "at": "2026-01-05T10:46:55Z",
+  "index": "100.19",
+  "price": "100.24"
+ },
+ "spark": [
+  {
+   "close": "98.5",
+   "t": "2026-01-04T10:46:00Z"
+  },
+  {
+   "close": "104.5",
+   "t": "2026-01-05T10:16:00Z"
+  },
+  {
+   "close": "106.5",
+   "t": "2026-01-05T10:46:00Z"
+  }
+ ]
+}

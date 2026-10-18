@@ -5,6 +5,7 @@ Each test creates its own members and instruments, so tests do not depend on eac
 """
 from __future__ import annotations
 
+import json
 import sys
 import uuid
 from dataclasses import dataclass
@@ -146,8 +147,9 @@ def floor_minute(t: datetime) -> datetime:
 
 
 def seed_market(admin: psycopg.Connection, inst: dict, minutes: int = 90, end: Optional[datetime] = None,
-                trade_every_s: int = 30) -> dict:
-    """1m klines and trades up to ``end`` (default: now) for a fresh instrument."""
+                trade_every_s: int = 30, book: bool = True) -> dict:
+    """1m klines and trades up to ``end`` (default: now) for a fresh instrument
+    (+ a one-level book every 10 s unless ``book`` is False)."""
     end = end or now_utc()
     iid = inst["instrument_id"]
     start = floor_minute(end) - timedelta(minutes=minutes)
@@ -173,11 +175,78 @@ def seed_market(admin: psycopg.Connection, inst: dict, minutes: int = 90, end: O
                         " trade_count, taker_buy_volume) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", k_rows)
         cur.executemany("INSERT INTO trades (venue, market_type, symbol, agg_trade_id, instrument_id, event_ts, price,"
                         " qty, taker_side) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", t_rows)
-        book = []
+        rows = []
         bt = start
-        while bt < end:
-            book.append((iid, bt, Decimal("100.5"), '[["100","1.5"]]', '[["101","2.5"]]'))
+        while book and bt < end:
+            rows.append((iid, bt, Decimal("100.5"), '[["100","1.5"]]', '[["101","2.5"]]'))
             bt += timedelta(seconds=10)
         cur.executemany("INSERT INTO book_snapshots (instrument_id, captured_ts, mid, bids, asks, synced)"
-                        " VALUES (%s, %s, %s, %s, %s, true)", book)
+                        " VALUES (%s, %s, %s, %s, %s, true)", rows)
     return {"start": start, "end": end, "klines": len(k_rows), "trades": len(t_rows)}
+
+
+def seed_futures_state(admin: psycopg.Connection, inst: dict, start: datetime, end: datetime,
+                       mark_every_s: int = 5, oi_every_s: int = 60) -> dict:
+    """Synthetic mark/index/funding rows every ``mark_every_s`` and open interest every ``oi_every_s``
+    in [start, end): mark 100.2 + (i % 5) / 100, index = mark - 0.05, funding 0.0001 (next settlement
+    at the following 8-hour boundary), OI 1000 + 2 * i."""
+    iid = inst["instrument_id"]
+    marks, ois = [], []
+    t, i = start, 0
+    while t < end:
+        mark = Decimal("100.2") + Decimal(i % 5) / 100
+        nxt = t.replace(minute=0, second=0, microsecond=0) + timedelta(hours=8 - t.hour % 8)
+        marks.append((iid, t, mark, mark - Decimal("0.05"), Decimal("0.0001"), nxt))
+        t += timedelta(seconds=mark_every_s)
+        i += 1
+    t, i = start, 0
+    while t < end:
+        ois.append((iid, t, Decimal(1000 + 2 * i)))
+        t += timedelta(seconds=oi_every_s)
+        i += 1
+    with admin.cursor() as cur:
+        cur.executemany("INSERT INTO mark_prices (instrument_id, event_ts, mark_price, index_price, funding_rate,"
+                        " next_funding_ts) VALUES (%s, %s, %s, %s, %s, %s)", marks)
+        cur.executemany("INSERT INTO open_interest (instrument_id, event_ts, open_interest) VALUES (%s, %s, %s)", ois)
+    return {"marks": len(marks), "oi": len(ois)}
+
+
+def seed_wall_book(admin: psycopg.Connection, inst: dict, t0: datetime, minutes: int = 30, every_s: int = 2,
+                   hole: Optional[tuple] = (120, 180)) -> datetime:
+    """Book bucket summaries (bucket 0.1, ten levels a side of size 1) every ``every_s`` from ``t0``,
+    with scripted walls; returns the end time. ``hole`` = seconds after t0 without snapshots.
+
+    A  bid 99.5 x 20   the whole time                  -> active, holding
+    E  ask 100.6 x 8   the whole time, 4.5 at the end   -> active, pulling
+    B  ask 100.8 x 15  until +10 min, price stays away  -> event removed
+    C  bid 99.8 x 12   until +15 min, then the book drops so the best bid is 99.8 -> event price_reached
+    the hole ends every wall tracked before it          -> events unknown
+    """
+    iid = inst["instrument_id"]
+    end = t0 + timedelta(minutes=minutes)
+    step = timedelta(seconds=every_s)
+    rows = []
+    t = t0
+    while t < end:
+        s = (t - t0).total_seconds()
+        if hole and hole[0] <= s < hole[1]:
+            t += step
+            continue
+        shifted = s >= 15 * 60
+        best = Decimal("99.8") if shifted else Decimal("100.0")
+        bids = {best - Decimal("0.1") * k: Decimal(1) for k in range(10)}
+        asks = {best + Decimal("0.1") * (k + 1): Decimal(1) for k in range(10)}
+        bids[Decimal("99.5")] = Decimal(20)
+        asks[Decimal("100.6")] = Decimal(8) if t + step < end else Decimal("4.5")
+        if s < 600:
+            asks[Decimal("100.8")] = Decimal(15)
+        if not shifted:
+            bids[Decimal("99.8")] = Decimal(12)
+        b = json.dumps([[str(p), str(q)] for p, q in sorted(bids.items(), reverse=True)])
+        a = json.dumps([[str(p), str(q)] for p, q in sorted(asks.items())])
+        rows.append((iid, t, best + Decimal("0.05"), b, a))
+        t += step
+    with admin.cursor() as cur:
+        cur.executemany("INSERT INTO book_snapshots (instrument_id, captured_ts, mid, bids, asks, synced)"
+                        " VALUES (%s, %s, %s, %s, %s, true)", rows)
+    return end

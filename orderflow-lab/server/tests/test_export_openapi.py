@@ -62,6 +62,8 @@ def test_openapi_covers_the_contract_and_requires_bearer_auth():
     spec = json.loads(render())
     paths = spec["paths"]
     for p in ("/v1/me", "/v1/instruments", "/v1/instruments/{instrument_id}/bars", "/v1/instruments/{instrument_id}/quality",
+              "/v1/instruments/{instrument_id}/quote", "/v1/instruments/{instrument_id}/details",
+              "/v1/instruments/{instrument_id}/observations",
               "/v1/journal/entries", "/v1/journal/entries/{entry_id}", "/v1/journal/entries/{entry_id}/revisions",
               "/v1/journal/snapshots", "/v1/trades", "/v1/trades/{trade_id}/fills", "/v1/trades/{trade_id}/cashflows",
               "/v1/trades/stats", "/v1/alerts/rules", "/v1/alerts/rules/{rule_id}", "/v1/alerts/events",

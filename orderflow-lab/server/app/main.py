@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from . import errors
 from .config import API_VERSION, Settings
 from .db import Database
-from .routers import alerts, export, journal, market, me, trades
+from .routers import alerts, export, journal, market, market_state, me, trades
 
 log = logging.getLogger("flowlab.access")
 
@@ -113,7 +113,7 @@ def create_app(settings: Optional[Settings] = None, *, connect: bool = True) -> 
     def healthz():
         return {"status": "ok", "version": API_VERSION}
 
-    for r in (me.router, market.router, journal.router, trades.router, alerts.router, export.router):
+    for r in (me.router, market.router, market_state.router, journal.router, trades.router, alerts.router, export.router):
         app.include_router(r)
     return app
 

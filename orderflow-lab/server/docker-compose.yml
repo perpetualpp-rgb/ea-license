@@ -4,6 +4,8 @@
 #
 #   cp .env.example .env   # then set FLOWLAB_DB_OWNER_PASSWORD
 #   docker compose up -d db
+# The API image (server/Dockerfile, also untested) must be built from orderflow-lab/ so it can copy
+# engine/ and feeds/:  docker build -f server/Dockerfile -t flowlab-api ..
 services:
   db:
     image: timescale/timescaledb:2.17.2-pg16

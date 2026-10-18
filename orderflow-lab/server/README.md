@@ -18,6 +18,7 @@ Flow Lab เป็นเครื่องมือวิเคราะห์�
 ```
 server/
   migrations/0001_init.sql   schema, roles, RLS, triggers กันแก้ (TimescaleDB เป็น optional)
+  migrations/0002_market_state.sql  ตาราง mark_prices / open_interest / liquidations + klines.source
   migrate.py                 รัน migration ตามลำดับ ครั้งเดียวต่อไฟล์ (ตาราง schema_migrations + checksum)
   ingest.py                  โหลดไฟล์รายชั่วโมงของ collector แบบ idempotent + บันทึก data_quality
   app/                       FastAPI
@@ -28,12 +29,14 @@ server/
     accounting.py            สูตรบัญชีเทรด (Decimal ล้วน) + สถิติ
     alerts_engine.py         บันทึก alert event แบบ idempotent (ใช้โดย worker ฝั่ง server)
     snapshots.py             สร้าง market snapshot จากข้อมูลในฐาน แล้วแช่แข็ง
-    routers/                 me, market, journal, trades, alerts, export
+    orderflow.py             quote/details/observations: เรียก engine ของ orderflow-lab (walls, profile, big trades)
+    routers/                 me, market, market_state, journal, trades, alerts, export
     devtoken.py              สร้าง token สำหรับ dev
     openapi_export.py        เขียน openapi.json จากโค้ด
   openapi.json               API contract (สร้างจากแอป มีเทสต์ตรวจว่าตรงกับโค้ด)
   tests/                     pytest: เปิด PostgreSQL ชั่วคราวเอง
   docker-compose.yml         ทางเลือก TimescaleDB (ยังไม่ได้ทดสอบ)
+  Dockerfile                 image ของ API (ยังไม่ได้ทดสอบ) build จาก orderflow-lab/ เพราะต้อง copy engine/ และ feeds/
   .env.example               ตัวอย่างตัวแปร (ไม่มีค่าจริง)
 ```
 
@@ -108,6 +111,20 @@ API จะ**ไม่ยอมเริ่ม**ถ้า `FLOWLAB_DATABASE_URL` 
 
 ## 5. รัน API
 
+### ทางลัดสำหรับทดสอบในเครื่อง: `devstack.py`
+
+```bash
+cd orderflow-lab/server
+python3 devstack.py --data ../data/live --collector-config ../live/config.json --port 8080 \
+    --cors http://localhost:5173 --follow 15
+```
+
+คำสั่งเดียว: เปิด PostgreSQL ชั่วคราว → รัน migration → ingest ไฟล์จาก collector (ซ้ำทุก 15 วินาทีด้วย `--follow`) → เปิด API
+แล้วพิมพ์ URL กับ token ทดสอบ 2 ตัว (สมาชิก realtime และสมาชิกข้อมูลหน่วง) นำไปใส่ในแอปที่ ตั้งค่า → แหล่งข้อมูลตลาด →
+เซิร์ฟเวอร์ Flow Lab · Ctrl-C แล้วฐานข้อมูลถูกลบทิ้ง · ใช้พัฒนาเท่านั้น (trust auth บน 127.0.0.1, token HS256, ไม่มี TLS)
+
+### รันแบบปกติ
+
 ```bash
 export FLOWLAB_DATABASE_URL=postgresql://flowlab_api:...@127.0.0.1:5432/flowlab
 export FLOWLAB_JWT_SECRET=...     # ≥ 32 ไบต์
@@ -116,6 +133,11 @@ uvicorn --factory app.main:create_app --host 127.0.0.1 --port 8080 --no-access-l
 TOKEN=$(python3 -m app.devtoken --sub alice)          # token ทดสอบ อายุ 60 นาที
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/v1/me
 ```
+
+**engine:** `app/orderflow.py` เพิ่มโฟลเดอร์ `orderflow-lab/` (แม่ของ `server/`) เข้า `sys.path` แบบเดียวกับ
+`live/collector.py` แล้ว import `engine/` และ `feeds/` จากที่นั่น ตัวเลขกำแพง/profile/big trade จึงมาจากโค้ดเดียวกับ
+desk และ web dashboard เวลา deploy ต้องคงโครงสร้างนี้ไว้ (`engine/`, `feeds/` อยู่ข้าง `server/`) เช่น
+`docker build -f server/Dockerfile -t flowlab-api .` จาก `orderflow-lab/` (Dockerfile ยังไม่ได้ทดสอบ เครื่องนี้ไม่มี Docker)
 
 ใช้ `--no-access-log` เพราะ access log ของ uvicorn บันทึก URL เต็ม แอปมี access log ของตัวเอง
 (`flowlab.access`: method, path, status, เวลา, request id ไม่มี query string, header หรือ body)
@@ -146,6 +168,17 @@ python3 ingest.py --data ../data/live --collector-config ../live/config.json
   จนกว่าข้อมูลจะมาครบจริง (`open` → `partial`/`unrecoverable` → `recovered` + `repaired_at`)
 * instrument ที่สร้างจากชื่อโฟลเดอร์มี `spec_status = unverified`, `tick_size`/`qty_step` เป็น NULL
   (ไม่เดา) ต้องกรอก contract spec จริงก่อนใช้งาน
+* แถว `mark` / `oi` / `liq` ยังเก็บใน `raw_events` เหมือนเดิม และเพิ่มสำเนาแบบมีชนิดข้อมูล (migration 0002):
+  `mark [E, mark, index, funding, nextFunding]` → `mark_prices` (key instrument + E), `oi [time, openInterest]` →
+  `open_interest` (key instrument + time), `liq [T, side, price, avgPrice, qty, status]` → `liquidations`
+  (key instrument + T + side + price + qty) — collector เขียน 0 แทนค่าที่ stream ไม่ได้ส่ง จึงเก็บ index 0 เป็น NULL,
+  funding rate เป็น NULL เมื่อ nextFunding = 0, avgPrice 0 เป็น NULL; mark price ≤ 0 ถูกปฏิเสธ (นับใน `rows_rejected`)
+* kline ที่ collector ดึงผ่าน REST (meta `kline_history` ตอนเริ่ม, `kline_backfill` หลังต่อใหม่) ถูกติดป้าย
+  `klines.source = 'rest_backfill'` (role ingest แก้ได้เฉพาะคอลัมน์นี้) แท่งจาก WebSocket เป็น `exchange_kline`
+  เวลาวัดช่วง restart ingest ใช้เฉพาะข้อมูลจาก WebSocket (book, kline `exchange_kline`, trades ที่ไม่อยู่ในช่วง id ของ
+  meta `backfill`) เป็นหลักฐานว่า collector ยังรับข้อมูลอยู่ เพราะแถวที่ดึงย้อนหลังมีเวลาเหตุการณ์อยู่ในช่วงที่หยุด
+  ไม่อย่างนั้นช่วง book ขาดจะถูกซ่อน; meta `kline_gap [first_open, last_open, reason]` (นาทีที่ดึงผ่าน REST ไม่ได้)
+  กลายเป็นแถว `data_quality` stream `kline` reason `collector_kline_gap` และเปลี่ยนเป็น `recovered` เมื่อแท่งมาครบภายหลัง
 
 ## 7. รันเทสต์
 
@@ -158,11 +191,12 @@ python3 -m pytest -q
 แล้วทดสอบผ่าน `TestClient` และ SQL ตรง ถ้าหา binaries ไม่เจอจะ skip พร้อมเหตุผล (กำหนดที่อยู่ได้ด้วย
 `FLOWLAB_PG_BIN`; ถ้ารันเป็น root จะรัน server ด้วย OS user `postgres` หรือ `FLOWLAB_PG_OS_USER`)
 
-ผลรันล่าสุด (18 ต.ค. 2026, เครื่องทดสอบ, PostgreSQL 16.15 ไม่มี TimescaleDB): `66 passed`
+ผลรันล่าสุด (18 ต.ค. 2026, เครื่องทดสอบ, PostgreSQL 16.15 ไม่มี TimescaleDB): `83 passed`
+ข้อมูลตลาดในเทสต์ทั้งหมดสร้างขึ้นเอง (synthetic) ไม่มีข้อมูลตลาดจริงใน repository
 
 | ไฟล์ | ครอบคลุม |
 |---|---|
-| `test_db_schema.py` | migration รันซ้ำไม่ซ้ำ/ฐานใหม่รันสองรอบ, ไฟล์ที่ถูกแก้ถูกปฏิเสธ, RLS ครบทุกตารางรายบุคคล, role ไม่มีสิทธิ์พิเศษ, API ไม่ยอมรันเป็น owner, snapshot/raw_events/fills แก้ไม่ได้, retention purge |
+| `test_db_schema.py` | migration 0001+0002 รันซ้ำไม่ซ้ำ/ฐานใหม่รันสองรอบ, ตารางใหม่อ่านได้อย่างเดียวสำหรับ API, ไฟล์ที่ถูกแก้ถูกปฏิเสธ, RLS ครบทุกตารางรายบุคคล, role ไม่มีสิทธิ์พิเศษ, API ไม่ยอมรันเป็น owner, snapshot/raw_events/fills แก้ไม่ได้, retention purge |
 | `test_ownership.py` | A อ่าน/แก้/ลบ/ส่งออกของ B ไม่ได้ ทั้งผ่าน API และ SQL ตรงในฐานะ role ของ API (ไม่มี `app.user_id` → 0 แถว), JWT ปลอม/หมดอายุ/`alg=none`, token ใน URL, log ไม่มี token |
 | `test_api_journal.py` | retry ด้วย Idempotency-Key เดิม (รวมแบบพร้อมกัน) ได้แถวเดียว, key เดิม body ต่าง → 409, cursor + ช่วงวันที่, PATCH สร้าง revision, ลบ + tombstone, snapshot คงเดิมเมื่อมีข้อมูลมาทีหลัง, snapshot ตามสิทธิ์ delayed |
 | `test_market_delayed.py` | delayed ไม่ได้แถวใหม่กว่า now−15m ใน bars (kline/trades ทุก tf), quality, instruments, metric-events; unknown side ไม่นับเป็นขาย; วันไม่มีข้อมูลไม่แสดง 100% |
@@ -170,8 +204,9 @@ python3 -m pytest -q
 | `test_api_trades.py` | สเปกสัญญาบังคับ, lifecycle + ล็อก risk, import_key, correction, inverse + funding ผ่าน API, สถิติ 520 เทรดทั้งช่วง |
 | `test_alerts.py` | validation/CRUD, dedupe_key ไม่สร้างซ้ำ, backfill ไม่ส่งสด, cooldown, พักกฎเมื่อคุณภาพข้อมูลไม่พอ, delayed, ack |
 | `test_export_openapi.py` | export JSON/CSV ของตัวเอง (กัน CSV formula injection), openapi.json ตรงกับโค้ด, ทุก `/v1` ต้องใช้ Bearer |
-| `test_frontend_contract.py` | บันทึก response จริงของ `/v1/instruments` และ `/bars` เป็น fixture ใน `app/src/test/fixtures/server-*.json` ที่เทสต์ฝั่งแอปใช้ แล้ว fail ถ้า API เปลี่ยนจน fixture ไม่ตรง (สร้างใหม่: `FLOWLAB_UPDATE_FIXTURES=1`) |
-| `test_ingest.py` | โหลดซ้ำ/force ไม่เพิ่มแถว, Decimal ตรง, taker side, late arrival, gaps จาก meta + สแกน id, gap กลายเป็น recovered เมื่อข้อมูลมาครบ |
+| `test_frontend_contract.py` | บันทึก response จริงของ `/v1/instruments`, `/bars`, `/quote`, `/details`, `/observations` (perpetual ที่มี mark/OI จึงมี OI/funding) เป็น fixture ใน `app/src/test/fixtures/server-*.json` ที่เทสต์ฝั่งแอปใช้ แล้ว fail ถ้า API เปลี่ยนจน fixture ไม่ตรง (สร้างใหม่: `FLOWLAB_UPDATE_FIXTURES=1`) |
+| `test_ingest.py` | โหลดซ้ำ/force ไม่เพิ่มแถว, Decimal ตรง, taker side, late arrival, gaps จาก meta + สแกน id, gap กลายเป็น recovered เมื่อข้อมูลมาครบ; mark/oi/liq ลงตารางใหม่แบบ idempotent (index 0/funding ไม่มีรอบ → NULL); kline REST ติดป้ายและไม่ซ่อน restart (รวม trade backfill), role ingest แก้ได้แค่ `klines.source`, `kline_gap` → recovered เมื่อเติมครบ |
+| `test_market_state.py` | quote: change_24h เป็น null เมื่อไม่มีแท่ง 24 ชม. (±5 นาที) และถูกเมื่อมี, fallback เป็น kline, mark; สมาชิก delayed ไม่เห็น mark/OI/trade/book/liquidation ใหม่กว่า cut-off ทั้ง 3 endpoint; กำแพง holding/pulling + ผล removed/price_reached/unknown, stale/resync → ไม่แสดงกำแพง; เกณฑ์ big trade จาก 4 ชม. ก่อน from (ไม่ look-ahead) + fallback ระบุใน method, percentile ใน SQL ตรงกับ `engine.bigtrades.threshold`; ไม่นับ taker side unknown; profile ตรงกับ engine + fallback แท่ง 1m; OI change null เมื่อไม่มีแถวที่ระยะนั้น; spot → OI/funding null + quality unavailable; quality ok/stale/incomplete/disconnected/book_resync/unavailable; observations ไม่มี CVD เมื่อมี trade gap; 404/422 |
 
 ตรวจว่า `openapi.json` ตรงกับโค้ด: `python3 -m app.openapi_export --check` (สร้างใหม่: ไม่ใส่ `--check`)
 
@@ -184,7 +219,7 @@ python3 -m pytest -q
 | กลุ่ม | Endpoint |
 |---|---|
 | บัญชี | `GET /v1/me` |
-| ข้อมูลตลาด | `GET /v1/instruments`, `GET /v1/instruments/{id}`, `GET .../{id}/bars?tf=&from=&to=&source=kline\|trades`, `GET .../{id}/quality?from=&to=`, `GET .../{id}/metric-events` |
+| ข้อมูลตลาด | `GET /v1/instruments`, `GET /v1/instruments/{id}`, `GET .../{id}/bars?tf=&from=&to=&source=kline\|trades`, `GET .../{id}/quality?from=&to=`, `GET .../{id}/metric-events`, `GET .../{id}/quote`, `GET .../{id}/details?from=&to=`, `GET .../{id}/observations?to=` |
 | บันทึก | `POST /v1/journal/entries` (ต้องมี `Idempotency-Key`), `GET /v1/journal/entries?from=&to=&cursor=&limit=`, `GET/PATCH/DELETE /v1/journal/entries/{id}`, `GET .../{id}/revisions`, `POST /v1/journal/snapshots`, `GET /v1/journal/snapshots/{id}` |
 | เทรดส่วนตัว | `POST/GET /v1/trades`, `GET/PATCH/DELETE /v1/trades/{id}`, `POST /v1/trades/{id}/fills`, `POST /v1/trades/{id}/cashflows`, `GET /v1/trades/stats?from=&to=` |
 | แจ้งเตือน | `POST/GET /v1/alerts/rules`, `GET/PATCH/DELETE /v1/alerts/rules/{id}`, `GET /v1/alerts/events`, `GET /v1/alerts/events/{id}`, `POST /v1/alerts/events/{id}/ack` |
@@ -193,7 +228,7 @@ python3 -m pytest -q
 หลักสำคัญ:
 
 * **ข้อมูลหน่วง:** สมาชิก delayed ได้เฉพาะข้อมูลที่เก่ากว่า now − 15 นาที ในทุก endpoint ตลาด (bars, quality,
-  instruments, metric-events), ใน snapshot และรายการ alert event — ตัดที่ query ฝั่ง server ไม่ใช่ซ่อนบนจอ
+  instruments, metric-events, quote, details, observations), ใน snapshot และรายการ alert event — ตัดที่ query ฝั่ง server ไม่ใช่ซ่อนบนจอ
   gap ที่ซ่อมหลัง cut-off แสดงสถานะ ณ cut-off (`open`)
 * **Idempotency:** retry ด้วย key เดิม + body เดิม ได้ entry เดิม (200 + `Idempotent-Replayed: true`)
   key เดิมแต่ body ต่าง → 409; fill/cashflow ใช้ `import_key` (ไม่ซ้ำต่อสมาชิก)
@@ -205,6 +240,42 @@ python3 -m pytest -q
 * **ลบข้อมูล (retention):** DELETE entry/trade ลบถาวรพร้อม revision/fills และเหลือเพียง tombstone (ชนิด + id + เวลา
   ไม่มีเนื้อหา) ให้เครื่องอื่นของสมาชิกลบ cache; snapshot ลบได้เฉพาะขั้นตอนลบบัญชีที่ owner รันด้วย
   `SET LOCAL flowlab.retention_purge = 'on'` แล้ว `DELETE FROM flowlab.users WHERE id = ...`
+
+### 8.1 quote / details / observations (วิธีคำนวณ)
+
+ทุกค่าอ่านจากแถวที่เก่ากว่า `to` (ถูกบีบไม่ให้เกิน cut-off ของสิทธิ์) ค่าที่คำนวณไม่ได้เป็น `null` ไม่ใช่ 0
+และแต่ละส่วนมี `method` บอกพารามิเตอร์
+
+* **quote:** `last_trade` = เทรดล่าสุด (ไม่มีเทรด → close ของแท่ง 1m ล่าสุด, `source: "kline"`); `mark` จาก `mark_prices`
+  (spot = null); `change_24h` เทียบกับ close ของแท่ง 1m ที่ปิด 24 ชม. ก่อน `last_trade.at` ±5 นาที ไม่มีแท่งนั้น = null
+  (ไม่คำนวณจากช่วงสั้นกว่า); `spark` = close ทุก 30 นาทีย้อน 24 ชม. (≤ 49 จุด เก่าก่อน)
+* **details** (`from`/`to` ไม่ใส่ = 6 ชม. ก่อน cut-off, ยาวสุด 3 วัน):
+  * `book`: `engine.walls.WallTracker` พารามิเตอร์เดียวกับ desk (min_mult 4, 200 ระดับ, ±1% ของ mid, หายเกิน 2 รอบ = จบ,
+    เปลี่ยน ≥ 25% = adding/pulling) ป้อน snapshot 30 นาทีก่อน `to` สุ่ม 1 ต่อ 10 วินาที (≤ 180 snapshot) ขนาด bucket
+    มาจาก `book_snapshots.bucket_size` ถ้ามี ไม่งั้นอนุมานจากระยะห่างที่เล็กที่สุดระหว่างระดับราคาติดกัน แล้วจึงใช้
+    `tick_size`; snapshot ขาดเกิน 20 วินาที = กำแพงที่ติดตามอยู่จบเป็น `unknown`; snapshot ล่าสุดเก่ากว่า 60 วินาทีหรือมี
+    resync/หลุดที่ยังไม่ปิด → `walls: []`; outcome มีเพียง price_reached/removed/unknown (ไม่บอกว่า "filled")
+  * `big_trades`: เกณฑ์ = P99 แบบ nearest-rank (นิยามเดียวกับ `engine.bigtrades.threshold`, คำนวณด้วย `percentile_disc`
+    ใน PostgreSQL ซึ่งใช้สูตร rank เดียวกัน มีเทสต์เทียบ) จากเทรด 4 ชม. ก่อน `from` ถ้ามี ≥ 500 รายการ ไม่งั้นใช้เทรดในช่วง
+    เอง (look-ahead ภายในช่วง ระบุใน `method`); รายการ ≤ 50 ใหม่สุดก่อน ไม่รวม taker side unknown
+  * `profile`: `engine.profile.profile_from_trades` (ส่งผลรวมขนาดต่อราคา/ฝั่งเข้า engine ได้ระดับเท่ากัน) ถ้าช่วง ≤ 1 วัน
+    มีเทรด และไม่มี trade gap ที่ยังไม่คืน ไม่งั้น `profile_from_bars` จากแท่ง 1m (ค่าประมาณ) — bin = ราคาล่าสุด/5000
+    ปัดลงเป็นชุด 1-2-5 (BTC ~80,000 → 10, ทอง ~4,000 → 0.5, ~100 → 0.02) และเป็นจำนวนเต็มเท่าของ tick ถ้ารู้ tick
+  * `oi`: แถวล่าสุดในช่วง, หน่วย = base asset (inverse = contracts); `change_5m_pct`/`change_1h_pct` ต้องมีแถวที่ระยะนั้น
+    ±1 รอบ polling (อนุมานจากระยะห่างของแถวล่าสุด ค่าเริ่มต้น 60 วินาที) ไม่งั้น null; `series` ≤ 360 จุด
+  * `funding`: rate จาก mark-price stream เป็นค่าคาดการณ์ (`kind: "estimated"`) ยังไม่มีการบันทึก settlement จึงไม่มี
+    `settled`; ตัวเลข `rate_pct` เป็นเปอร์เซ็นต์อย่างน้อย 4 ตำแหน่ง (0.0001 → "0.0100")
+  * `quality`: trades, book, kline, oi, mark, liquidations — `stale` เมื่อแถวล่าสุดเก่ากว่า 3 เท่าของรอบปกติ (trades 60 วินาที,
+    kline 60 วินาที, book/mark/oi ใช้ระยะห่างกลางของ 11 แถวล่าสุด ค่าเริ่มต้นตาม collector 1/5/60 วินาที);
+    `disconnected`/`book_resync` เมื่อมี gap ที่ยังเปิดอยู่ ณ `to` (การหลุดของ WebSocket มีผลกับทุกสตรีมยกเว้น oi
+    ที่ดึงผ่าน REST); `incomplete` เมื่อมี gap ที่ยังไม่คืนใน 5 นาทีก่อน `to`; liquidation ไม่มีรอบคงที่จึงอิงสถานะ mark;
+    spot → oi/mark/liquidations = `unavailable` พร้อมหมายเหตุ
+* **observations** (`to` ไม่ใส่ = cut-off): ข้อเท็จจริง ≤ 5 รายการ ไม่ใช่การคาดการณ์ — cvd 5 นาที (ไม่แสดงเมื่อมี trade gap
+  ในช่วง), oi 5 นาที, กำแพงใหญ่สุด, big trade 30 นาที (ไม่แสดงเมื่อมี trade gap), funding; เรียงตามคะแนน
+  "ผิดปกติ" (cvd |delta|/ปริมาณที่รู้ฝั่ง, oi |%|/0.5, wall (mult−4)/6, bigtrade |net|/ปริมาณ big trade, funding |%|/0.03)
+  ไม่มีข้อมูลตั้งต้น = ไม่มีรายการนั้น (ไม่เติม 0)
+* ความเร็ว: ลองกับเทรดสังเคราะห์ 1 ล้านรายการใน 10 ชม. (PostgreSQL 16 ในเครื่องทดสอบ) ส่วนที่หนักสุดคือ percentile 4 ชม.
+  และ profile 6 ชม. ใช้ราว 0.2–0.3 วินาทีต่อส่วน ยังไม่ได้วัดกับปริมาณ BTC จริงทั้งวัน
 
 ## 9. การแยกสิทธิ์ (ownership)
 
@@ -235,7 +306,9 @@ python3 -m pytest -q
 ## 11. ทำแล้ว / ยังไม่ได้ทำ
 
 **ทำแล้วและมีเทสต์:** schema + migration runner, roles + RLS + triggers กันแก้, auth HS256 (dev), `/v1/me`,
-instruments/bars/quality/metric-events พร้อมการหน่วงฝั่ง server, journal (idempotency, cursor, ช่วงวันที่,
+instruments/bars/quality/metric-events พร้อมการหน่วงฝั่ง server, quote/details/observations (กำแพง, big trades,
+profile จาก engine ของ orderflow-lab, OI, funding แบบคาดการณ์, ราคา mark/index, quality ต่อสตรีม) พร้อมการหน่วงเดียวกัน,
+ตาราง mark_prices/open_interest/liquidations + ingest แบบ idempotent, ป้าย kline จาก REST และ kline_gap, journal (idempotency, cursor, ช่วงวันที่,
 revision, ลบ + tombstone), snapshot แบบแช่แข็ง, เทรดส่วนตัว (fills, correction, import_key, cashflow/funding,
 ล็อก initial risk, สถิติ), alert rules CRUD + event idempotent + backfill/cooldown/quality pause + ack,
 export CSV/JSON, ingest แบบ idempotent + data_quality, openapi.json sync
@@ -248,9 +321,13 @@ export CSV/JSON, ingest แบบ idempotent + data_quality, openapi.json sync
   กฎจากข้อมูลจริงและส่ง delivery (`alert_deliveries` ค้างสถานะ `pending`) — มีเพียงฟังก์ชัน `record_alert_event`
 * ไม่มี object storage: snapshot เก็บเพียง `image_object_key` + `image_sha256` ยังอัปโหลด/ดาวน์โหลดภาพไม่ได้
 * ไม่มี WebSocket gateway (เมื่อทำ ต้องส่ง token ทางข้อความแรกหรือ header ไม่ใช่ URL)
-* ยังไม่ได้คำนวณ metric/events จาก engine (`metric_events` มีตารางและ endpoint แต่ไม่มีตัวเติมข้อมูล)
-* ingest โหลด trades/kline/book/meta (+ mark/oi/liq เป็น raw_events); ยังไม่มีตาราง normalized ของ mark/funding/OI/liquidation
-  และ collector ยังไม่เก็บ raw depth diff จึง replay order book ละเอียดกว่า bucket 1 วินาทีไม่ได้
+* ยังไม่ได้บันทึก metric/events จาก engine ลง `metric_events` (มีตารางและ endpoint แต่ไม่มีตัวเติมข้อมูล) — details/observations
+  คำนวณสดทุก request จากข้อมูลในฐาน ไม่มี cache และยังไม่ได้วัดความเร็วกับปริมาณ BTC จริง
+* ingest ยังไม่โหลด raw depth diff (`depth`/`depth_snap` เมื่อเปิด `store_depth_diffs`) กำแพงจึงคำนวณจาก bucket summary
+  ที่สุ่มทุก 10 วินาทีเท่านั้น (เห็นการเพิ่ม/ยกเลิกระหว่าง snapshot ไม่ได้) และอายุกำแพงนับได้ไม่เกิน 30 นาที
+* funding ที่จ่ายจริง (settlement) ยังไม่ได้เก็บ: `funding.kind` เป็น `estimated` เสมอ; ยังไม่มี endpoint รายการ liquidation
+  (ตารางมีแล้ว ใช้ใน quality เท่านั้น); ingest ไม่สร้าง gap ของสตรีม mark/oi/liq เอง (quality อาศัยความเก่าของแถวและ gap
+  ของการเชื่อมต่อ)
 * ยังไม่มีงานลบ tombstone/idempotency record เก่า, งานลบ snapshot ที่ไม่มี entry อ้างถึง, backup/restore ที่ทดสอบจริง
 * TimescaleDB และ docker compose ยังไม่ได้ทดสอบ; ไม่มี rate limiting; ไม่มี research workspace (แยกจากสถิติสมาชิกโดยตั้งใจ)
 * bars แบ่งช่วงตาม UTC (1d เริ่ม 00:00 UTC) ยังไม่รองรับ session ตาม IANA timezone
@@ -270,7 +347,10 @@ export CSV/JSON, ingest แบบ idempotent + data_quality, openapi.json sync
 6. **Breakeven = net PnL เป็นศูนย์พอดีที่ 8 ตำแหน่ง** ไม่มีช่วงยอมรับ; average-cost (ไม่ใช่ FIFO) สำหรับ realized PnL;
    spot ที่จ่าย fee เป็นเหรียญฐานยังไม่ลดจำนวนเหรียญในสถานะ
 7. **instrument ที่ ingest สร้าง** ตั้ง multiplier = 1 (qty เป็นเหรียญฐาน) และ `unverified` — ต้องยืนยันกับ contract spec จริง
-8. ข้อสังเกตต่อ collector: รอบแก้ REVIEW แล้ว ช่วง id ที่ backfill ไม่สำเร็จจะค้างใน ledger และลองใหม่พร้อม `backfill_retry`
+8. **กติกาที่เลือกเองใน details/observations** (ควรยืนยัน): bin ของ profile = ราคา/5000 แบบ 1-2-5, เกณฑ์ big trade
+   ต้องมี ≥ 500 เทรดใน 4 ชม. ก่อนช่วง, รอบปกติของ trades ที่ใช้ตัดสิน stale = 60 วินาที (ตลาดที่เทรดน้อยอาจขึ้น stale บ่อย),
+   คะแนนเรียง observations, และ observations ไม่แสดง big trade เมื่อมี trade gap (สัญญาระบุเฉพาะ CVD)
+9. ข้อสังเกตต่อ collector: รอบแก้ REVIEW แล้ว ช่วง id ที่ backfill ไม่สำเร็จจะค้างใน ledger และลองใหม่พร้อม `backfill_retry`
    (ไม่ถูกทิ้ง) ส่วนช่วงที่เกิน `BACKFILL_MAX` เขียนเป็น `trade_gap` พร้อมเหตุผล — ingest ยังสแกน id ที่ขาดซ้ำอีกชั้น
    ที่ยังเหลือ: collector ไม่ backfill kline/book หลังหลุด จึงเป็น `unrecoverable`; การหยุด process ไม่มี `disconnected`
    ingest จึงอนุมาน downtime จาก `connected` ครั้งถัดไป

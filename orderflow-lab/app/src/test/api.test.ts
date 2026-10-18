@@ -1,11 +1,14 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { ApiSource, freshnessOf, mapBars, mapInstrument, mapObservations, mapQuote, type ApiBars } from "../data/api";
+import { ApiSource, freshnessOf, mapBars, mapDetails, mapInstrument, mapObservations, mapQuote, type ApiBars, type ApiDetails, type ApiObservations, type ApiQuote } from "../data/api";
 import instrumentsFx from "./fixtures/instruments.json";
 import barsFx from "./fixtures/bars.json";
 import specRaw from "../../../server/openapi.json?raw";
 // recorded from the running API by server/tests/test_frontend_contract.py (fails there if they drift)
 import serverInstruments from "./fixtures/server-instruments.json";
 import serverBars from "./fixtures/server-bars-5m.json";
+import serverQuote from "./fixtures/server-quote.json";
+import serverDetails from "./fixtures/server-details.json";
+import serverObservations from "./fixtures/server-observations.json";
 
 const spec = JSON.parse(specRaw);
 const required = (name: string): string[] => spec.components.schemas[name].required;
@@ -43,7 +46,7 @@ describe("mapBars", () => {
     expect(s.bars[0]).toEqual({ t: Date.parse("2026-10-18T08:30:00Z") / 1000, o: 67000.1, h: 67050, l: 66990, c: 67040.2, v: 12.5, buyV: 7 });
     expect(s.bars[1].buyV).toBeNull(); // no aggressor split -> CVD must show as unavailable, not 0
     expect(s.freshness).toEqual({ kind: "live", asOf: Date.parse("2026-10-18T08:40:00Z") });
-    expect(s.vwapMethod).toBe(barsFx.method);
+    expect(s.vwapMethod).toContain("ของแท่ง 5m เริ่มจากแท่งแรกของช่วงที่เลือก");
   });
   it("never says live when delayed, stale, gapped or empty", () => {
     const fx = barsFx as ApiBars;
@@ -122,5 +125,38 @@ describe("market mapping rules", () => {
     expect(obs.map((o) => o.title)).toEqual(["CVD ลดลง", "Funding (ประมาณการ)"]);
     expect(obs[0].measured).toBe("CVD −12.50 BTC ใน 5 นาที · ราคา +0.12%");
     expect(obs[1].measured).toBe("+0.0100% ต่อรอบ");
+  });
+});
+
+describe("market endpoints recorded from the real API", () => {
+  const at = Date.parse("2026-01-05T10:47:00Z");
+  it("quote: last trade, 24h change and spark map to numbers", () => {
+    const q = mapQuote("1", serverQuote as ApiQuote, at);
+    expect(q.price).toBe(Number(serverQuote.last_trade.price));
+    expect(q.changePct).toBe(Number(serverQuote.change_24h.pct));
+    expect(q.spark).toHaveLength(serverQuote.spark.length);
+    expect(q.spark.every(Number.isFinite)).toBe(true);
+    expect(q.freshness.kind).toBe("live"); // last trade 30 s before `at`
+  });
+  it("details: walls, wall events, big trades, OI, funding, profile, prices and quality", () => {
+    const d = mapDetails(serverDetails as ApiDetails);
+    expect(d.walls).toHaveLength(serverDetails.book.walls.length);
+    expect(d.walls.every((w) => Number.isFinite(w.price) && Number.isFinite(w.size) && w.ageSec >= 0)).toBe(true);
+    expect(new Set(d.wallEvents.map((e) => e.outcome))).toEqual(new Set(serverDetails.book.events.map((e) => e.outcome)));
+    expect(d.bigTrades).toHaveLength(serverDetails.big_trades.items.length);
+    expect(d.bigMethod).toBe(serverDetails.big_trades.method);
+    expect(d.oi).toMatchObject({ value: Number(serverDetails.oi.value), unit: serverDetails.oi.unit, change5mPct: Number(serverDetails.oi.change_5m_pct) });
+    expect(d.oi?.funding).toMatchObject({ ratePct: Number(serverDetails.funding.rate_pct), kind: "estimated", nextAt: Date.parse(serverDetails.funding.next_at) });
+    expect(d.profile?.poc).toBe(Number(serverDetails.profile.poc));
+    expect(d.prices.map((p) => p.type)).toEqual(["last_trade", "mark", "index"]);
+    expect(d.quality.map((q) => q.stream).sort()).toEqual(["book", "kline", "liquidations", "mark", "oi", "trades"]);
+  });
+  it("observations: every recorded kind is worded, values come through unchanged", () => {
+    const ins = mapInstrument(serverInstruments.items[0] as never)!;
+    const obs = mapObservations("1", ins, serverObservations as unknown as ApiObservations);
+    expect(obs.map((o) => o.kind)).toEqual(serverObservations.items.map((o) => o.kind));
+    expect(obs.every((o) => o.title && o.measured && o.explain && !/NaN|undefined/.test(o.measured))).toBe(true);
+    const oi = serverObservations.items.find((o) => o.kind === "oi")!;
+    expect(obs.find((o) => o.kind === "oi")!.measured).toContain(`${Number(oi.values.oi_change_pct).toFixed(2)}%`);
   });
 });

@@ -1,4 +1,4 @@
-# สถานะงานตาม CLAUDE-HANDOFF.md (18 ต.ค. 2026)
+# สถานะงานตาม CLAUDE-HANDOFF.md (อัปเดต 18 ต.ค. 2026 รอบข้อมูลจริง)
 
 สรุปว่าแต่ละขั้นของ handoff ทำอะไรไปแล้ว อยู่ไฟล์ไหน ทดสอบอย่างไร และอะไรที่ยังเป็นข้อมูลตัวอย่างหรือยังเชื่อมไม่ได้
 ทุกตัวเลขผลเทสต์ด้านล่างมาจากการรันจริงในเครื่องทดสอบวันนี้
@@ -7,11 +7,14 @@
 
 | ชุดเทสต์ | คำสั่ง | ผล |
 |---|---|---|
-| Python (engine, collector, check, journal resolver, parity JS↔Python) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 109 ผ่าน |
-| Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 66 ผ่าน |
-| แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 31 ผ่าน |
-| แอป e2e (Chromium 320/390/1440 px) | `cd orderflow-lab/app && npm run build && node e2e/check.mjs` | 46 ผ่าน, 0 ไม่ผ่าน, ไม่มี page error |
-| Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error, อ่าน journal 1004 รายการ |
+| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 119 ผ่าน |
+| Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
+| แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 80 ผ่าน |
+| แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 46 ผ่าน |
+| แอป e2e รุ่น claude.ai (connector จำลอง) | `node e2e/check-artifact.mjs` | 82 ผ่าน, เรียกเฉพาะเครื่องมือใน allowlist |
+| **แอป e2e กับเซิร์ฟเวอร์ที่รันจริง + ข้อมูลจริงจาก Binance spot** | `DATA=... node e2e/check-api.mjs` | 40 ผ่าน: ราคา/24 ชม./แท่ง/กำแพง/OI/คุณภาพข้อมูลบนจอตรงกับ API, สมาชิกหน่วงเห็นป้ายหน่วง, token ผิดขึ้นให้ล็อกอินใหม่, ไม่เรียก host อื่น |
+| bundle รุ่น production ไม่มีโค้ด connector | `npm run build:single` | ผ่าน |
+| Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error |
 | openapi.json ตรงกับโค้ด | `cd orderflow-lab/server && python3 -m app.openapi_export --check` | ตรงกัน |
 
 ## ทีละขั้นของ handoff
@@ -36,22 +39,26 @@
 6. **ข้อมูลจริงจากแหล่งที่มีสิทธิ์เท่านั้น** — ยังไม่มี: แอปและ backend ใช้ข้อมูลตัวอย่าง/ข้อมูลทดสอบ;
    ข้อมูล TradingView ไม่ได้ใส่ใน repo; การใช้ข้อมูล Binance เชิงพาณิชย์ต้องมี data licence (ROADMAP ข้อ 4)
 
-## ยังเป็นข้อมูลตัวอย่าง หรือยังเชื่อมไม่ได้
+## ข้อมูลจริงมาจากไหนแล้วบ้าง
+
+| ทาง | ข้อมูลจริง | หมายเหตุ |
+|---|---|---|
+| collector → ingest → PostgreSQL → API → แอป (ทางของสมาชิก) | ราคา, แท่งเทียน 24 ชม. ย้อนหลัง, CVD, กำแพง, ไม้ใหญ่, profile, คุณภาพข้อมูล, "สิ่งที่เกิดขึ้น" | ทดสอบที่นี่ได้เฉพาะ Binance **spot** (BTCUSDT, PAXGUSDT) เพราะ Binance futures ตอบ 451 กับเครื่องทดสอบ; OI/funding/XAUUSDT ทำงานในโค้ดและเทสต์แล้ว จะมีค่าจริงเมื่อรัน collector บนเครื่องที่ Binance ไม่บล็อก |
+| รุ่นพรีวิวใน claude.ai (เจ้าของดูเอง) | BTCUSDT/XAUUSDT perpetual + BTCUSDT spot รวม OI และ funding ผ่าน connector Binance ของเจ้าของ แบบอ่านอย่างเดียว | ไม่อยู่ในรุ่นสำหรับสมาชิก (มีเทสต์ตรวจ bundle) ห้ามเผยแพร่/ขาย |
+
+## ยังไม่มี หรือยังเชื่อมไม่ได้
 
 | เรื่อง | สถานะ |
 |---|---|
-| ราคา แท่งเทียน CVD OI funding กำแพง ไม้ใหญ่ เหตุการณ์ในแอป | ข้อมูลตัวอย่าง (`DemoSource`) |
-| quote, observations, details, ประวัติแจ้งเตือน ผ่าน ApiSource | ยังไม่ต่อ ขึ้นข้อความว่ายังไม่รองรับ ไม่เดาค่า |
-| แอปคุยกับ server ที่รันจริงผ่านเบราว์เซอร์ | ยังไม่ได้ทดสอบ (ทดสอบผ่าน fixture ที่บันทึกจาก server) |
-| เข้าสู่ระบบ | backend ใช้ HS256 dev token; ยังไม่มี identity provider จริงและการตรวจ JWKS; หน้าแอปยังไม่มีหน้าล็อกอิน |
+| เข้าสู่ระบบ | backend ใช้ HS256 dev token; ยังไม่มี identity provider จริง/JWKS และหน้าล็อกอินในแอป |
 | ชำระเงิน / สมาชิก realtime | ยังไม่มี; สิทธิ์ต้องใส่ในตาราง `entitlements` เอง |
 | แจ้งเตือนนอกแอป (Telegram) | ยังไม่มี worker และการส่งจริง |
 | บันทึกในแอป | IndexedDB ในเครื่องเท่านั้น ยังไม่ส่งขึ้น server |
 | ภาพในบันทึก | เก็บในเครื่อง; server เก็บแค่ key + hash ยังไม่มี object storage |
-| คำนวณ metric/event จาก engine ลงฐานข้อมูล | ยังไม่มีตัวเติมข้อมูล |
+| cache / metric worker | details และ observations คำนวณทุกครั้งที่ขอ (0.2–0.3 วินาทีกับเทรดจำลอง 1 ล้านรายการ ยังไม่ได้วัดกับ BTC ทั้งวันจริง) |
 | WebSocket gateway, rate limiting, backup/restore ที่ทดสอบแล้ว | ยังไม่มี |
-| TimescaleDB, docker compose | เขียนไว้ ยังไม่ได้ทดสอบ |
-| ตรวจกฎหมาย (ก.ล.ต.) และสิทธิ์ข้อมูล | ยังไม่ได้ทำ ต้องได้คำตอบก่อนเปิดให้คนนอกใช้ |
+| TimescaleDB, docker compose, Dockerfile | เขียนไว้ ยังไม่ได้ทดสอบ (ไม่มี Docker ในเครื่องทดสอบ) |
+| สิทธิ์ใช้ข้อมูลเชิงพาณิชย์ และ ก.ล.ต. | ยังไม่ได้ทำ: ข้อมูล Binance ใช้ทดสอบ/ดูเองได้ แต่ขายให้สมาชิกต้องมี data licence ก่อน (ROADMAP ข้อ 4) |
 
 ## เรื่องที่เจ้าของต้องตัดสินใจ
 
