@@ -23,8 +23,8 @@ const fs = require("fs"), path = require("path"), { execFileSync } = require("ch
 const OFJ = require("./journal.js"), OFP = require("./plan.js");
 
 const INS = {
-  xau: { key: "xau", src: "bin", tick: 0.1, round: 25, sessOff: 22 * 3600 },
-  paxg: { key: "paxg", src: "bin", tick: 0.1, round: 25, sessOff: 22 * 3600 },
+  xau: { key: "xau", src: "bin", gold: true, tick: 0.1, round: 25, sessOff: 22 * 3600 },
+  paxg: { key: "paxg", src: "bin", gold: true, tick: 0.1, round: 25, sessOff: 22 * 3600 },
   btc: { key: "btc", src: "bin", tick: 10, round: 500, sessOff: 0 },
 };
 const BAR = 300;

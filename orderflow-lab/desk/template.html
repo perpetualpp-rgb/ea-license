@@ -213,7 +213,7 @@
     </div>
     <div class="legend">
       <span><i class="sw wall"></i>Wall (ทึบ = ยืนนาน, ประ = ใหม่, หนา = ใหญ่)</span><span><i class="sw bub"></i>ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย)</span>
-      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span><span><i class="sw oi"></i>OI (แผงล่างสุด, futures ราย 5 นาที)</span>
+      <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw ztop"></i><i class="sw magnet"></i><i class="sw zbot"></i>เลน Range ของ session ก่อน: Top Zone / Magnet / Bottom Zone (แถบสี) · Y-Hi / Y-Lo</span><span><i class="sw round"></i>เลขกลม</span><span><i class="sw oi"></i>OI (แผงล่างสุด, futures ราย 5 นาที)</span>
       <span class="goldonly"><i class="sw sdl"></i>SD ±1/2/3 จากราคาเปิดวัน XAUUSD (กลยุทธ์ 3)</span><span class="goldonly"><i class="sw call"></i>Call <i class="sw put"></i>Put volume ตาม strike (ขอบขวา)</span>
     </div>
     <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
@@ -476,7 +476,7 @@
 
   // ---- interactive chart: TradingView Lightweight Charts (drag, zoom, crosshair, panes) ----------
   const LW = window.LightweightCharts, TZ = -new Date().getTimezoneOffset() * 60; // the time axis shows local time
-  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, oi: null, markers: null, sdo: null, sdY: [], sdStep: 0, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
+  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, oi: null, markers: null, sdo: null, lanes: null, sdY: [], sdStep: 0, laneY: [], lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
   const lt = t => t + TZ;
   function alpha(hex, a) { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
   function initChart() {
@@ -488,10 +488,11 @@
     const price = { type: "custom", minMove: 0.01, formatter: p => fmt(p, X().dec) }, quiet = { lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false };
     C.candles = C.chart.addSeries(LW.CandlestickSeries, { priceFormat: price });
     C.candles.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.2 } });
-    // like the Gold Plan Desk: the price range takes in the nearest SD line past each side of the candles (when it is within 1SD)
-    C.candles.applyOptions({ autoscaleInfoProvider: orig => { const r = orig(); if (!r || !r.priceRange || !C.sdY.length) return r;
-      let lo = r.priceRange.minValue, hi = r.priceRange.maxValue;
-      const up = C.sdY.filter(p => p > hi && p - hi <= C.sdStep).sort((a, z) => a - z)[0], dn = C.sdY.filter(p => p < lo && lo - p <= C.sdStep).sort((a, z) => z - a)[0];
+    // the price range takes in the nearest SD line or Range lane edge past each side of the candles, only when it is
+    // close (within 35% of the candles' own range), so the candles never shrink to a strip
+    C.candles.applyOptions({ autoscaleInfoProvider: orig => { const r = orig(); const ys = C.sdY.concat(C.laneY); if (!r || !r.priceRange || !ys.length) return r;
+      let lo = r.priceRange.minValue, hi = r.priceRange.maxValue; const near = 0.35 * Math.max(hi - lo, 1e-9);
+      const up = ys.filter(p => p > hi && p - hi <= near).sort((a, z) => z - a)[0], dn = ys.filter(p => p < lo && lo - p <= near).sort((a, z) => a - z)[0];
       return { priceRange: { minValue: dn != null ? dn : lo, maxValue: up != null ? up : hi }, margins: r.margins }; } });
     C.vol = C.chart.addSeries(LW.HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, ...quiet });
     C.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
@@ -500,6 +501,7 @@
     C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, title: "CVD", priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
     C.markers = LW.createSeriesMarkers(C.candles, []);
     C.sdo = new SdOverlay(); C.candles.attachPrimitive(C.sdo);
+    C.lanes = new LaneOverlay(); C.candles.attachPrimitive(C.lanes);
     const pane = C.chart.panes()[1]; if (pane) pane.setHeight(window.innerWidth < 600 ? 100 : 140);
     C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => {
       if (r) { const el = $("lwMain"); el.dataset.from = r.from.toFixed(1); el.dataset.to = r.to.toFixed(1); } // mirrored for tests
@@ -522,7 +524,7 @@
     if (!C.chart) return; const T = tok(); chartTheme(T);
     const ins = I(), xf = X(), bs = S.chart, key = ins.key + "|" + ui.tf, ts = C.chart.timeScale();
     if (key !== C.key) { C.noMore = false; C.n = 0; }
-    if (!bs.length) { for (const s of [C.candles, C.vol, C.vwap, C.cvd, ...C.bands]) s.setData([]); C.markers.setMarkers([]); C.sdo.set(null, [], {}); C.key = key; C.n = 0; return; }
+    if (!bs.length) { for (const s of [C.candles, C.vol, C.vwap, C.cvd, ...C.bands]) s.setData([]); C.markers.setMarkers([]); C.sdo.set(null, [], {}); C.lanes.set([], 0); C.key = key; C.n = 0; return; }
     const V = v => xf.a * v + xf.b, intraday = INTRADAY.has(ui.tf), prevRange = ts.getVisibleLogicalRange(), prevN = C.n, prevFirst = C.first;
     C.candles.setData(bs.map(b => ({ time: lt(b.t), open: V(b.o), high: V(b.h), low: V(b.l), close: V(b.c) })));
     C.vol.setData(bs.map(b => ({ time: lt(b.t), value: b.v, color: alpha(delta(b) >= 0 ? T.buy : T.sell, 0.35) })));
@@ -551,8 +553,8 @@
     // phones keep only the axis labels; titles inside the pane would cover the candles
     const St = LW.LineStyle, narrow = $("lwMain").clientWidth < 600, pl = (p, title, color, style, width, axis = true) => { if (p != null && isFinite(p)) C.lines.push(C.candles.createPriceLine({ price: V(p), title: narrow ? "" : title, color, lineStyle: style, lineWidth: width, axisLabelVisible: axis })); };
     const pr = D && D.pr;
-    if (ui.layers.range && pr) { pl(pr.yhi, "Y-Hi", T.sell, St.Solid, 1); pl(pr.vah, "Top", T.muted, St.Dashed, 1); pl(pr.mhi, "", T.brass, St.Dotted, 1, false); pl(pr.poc, "POC", T.brass, St.Dashed, 2);
-      pl(pr.mlo, "", T.brass, St.Dotted, 1, false); pl(pr.val, "Bottom", T.muted, St.Dashed, 1); pl(pr.ylo, "Y-Lo", T.buy, St.Solid, 1); }
+    syncLanes(V, T, bs);
+    if (ui.layers.range && pr) { pl(pr.yhi, "Y-Hi", T.sell, St.Solid, 1); pl(pr.poc, "POC", T.brass, St.Dashed, 2); pl(pr.ylo, "Y-Lo", T.buy, St.Solid, 1); }
     if (ui.layers.round) { const recent = bs.slice(-400), lo = V(Math.min(...recent.map(b => b.l))), hi = V(Math.max(...recent.map(b => b.h))); let step = xf.step;
       while ((Math.max(lo, hi) - Math.min(lo, hi)) / step > 24) step *= 2;
       for (let d = Math.ceil(Math.min(lo, hi) / step) * step; d <= Math.max(lo, hi); d += step) pl((d - xf.b) / xf.a, "", T.axis, St.SparseDotted, 1, false); }
@@ -624,6 +626,7 @@
         if (w) html += `<br>กำแพง XAUUSDT ${w.side.toUpperCase()} ${F(w.price + g.off)} (XAUUSDT ${fmt(w.price, 2)}) · ${fmtV(w.size)} oz · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
     const M = S.sdM, off = ins.gold && ui.layers.sd && M && !M.why ? xauOffset(M) : null;
     if (off != null && b.t >= M.start) html += ` · ${zTxt((b.c - off - M.base) / M.sd1)} SD`;
+    const ln = ui.layers.range && D && D.cur.length && b.t >= D.cur[0].t ? laneOf(b.c) : null; if (ln) html += ` · เลน ${ln}`;
     el.innerHTML = html;
   }
   async function loadOlder() {
@@ -1364,13 +1367,55 @@
       });
     }
   }
+  // Range lanes of the previous session as shaded bands with their names, from the current session's start
+  class LaneOverlay {
+    constructor() { this.lanes = []; this.from = 0; const self = this; this.views = [{ zOrder: () => "bottom", renderer: () => ({ draw: t => self.draw(t) }) }]; }
+    attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate; }
+    detached() { this.req = null; }
+    set(lanes, from) { this.lanes = lanes; this.from = from; if (this.req) this.req(); }
+    updateAllViews() {}
+    paneViews() { return this.views; }
+    draw(target) {
+      if (!this.lanes.length || !this.series) return;
+      target.useMediaCoordinateSpace(({ context: ctx, mediaSize: m }) => {
+        const x0 = this.chart.timeScale().logicalToCoordinate(this.from), x = Math.max(0, x0 == null ? 0 : x0);
+        ctx.font = "10px 'IBM Plex Mono', ui-monospace, monospace"; ctx.textBaseline = "top"; ctx.textAlign = "left";
+        const used = [];
+        for (const L of this.lanes) {
+          const y1 = this.series.priceToCoordinate(L.hi), y2 = this.series.priceToCoordinate(L.lo); if (y1 == null || y2 == null) continue;
+          const top = Math.min(y1, y2), h = Math.max(1, Math.abs(y2 - y1));
+          if (top > m.height || top + h < 0) continue;
+          if (L.fill) { ctx.fillStyle = L.fill; ctx.fillRect(x, top, m.width - x, h); }
+          else { ctx.strokeStyle = L.ink; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(x, Math.round(top) + 0.5); ctx.lineTo(m.width, Math.round(top) + 0.5); ctx.stroke(); ctx.globalAlpha = 1; }
+          const ty = Math.min(Math.max(top + 2, 2), m.height - 12); if (used.some(u => Math.abs(u - ty) < 12)) continue; used.push(ty);
+          ctx.fillStyle = L.ink; ctx.globalAlpha = 0.85; ctx.fillText(L.name, x + 4, ty); ctx.globalAlpha = 1;
+        }
+      });
+    }
+  }
+  function syncLanes(V, T, bs) {
+    const pr = D && D.pr, el = $("lwMain");
+    C.laneY = [];
+    if (!C.lanes || !ui.layers.range || !pr || !bs.length) { if (C.lanes) C.lanes.set([], 0); el.dataset.lanes = "0"; return; }
+    const lane = (name, lo, hi, fill, ink) => ({ name, lo: V(Math.min(lo, hi)), hi: V(Math.max(lo, hi)), fill, ink });
+    const lanes = [lane("Y-Hi", pr.yhi, pr.yhi, null, T.sell), lane("Top Zone · อันตราย ไม่ซื้อ", pr.vah, pr.yhi, T.ztop, T.sell), lane("Magnet (โซนต่อสู้)", pr.mlo, pr.mhi, T.brassSoft, T.brass),
+                   lane("Bottom Zone", pr.ylo, pr.val, T.zbot, T.buy), lane("Y-Lo", pr.ylo, pr.ylo, null, T.buy)];
+    C.lanes.set(lanes, Math.max(0, barIndexAt(bs, D.cur[0].t)));
+    C.laneY = [V(pr.yhi), V(pr.vah), V(pr.val), V(pr.ylo)];
+    el.dataset.lanes = String(lanes.length);
+  }
+  /** which lane of the previous session's Range a price is in */
+  function laneOf(p) { const pr = D && D.pr; if (!pr || p == null) return null;
+    return p > pr.yhi ? "เหนือ Y-Hi" : p >= pr.vah ? "Top Zone" : p > pr.mhi ? "เหนือ Magnet" : p >= pr.mlo ? "Magnet" : p > pr.val ? "ใต้ Magnet" : p >= pr.ylo ? "Bottom Zone" : "ใต้ Y-Lo"; }
+
   function syncSdOverlay(V, T) {
     const ins = I(), M = S.sdM, el = $("lwMain"), row = $("optHintRow"); el.dataset.opt = "0";
     row.style.display = ins.gold ? "" : "none"; $("sdSet").hidden = !ins.gold;
     if (!C.sdo) return;
     const off = M && !M.why ? xauOffset(M) : null, bs = S.chart;
     if (!ins.gold || off == null || !bs.length) { C.sdo.set(null, [], {}); if (ins.gold) $("optHint").textContent = optSummary(M, []); return; }
-    const k = Math.max(0, barIndexAt(bs, M.start)), band = ui.layers.sd ? { up: V(M.base + M.sd1 + off), lo: V(M.base - M.sd1 + off), from: bs[k].t >= M.start ? k : k + 1 } : null;
+    // no ±1SD fill: it would tint the whole pane under the Range lanes; the SD lines carry it
+    const band = null;
     const rows = optRows(M), shown = ui.layers.opt ? rows.map(r => ({ ...r, y: V(r.xau + off) })) : [];
     C.sdo.set(band, shown, { sdl: T.sdl, call: T.call, put: T.put, ink: T.ink2 });
     el.dataset.opt = String(shown.filter(r => r.call + r.put > 0).length);

@@ -136,6 +136,10 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       await p.click("#btnOfCopy"); await p.waitForTimeout(200); const copied = await p.textContent("#ofCopied");
       console.log("checklist:", ofc.items, "items ·", ofc.status.slice(0, 90), "· ticket", ofc.ticket.slice(0, 80), "· copy:", copied.slice(0, 120));
       await p.locator("#cardOf").screenshot({ path: path.join(OUT, "desk-checklist.png") });
+      const lanes = await p.evaluate(() => ({ n: +(document.getElementById("lwMain").dataset.lanes || 0), legend: document.getElementById("lwLegend").textContent }));
+      console.log("range lanes:", lanes.n, "|", lanes.legend.slice(0, 140));
+      if (lanes.n !== 5 || !/เลน /.test(lanes.legend)) errs.push("xau: Range lanes not drawn or not named in the readout");
+      await p.locator("#cardMain").screenshot({ path: path.join(OUT, "desk-xau-lanes.png") });
       if (ofc.items !== 12 || ofc.hidden || !/CVD|รอ|ครบ/.test(ofc.status) || !(/XAUUSD/.test(copied) || /ยังไม่มีใบสั่ง|คัดลอกแล้ว/.test(copied))) errs.push("checklist card on XAUUSDT not complete");
     } else if (!(ofc.sw && ofc.items === 0)) errs.push(name + ": checklist on the XAUUSD chart should offer the XAUUSDT chart");
     if (name === "light") {

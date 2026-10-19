@@ -37,9 +37,15 @@
     if (cur.length) out.push(cur);
     return out;
   }
+  // a Binance gold session that falls on a Saturday or Sunday trading day (gold itself is closed then)
+  const weekendSession = (seg, ins) => { const d = new Date((seg[0].t - ins.sessOff + 86400) * 1000).getUTCDay(); return d === 0 || d === 6; };
   function derive(sess, ins) {
     if (sess.length < 5) return null;
-    const ss = sessions(sess, ins), cur = ss[ss.length - 1], prev = ss.length > 1 ? ss[ss.length - 2] : null;
+    const ss = sessions(sess, ins), cur = ss[ss.length - 1];
+    // the previous session gives the Range lanes; for gold on Binance (open all weekend) skip the weekend ones,
+    // so Monday reads Friday's range rather than a thin Sunday
+    let prev = null;
+    for (let i = ss.length - 2; i >= 0 && !prev; i--) if (!(ins.gold && ins.src === "bin" && weekendSession(ss[i], ins))) prev = ss[i];
     const prof = OF.profileFromBars(cur, ins.tick), rng = OF.sessionRange(prof, 0.70), mag = OF.valueArea(prof, 0.30);
     let pr = null;
     if (prev && prev.length > 10) { const pp = OF.profileFromBars(prev, ins.tick), r = OF.sessionRange(pp, 0.70), m = OF.valueArea(pp, 0.30);
