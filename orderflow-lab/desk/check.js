@@ -33,7 +33,24 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       if (tool === "futures_usds.markPrice") return { symbol: a.symbol, markPrice: "4167.9", lastFundingRate: "0.00010000", nextFundingTime: now + 3 * 3600000, time: now };
       if (tool === "futures_usds.topTraderLongShortRatioPositions") return Array.from({ length: a.limit }, (_, i) => { const l = 0.7 + i * 0.003; return { symbol: a.symbol, longAccount: String(l), shortAccount: String(1 - l), longShortRatio: String(l / (1 - l)), timestamp: now - (a.limit - i) * 3600000 }; });
       if (tool === "futures_usds.takerBuySellVolume") return Array.from({ length: a.limit }, (_, i) => ({ buyVol: String(400 + r() * 100), sellVol: String(400 + r() * 100), buySellRatio: "1.0", timestamp: now - (a.limit - i) * 3600000 })); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
-    const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - (window.__gcAgoH || 0) * 3600 - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
+    // GC1! 5-minute bars ending at 4186 (one series per "hours ago" setting); XAUUSD 5m follows it 20.6 lower
+    const gcs = {}, gc = () => { const k = window.__gcAgoH || 0; if (gcs[k]) return gcs[k];
+      const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 300000) * 300 - k * 3600 - (299 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; }
+      const d = 4186 - c.c[299]; for (const f of ["o", "h", "l", "c"]) c[f] = c[f].map(x => x + d); return (gcs[k] = c); };
+    // TradingView bars by symbol: PEPPERSTONE:XAUUSD near 4165, CBOE:GVZ daily closes before the day opened,
+    // CME weekly options one daily bar of today's volume; the Globex day starts at 17:00 Chicago
+    const chiHour = t => +new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hourCycle: "h23", hour: "2-digit" }).format(new Date(t * 1000));
+    const dayStart = (() => { const h0 = Math.floor(now / 3600000) * 3600; for (let h = 0; h < 48; h++) if (chiHour(h0 - h * 3600) === 17) return h0 - h * 3600; return h0; })();
+    const SECS = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400 };
+    const series = (n, sec, t1, p0, vol) => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = p0; const st = sec >= 86400 ? 0.004 * p0 : 0.0004 * p0 * Math.sqrt(sec / 60);
+      for (let i = 0; i < n; i++) { const o = p, cl = o + (r() - 0.5) * st * 2; c.t.push(t1 - (n - 1 - i) * sec); c.o.push(o); c.h.push(Math.max(o, cl) + st * 0.3); c.l.push(Math.min(o, cl) - st * 0.3); c.c.push(cl); c.v.push(vol == null ? Math.round(200 + r() * 1500) : vol); p = cl; }
+      const d = p0 - c.c[n - 1]; for (const k of ["o", "h", "l", "c"]) c[k] = c[k].map(x => x + d); return c; };
+    const tv = inp => { const sym = inp.symbol, iv = inp.interval || "1D", n = Math.min(inp.count || 300, 3000);
+      if (/^COMEX:O?G\\d[MTWR]?\\d{6}[CP]\\d+$/.test(sym)) { const strike = +sym.match(/[CP](\\d+)$/)[1], v = Math.round(r() * 400 * Math.exp(-Math.abs(strike - 4185) / 60)); return { t: [dayStart], o: [10], h: [12], l: [9], c: [11], v: [v] }; }
+      if (sym === "CBOE:GVZ") return series(n, 86400, dayStart - 3.5 * 3600, 22.4, null);
+      if (sym === "PEPPERSTONE:XAUUSD") { if (iv === "1D") return series(n, 86400, dayStart, 4165.42, null);
+        if (iv === "5m") { const g = gc(), j = () => (r() - 0.5) * 0.6; return { t: g.t, o: g.o.map(x => x - 20.6 + j()), h: g.h.map(x => x - 20.3), l: g.l.map(x => x - 20.9), c: g.c.map(x => x - 20.6 + j()), v: g.v.map(x => x * 4) }; } const sec = SECS[iv] || 300; return series(n, sec, Math.floor(now / 1000 / sec) * sec, 4165.42, null); }
+      return gc(); };
     window.__calls = []; window.__dbWrites = []; window.__dbReads = [];
     // in-memory db (where / orderBy / limit / get / onSnapshot like the real store, pages capped at 1000)
     // with one seeded open trade so the resolver has work to do, and older closed records for pagination
@@ -65,7 +82,7 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
           { date: new Date(now + 50 * 60000).toISOString(), title: "Core Inflation Rate MoM", importance: 1, forecast: 0.3, previous: 0.3, actual: null, unit: "%", period: "Sep" },
           { date: new Date(now + 5 * 3600000).toISOString(), title: "Housing Starts", importance: 0, forecast: 1.3, previous: 1.275, actual: null, scale: "M" }] } } });
-        else if (tool.includes("ohlcv")) h({ type: "data", result: { payload: { bars: gc() } } });
+        else if (tool.includes("ohlcv")) { window.__tv = (window.__tv || 0) + 1; h({ type: "data", result: { payload: { bars: tv(inp) } } }); }
         else h({ type: "data", result: { payload: { data: inp.symbol.includes("GC") ? { close: 4186.7, change: -0.4, update_mode: "streaming" } : inp.symbol.includes("THB") ? { close: 32.45, change: 0.1 } : { close: 4165.42, change: -0.13 } } } }); }, 50); return () => {}; } }) };
   })();`;
   fs.mkdirSync(OUT, { recursive: true });
@@ -81,7 +98,37 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
     await p.waitForTimeout(3500);
     const info = async () => p.evaluate(() => ({ scrollW: document.documentElement.scrollWidth, ov: document.getElementById("ovMain").hidden, strip: [...document.querySelectorAll("#strip .q .v")].map(e => e.textContent).join(" | "),
       oi: (document.getElementById("oiHint") || {}).textContent || "", ob: document.querySelectorAll("#obBox tr").length, tape: document.querySelectorAll("#tblTape tr").length, flow: document.getElementById("flowTiles").textContent.slice(0, 160), err: document.getElementById("errTop").textContent, tags: [...document.querySelectorAll(".tag")].map(t => t.textContent).join(","), cot: document.getElementById("cardCot").hidden }));
-    console.log(name, "xau", JSON.stringify(await info()));
+    const sdInfo = async () => p.evaluate(() => { const el = document.getElementById("lwMain"); return { title: document.getElementById("mainTitle").textContent, n: +(el.dataset.sd || 0), opt: +(el.dataset.opt || 0),
+      hint: document.getElementById("sdHint").textContent, optHint: document.getElementById("optHint").textContent, ladder: document.getElementById("ladder").textContent }; });
+    const num = (txt, re) => { const m = txt.match(re); return m ? +m[1].replace(/,/g, "") : NaN; };
+    const sdMath = (tag, h) => { const base = num(h, /ฐาน ([\d,.]+)/), iv = num(h, /%IV ([\d,.]+)/), dte = num(h, /DTE ([\d.]+)/), sd1 = num(h, /1SD ([\d,.]+)/);
+      if (!(Math.abs(base * iv / 100 * Math.sqrt(dte / 365) - sd1) <= 0.01)) errs.push(`${tag}: 1SD ${sd1} ≠ ${base} × ${iv}% × √(${dte}/365)`); return { base, iv, dte, sd1 }; };
+    const s0 = await sdInfo(); console.log(name, "xs", s0.title, "| sd lines", s0.n, "| opt strikes", s0.opt, "|", s0.hint.slice(0, 220), "|", s0.optHint.slice(0, 200));
+    if (!/XAUUSD \(Pepperstone/.test(s0.title)) errs.push(name + ": the page should open on the XAUUSD chart, title " + s0.title);
+    if (s0.n !== 7) errs.push(name + ": XAUUSD chart should draw 7 SD lines, drew " + s0.n);
+    if (!(s0.opt > 0) || !/Option volume G\d?[MTWR]?\d*|Option volume OG/.test(s0.optHint) || !/ไม่ใช่ OI/.test(s0.optHint)) errs.push(name + ": option volume by strike not drawn: " + s0.optHint.slice(0, 120));
+    if (!/\+1SD/.test(s0.ladder) || !/โอกาสแตะ/.test(s0.ladder)) errs.push(name + ": SD levels missing from the price ladder");
+    const topCall = num(s0.optHint, /Call สูงสุด F (\d+)/); if (!(Math.abs(topCall - 4185) <= 50)) errs.push(name + ": option volume per strike looks wrong, top call strike " + topCall);
+    const m0 = sdMath(name + " xs", s0.hint);
+    if (!/GVZ ปิด/.test(s0.hint) || Math.abs(m0.iv - 22.4) > 0.005 || m0.dte !== 1) errs.push(name + ": IV should be the last GVZ close before the day opened (22.4), DTE 1: " + s0.hint.slice(0, 160));
+    if (!/diff F − XAUUSD 20\.0 \(median 5 นาที/.test(s0.hint)) errs.push(name + ": diff should be the day's 5-minute median rounded to 2.50 (≈ 20.0): " + s0.hint);
+    if (name === "light") {
+      // pasted line from the Intraday OI Monitor: IV, DTE and the futures open (minus diff) drive the lines
+      await p.evaluate(() => document.getElementById("sdSet").open = true);
+      await p.selectOption("#sdIvMode", "paste"); await p.selectOption("#sdDteMode", "paste"); await p.selectOption("#sdBaseMode", "paste");
+      await p.fill("#sdPaste", "IV=27.54;DTE=0.6;OPEN=4333.5"); await p.waitForTimeout(300);
+      const s1 = await sdInfo(), m1 = sdMath("paste", s1.hint); console.log("paste:", s1.hint.slice(0, 160));
+      if (Math.abs(m1.iv - 27.54) > 0.001 || m1.dte !== 0.6 || Math.abs(m1.base - (4333.5 - 20)) > 0.01 || s1.n !== 7) errs.push("paste mode not applied: " + s1.hint.slice(0, 160));
+      await p.locator("#cardMain").screenshot({ path: path.join(OUT, "desk-xs-paste.png") });
+      await p.selectOption("#sdIvMode", "gvz"); await p.selectOption("#sdDteMode", "manual"); await p.selectOption("#sdBaseMode", "open"); await p.fill("#sdPaste", ""); await p.waitForTimeout(300);
+      await p.screenshot({ path: path.join(OUT, "desk-xs.png"), fullPage: true });
+      await p.locator("#cardMain").screenshot({ path: path.join(OUT, "desk-xs-chart.png") });
+      // the XAUUSDT chart carries the same lines, moved by the live XAUUSDT − XAUUSD gap
+      await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(3500);
+      const sx = await sdInfo(); console.log("xau sd:", sx.n, sx.opt, "|", sx.hint.slice(-120));
+      if (sx.n !== 7 || !/แปลงเป็น XAUUSDT ด้วยส่วนต่าง/.test(sx.hint)) errs.push("xau: SD lines not drawn on the XAUUSDT chart: " + sx.hint.slice(0, 120));
+    }
+    console.log(name, name === "light" ? "xau" : "xs", JSON.stringify(await info()));
     if (name === "light") {
       await p.click('#segMode button[data-k="gc"]'); await p.waitForTimeout(300); console.log("mode gc last:", await p.textContent("#strip .q.hl .v"));
       await p.click('#segMode button[data-k="native"]'); await p.waitForTimeout(200);
@@ -104,6 +151,8 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       const gw = await p.evaluate(() => ({ n: +(document.getElementById("lwMain").dataset.xauWalls || 0), hint: document.getElementById("wallHint").textContent }));
       console.log("gc xau walls", gw.n, "|", gw.hint.slice(0, 150));
       if (!(gw.n > 0 && /แปลงเป็นราคา GC ด้วยส่วนต่าง/.test(gw.hint))) errs.push("gc: XAUUSDT walls not drawn on the GC chart");
+      const sg = await sdInfo(); console.log("gc sd:", sg.n, sg.opt, "|", sg.hint.slice(-90));
+      if (sg.n !== 7 || !/วาดที่ราคา F/.test(sg.hint) || !(sg.opt > 0)) errs.push("gc: SD lines / option volume not drawn on the GC chart");
       await p.screenshot({ path: path.join(OUT, "desk-gc.png"), fullPage: true });
       // GC closed (session ended 40 h ago): no walls (the gap would be stale), the reason is shown; OI still covers the GC session
       await p.evaluate(() => { window.__gcAgoH = 40; }); await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(600);

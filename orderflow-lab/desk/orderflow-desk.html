@@ -15,7 +15,7 @@
     --brass: #8f6a17; --brass-soft: rgba(143,106,23,0.15);
     --profile: rgba(23,22,15,0.22); --profile-va: rgba(23,22,15,0.45);
     --note-bg: #fbf1dc; --note-ink: #6b4a06;
-    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a;
+    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --sdl: #b0249f;
     --f-display: "Chakra Petch", "IBM Plex Sans Thai", system-ui, sans-serif;
     --f-body: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
     --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -32,7 +32,7 @@
       --brass: #d8b45f; --brass-soft: rgba(216,180,95,0.15);
       --profile: rgba(242,239,230,0.20); --profile-va: rgba(242,239,230,0.42);
       --note-bg: #2c2412; --note-ink: #f0d79e;
-      --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --sdl: #e070d4;
     }
   }
   :root[data-theme="dark"] {
@@ -46,7 +46,7 @@
     --brass: #d8b45f; --brass-soft: rgba(216,180,95,0.15);
     --profile: rgba(242,239,230,0.20); --profile-va: rgba(242,239,230,0.42);
     --note-bg: #2c2412; --note-ink: #f0d79e;
-    --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --sdl: #e070d4;
   }
   html, body { background: var(--page); color: var(--ink); }
   body { font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
@@ -96,6 +96,14 @@
   .sw.bub { border-radius: 50%; background: var(--buy); }
   .sw.wall { width: 16px; height: 6px; border-radius: 2px; background: var(--buy); vertical-align: 1px; }
   .sw.oi { height: 3px; border-radius: 2px; vertical-align: 2px; background: #7c3aed; }
+  .sw.sdl { height: 0; border-top: 2px dashed var(--sdl); border-radius: 0; vertical-align: 2px; }
+  .sw.call { width: 16px; height: 5px; border-radius: 1px; background: var(--c1); vertical-align: 1px; } .sw.put { width: 16px; height: 5px; border-radius: 1px; background: var(--c2); vertical-align: 1px; }
+  details.sdset { font-size: 0.8rem; color: var(--ink-2); margin: 2px 0 4px; }
+  details.sdset summary { cursor: pointer; color: var(--ink-2); }
+  .sdgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; margin-top: 8px; }
+  .sdgrid label { display: flex; flex-direction: column; gap: 3px; } .sdgrid .wide { grid-column: 1 / -1; }
+  .sdgrid select, .sdgrid textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
+  .sdgrid input[type=number] { width: auto; }
   .sw.c1, .sw.c2, .sw.c3 { height: 3px; border-radius: 2px; vertical-align: 2px; } .sw.c1 { background: var(--c1); } .sw.c2 { background: var(--c2); } .sw.c3 { background: var(--c3); }
   .tg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   .tg button { padding: 3px 9px; font-size: 0.76rem; border-radius: 999px; color: var(--ink-2); }
@@ -190,10 +198,24 @@
     <div class="legend">
       <span><i class="sw wall"></i>Wall (ทึบ = ยืนนาน, ประ = ใหม่, หนา = ใหญ่)</span><span><i class="sw bub"></i>ไม้ใหญ่ (ใต้แท่ง = ซื้อ, บนแท่ง = ขาย)</span>
       <span><i class="sw vwap"></i>VWAP</span><span><i class="sw assist"></i>Assist ±2σ (เส้นทึบ) ±3σ (เส้นประ)</span><span><i class="sw magnet"></i>POC / Magnet</span><span><i class="sw round"></i>เลขกลม</span><span><i class="sw oi"></i>OI (แผงล่างสุด, futures ราย 5 นาที)</span>
+      <span class="goldonly"><i class="sw sdl"></i>SD ±1/2/3 จากราคาเปิดวัน XAUUSD (กลยุทธ์ 3)</span><span class="goldonly"><i class="sw call"></i>Call <i class="sw put"></i>Put volume ตาม strike (ขอบขวา)</span>
     </div>
     <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
     <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span><span id="oiHint"></span></div>
     <div class="legend" id="wallHintRow" style="display:none"><span id="wallHint"></span></div>
+    <div class="legend" id="sdHintRow" style="display:none"><span id="sdHint"></span></div>
+    <div class="legend" id="optHintRow" style="display:none"><span id="optHint"></span></div>
+    <details class="sdset" id="sdSet" hidden><summary>ตั้งค่าเส้น SD (กลยุทธ์ 3)</summary>
+      <div class="sdgrid">
+        <label>ที่มาของ %IV<select id="sdIvMode"><option value="gvz">CBOE:GVZ ปิดล่าสุดก่อนเปิดวัน</option><option value="manual">กรอกเอง</option><option value="paste">จากข้อมูลที่วาง (IV=)</option></select></label>
+        <label>%IV (กรอกเอง / สำรอง)<input id="sdIv" type="number" step="0.01" min="0.01"></label>
+        <label>ที่มาของ DTE<select id="sdDteMode"><option value="manual">กรอกเอง</option><option value="paste">จากข้อมูลที่วาง (DTE=)</option></select></label>
+        <label>DTE (วัน)<input id="sdDte" type="number" step="0.01" min="0.01"></label>
+        <label>ราคาฐาน (เส้นกลาง)<select id="sdBaseMode"><option value="open">ราคาเปิดวัน XAUUSD</option><option value="prevClose">ราคาปิดวันก่อน</option><option value="manual">กรอกเอง</option><option value="paste">OPEN ที่วาง − diff</option></select></label>
+        <label>ราคาฐาน (กรอกเอง)<input id="sdBase" type="number" step="0.01" min="0"></label>
+        <label class="wide">ข้อมูลที่วาง (บรรทัดแรกจาก Intraday OI Monitor)<textarea id="sdPaste" rows="2" placeholder="IV=27.54;DTE=0.6;OPEN=4333.5"></textarea></label>
+      </div>
+    </details>
     <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
   </section>
 
@@ -870,9 +892,10 @@
   const TOOLS = { fut: { k: "futures_usds.klineCandlestickData", d: "futures_usds.orderBook", t: "futures_usds.compressedAggregateTradesList", kmax: 1500 },
                   spot: { k: "spot.klines", d: "spot.depth", t: "spot.aggTrades", kmax: 1000 } };
   const INSTR = {
+    xs: { key: "xs", btn: "ทองคำ", sub: "XAUUSD", short: "XAUUSD", label: "ทองคำ XAUUSD (Pepperstone, ราคาเดียวกับ TradingView)", src: "tdv", sym: "PEPPERSTONE:XAUUSD", tick: 0.1, dec: 2, round: 25, gold: true, unit: "tick", hide: ["spot"] },
     xau: { key: "xau", btn: "ทองคำ", sub: "Binance XAUUSDT", label: "ทองคำ Binance XAUUSDT", src: "bin", mkt: "fut", symbol: "XAUUSDT", tick: 0.1, dec: 2, round: 25, gold: true, unit: "oz",
            bucket: 0.5, zone: 1, bigOpts: [5, 10, 20, 50], bigDef: 10, sessOff: 22 * 3600 },
-    gc: { key: "gc", btn: "ทองคำ", sub: "COMEX GC1!", label: "ทองคำ COMEX GC1!", src: "tdv", sym: "COMEX:GC1!", tick: 0.1, dec: 1, round: 25, gold: true, unit: "สัญญา" },
+    gc: { key: "gc", btn: "ทองคำ", sub: "COMEX GC1!", label: "ทองคำ COMEX GC1!", src: "tdv", sym: "COMEX:GC1!", short: "GC", tick: 0.1, dec: 1, round: 25, gold: true, unit: "สัญญา", hide: ["gc"] },
     btc: { key: "btc", btn: "BTC", sub: "Binance", label: "BTC Binance BTCUSDT", src: "bin", mkt: "spot", symbol: "BTCUSDT", tick: 10, dec: 1, round: 500, gold: false, unit: "BTC",
            bucket: 10, zone: 25, bigOpts: [0.5, 1, 2, 5], bigDef: 1, sessOff: 0 },
   };
@@ -881,21 +904,26 @@
   const TV_IV = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1D" };
   const INTRADAY = new Set(["1m", "5m", "15m", "30m", "1H"]);
   const MODES = [["native", "ราคาตลาดนี้"], ["gc", "เทียบ GC"], ["spot", "เทียบ Spot"], ["thb", "ทองไทย ฿"]];
-  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"], ["oi", "OI"]];
+  const LAYERS = [["wall", "Wall"], ["big", "BigTrade"], ["plan", "แผน"], ["assist", "Assist"], ["range", "Range"], ["round", "Round"], ["oi", "OI"], ["sd", "SD"], ["opt", "Option Vol"]];
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
-  const ui = { jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xau"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
-               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true }, store.get("layers", {})), hover: null };
+  const ui = { jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: true }, store.get("layers", {})), hover: null,
+               sd: Object.assign({ ivMode: "gvz", iv: 28.22, dteMode: "manual", dte: 1, baseMode: "open", base: "", paste: "" }, store.get("sd", {})) };
+  // the XAUUSD chart (the price TradingView shows) opens once after it was added; later choices are kept
+  if (store.get("v", 0) < 15) { ui.inst = "xs"; store.set("inst", "xs"); store.set("v", 15); }
   const $ = id => document.getElementById(id);
-  const I = () => INSTR[ui.inst] || INSTR.xau;
+  const I = () => INSTR[ui.inst] || INSTR.xs;
   const bigMin = () => { const ins = I(); return ins.src === "bin" ? (ui.big[ins.key] ?? ins.bigDef) : null; };
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function sdEmpty() { return { xau1d: [], gvz: [], xau5m: [], gc5m: [], got: {} }; }
+  function optEmpty() { return { key: "", chain: null, center: null, unsubs: [], data: new Map(), errs: new Map(), at: 0 }; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -908,7 +936,8 @@
   const fAge = ms => ms >= 3600000 ? (ms / 3600000).toFixed(1) + " ชม." : ms >= 60000 ? Math.round(ms / 60000) + " นาที" : Math.round(ms / 1000) + " วิ";
   function tok() { const c = getComputedStyle(document.documentElement), g = n => c.getPropertyValue(n).trim();
     return { surface: g("--surface"), ink: g("--ink"), ink2: g("--ink-2"), muted: g("--muted"), grid: g("--grid"), axis: g("--axis"), buy: g("--buy"), sell: g("--sell"), vwap: g("--vwap"), assistLine: g("--assist-line"),
-             assist: g("--assist"), ztop: g("--zone-top"), zbot: g("--zone-bot"), brass: g("--brass"), brassSoft: g("--brass-soft"), profile: g("--profile"), profileVa: g("--profile-va") }; }
+             assist: g("--assist"), ztop: g("--zone-top"), zbot: g("--zone-bot"), brass: g("--brass"), brassSoft: g("--brass-soft"), profile: g("--profile"), profileVa: g("--profile-va"),
+             sdl: g("--sdl"), call: g("--c1"), put: g("--c2") }; }
   const FONT = "11px 'IBM Plex Mono', ui-monospace, monospace";
   function setTag(id, real) { const el = $(id); el.className = "tag " + (real ? "real" : "approx"); el.textContent = real ? "ข้อมูลจริง" : "ประมาณจากแท่ง"; }
 
@@ -978,7 +1007,8 @@
   }
 
   // ---- price modes: display value = a·price + b ------------------------------------------
-  function refPrice() { const ins = I(); if (ins.key === "xau") return S.xauPx; if (ins.key === "gc") return S.chart.length ? S.chart[S.chart.length - 1].c : (S.quotes.gc && S.quotes.gc.close); return null; }
+  function refPrice() { const ins = I(); if (ins.key === "xau") return S.xauPx; if (ins.key === "gc") return S.chart.length ? S.chart[S.chart.length - 1].c : (S.quotes.gc && S.quotes.gc.close);
+    if (ins.key === "xs") return S.chart.length ? S.chart[S.chart.length - 1].c : (S.quotes.spot && S.quotes.spot.close); return null; }
   function gcPx() { return I().key === "gc" && S.chart.length ? S.chart[S.chart.length - 1].c : S.quotes.gc && S.quotes.gc.close; }
   function X() {
     const ins = I(), nat = { a: 1, b: 0, dec: ins.dec, step: ins.round, unit: "" };
@@ -1023,7 +1053,7 @@
 
   // ---- interactive chart: TradingView Lightweight Charts (drag, zoom, crosshair, panes) ----------
   const LW = window.LightweightCharts, TZ = -new Date().getTimezoneOffset() * 60; // the time axis shows local time
-  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, oi: null, markers: null, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
+  const C = { chart: null, candles: null, vol: null, vwap: null, bands: [], cvd: null, oi: null, markers: null, sdo: null, sdY: [], sdStep: 0, lines: [], key: "", n: 0, first: 0, theme: "", loadingOld: false, noMore: false };
   const lt = t => t + TZ;
   function alpha(hex, a) { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
   function initChart() {
@@ -1035,12 +1065,18 @@
     const price = { type: "custom", minMove: 0.01, formatter: p => fmt(p, X().dec) }, quiet = { lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false };
     C.candles = C.chart.addSeries(LW.CandlestickSeries, { priceFormat: price });
     C.candles.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.2 } });
+    // like the Gold Plan Desk: the price range takes in the nearest SD line past each side of the candles (when it is within 1SD)
+    C.candles.applyOptions({ autoscaleInfoProvider: orig => { const r = orig(); if (!r || !r.priceRange || !C.sdY.length) return r;
+      let lo = r.priceRange.minValue, hi = r.priceRange.maxValue;
+      const up = C.sdY.filter(p => p > hi && p - hi <= C.sdStep).sort((a, z) => a - z)[0], dn = C.sdY.filter(p => p < lo && lo - p <= C.sdStep).sort((a, z) => z - a)[0];
+      return { priceRange: { minValue: dn != null ? dn : lo, maxValue: up != null ? up : hi }, margins: r.margins }; } });
     C.vol = C.chart.addSeries(LW.HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, ...quiet });
     C.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
     C.vwap = C.chart.addSeries(LW.LineSeries, { lineWidth: 2, priceFormat: price, ...quiet });
     C.bands = [LW.LineStyle.Solid, LW.LineStyle.Solid, LW.LineStyle.Dashed, LW.LineStyle.Dashed].map(s => C.chart.addSeries(LW.LineSeries, { lineWidth: 1, lineStyle: s, priceFormat: price, ...quiet }));
     C.cvd = C.chart.addSeries(LW.BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, title: "CVD", priceLineVisible: false, priceFormat: { type: "custom", minMove: 0.001, formatter: v => fmtV(v) } }, 1);
     C.markers = LW.createSeriesMarkers(C.candles, []);
+    C.sdo = new SdOverlay(); C.candles.attachPrimitive(C.sdo);
     const pane = C.chart.panes()[1]; if (pane) pane.setHeight(window.innerWidth < 600 ? 100 : 140);
     C.chart.timeScale().subscribeVisibleLogicalRangeChange(r => {
       if (r) { const el = $("lwMain"); el.dataset.from = r.from.toFixed(1); el.dataset.to = r.to.toFixed(1); } // mirrored for tests
@@ -1063,7 +1099,7 @@
     if (!C.chart) return; const T = tok(); chartTheme(T);
     const ins = I(), xf = X(), bs = S.chart, key = ins.key + "|" + ui.tf, ts = C.chart.timeScale();
     if (key !== C.key) { C.noMore = false; C.n = 0; }
-    if (!bs.length) { for (const s of [C.candles, C.vol, C.vwap, C.cvd, ...C.bands]) s.setData([]); C.markers.setMarkers([]); C.key = key; C.n = 0; return; }
+    if (!bs.length) { for (const s of [C.candles, C.vol, C.vwap, C.cvd, ...C.bands]) s.setData([]); C.markers.setMarkers([]); C.sdo.set(null, [], {}); C.key = key; C.n = 0; return; }
     const V = v => xf.a * v + xf.b, intraday = INTRADAY.has(ui.tf), prevRange = ts.getVisibleLogicalRange(), prevN = C.n, prevFirst = C.first;
     C.candles.setData(bs.map(b => ({ time: lt(b.t), open: V(b.o), high: V(b.h), low: V(b.l), close: V(b.c) })));
     C.vol.setData(bs.map(b => ({ time: lt(b.t), value: b.v, color: alpha(delta(b) >= 0 ? T.buy : T.sell, 0.35) })));
@@ -1097,7 +1133,8 @@
     if (ui.layers.round) { const recent = bs.slice(-400), lo = V(Math.min(...recent.map(b => b.l))), hi = V(Math.max(...recent.map(b => b.h))); let step = xf.step;
       while ((Math.max(lo, hi) - Math.min(lo, hi)) / step > 24) step *= 2;
       for (let d = Math.ceil(Math.min(lo, hi) / step) * step; d <= Math.max(lo, hi); d += step) pl((d - xf.b) / xf.a, "", T.axis, St.SparseDotted, 1, false); }
-    if (ins.key === "gc") drawXauWallsOnGc(pl, T, St); else $("wallHintRow").style.display = "none";
+    if (ins.src === "tdv" && ins.gold) drawXauWallsOnTdv(pl, T, St); else $("wallHintRow").style.display = "none";
+    drawSd(pl, T, St, V); syncSdOverlay(V, T);
     if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
       for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
     if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
@@ -1133,9 +1170,9 @@
     const sec = TF_SEC[ui.tf] || 300, pts = o.pts; let j = -1, n = 0;
     const data = bs.map(b => { const close = (b.t + sec) * 1000; while (j + 1 < pts.length && pts[j + 1].ts <= close) j++;
       const ok = j >= 0 && pts[j].ts >= (b.t - 3 * Math.max(sec, 300)) * 1000; if (ok) n++; return ok ? { time: lt(b.t), value: pts[j].v } : { time: lt(b.t) }; });
-    const title = ins.key === "gc" ? "OI XAUUSDT" : ins.key === "btc" ? "OI BTCUSDT perp" : "OI";
+    const title = ins.src === "tdv" ? "OI XAUUSDT" : ins.key === "btc" ? "OI BTCUSDT perp" : "OI";
     if (n < 2) { drop(); hint.textContent = !o.done ? " · OI: กำลังโหลด" : " · OI: ไม่มีข้อมูล OI ในช่วงเวลาของกราฟนี้"; return; }
-    hint.textContent = ` · แผงล่างสุด = ${title} (Binance futures ราย ${o.period}${ins.key === "gc" ? ", ไม่ใช่ OI ของ COMEX" : ""})`;
+    hint.textContent = ` · แผงล่างสุด = ${title} (Binance futures ราย ${o.period}${ins.key === "gc" ? ", ไม่ใช่ OI ของ COMEX" : ins.key === "xs" ? ", XAUUSD ของโบรกเกอร์ไม่มี OI" : ""})`;
     if (!C.oi) {
       C.oi = C.chart.addSeries(LW.LineSeries, { color: "#7c3aed", lineWidth: 2, title, priceLineVisible: false,
         priceFormat: { type: "custom", minMove: 0.01, formatter: v => Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : fmtV(v) } }, 2);
@@ -1154,9 +1191,11 @@
     if (p && p.point && S.tracker && ins.src === "bin") { const y = C.candles.coordinateToPrice(p.point.y);
       if (y != null) { const raw = (y - xf.b) / xf.a, w = S.tracker.active().filter(x => Math.abs(x.price - raw) <= ins.bucket * 2).sort((a, z) => Math.abs(a.price - raw) - Math.abs(z.price - raw))[0];
         if (w) html += `<br>Wall ${w.side.toUpperCase()} ${F(w.price)} · ${fmtV(w.size)} · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
-    if (p && p.point && ins.key === "gc" && ui.layers.wall && S.xw.tracker) { const y = C.candles.coordinateToPrice(p.point.y), g = gcXauGap();
+    if (p && p.point && ins.src === "tdv" && ins.gold && ui.layers.wall && S.xw.tracker) { const y = C.candles.coordinateToPrice(p.point.y), g = gcXauGap();
       if (y != null && !g.why) { const raw = (y - xf.b) / xf.a, w = S.xw.tracker.active().filter(x => Math.abs(x.price + g.off - raw) <= INSTR.xau.bucket * 2).sort((a, z) => Math.abs(a.price + g.off - raw) - Math.abs(z.price + g.off - raw))[0];
-        if (w) html += `<br>กำแพง XAUUSDT ${w.side.toUpperCase()} ${F(w.price + g.off)} (XAU ${fmt(w.price, 2)}) · ${fmtV(w.size)} oz · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
+        if (w) html += `<br>กำแพง XAUUSDT ${w.side.toUpperCase()} ${F(w.price + g.off)} (XAUUSDT ${fmt(w.price, 2)}) · ${fmtV(w.size)} oz · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
+    const M = S.sdM, off = ins.gold && ui.layers.sd && M && !M.why ? xauOffset(M) : null;
+    if (off != null && b.t >= M.start) html += ` · ${zTxt((b.c - off - M.base) / M.sd1)} SD`;
     el.innerHTML = html;
   }
   async function loadOlder() {
@@ -1255,7 +1294,8 @@
   function renderBook() {
     const ins = I(), xf = X(), box = $("obBox");
     if (ins.src !== "bin") { setTag("tagOb", false); $("tagOb").textContent = "ไม่มีข้อมูล"; $("obHint").textContent = "";
-      box.innerHTML = `<p class="empty">COMEX GC ไม่มี order book ให้ใช้ฟรี ต้องใช้ข้อมูล MBO ที่เสียเงิน เลือก "ทองคำ Binance XAUUSDT" เพื่อดู Order Book จริง</p>`; $("tblEvents").innerHTML = ""; return; }
+      box.innerHTML = ins.key === "xs" ? `<p class="empty">XAUUSD ของโบรกเกอร์ไม่มี order book สาธารณะ กำแพงบนกราฟมาจาก order book จริงของ Binance XAUUSDT ที่แปลงเป็นราคา XAUUSD เลือก "ทองคำ Binance XAUUSDT" เพื่อดู Order Book เต็ม</p>`
+        : `<p class="empty">COMEX GC ไม่มี order book ให้ใช้ฟรี ต้องใช้ข้อมูล MBO ที่เสียเงิน เลือก "ทองคำ Binance XAUUSDT" เพื่อดู Order Book จริง</p>`; $("tblEvents").innerHTML = ""; return; }
     setTag("tagOb", true); const B = S.bucketed; if (!B) return;
     const N = 12, asks = B.asks.slice(0, N).reverse(), bids = B.bids.slice(0, N), sa = stats(B.asks.slice(0, 200)), sb = stats(B.bids.slice(0, 200));
     const prev = S.prevBuckets, mx = Math.max(...asks.map(l => l[1]), ...bids.map(l => l[1]), 1e-9);
@@ -1296,7 +1336,7 @@
       if (D) { const tail = D.cur.slice(-30); let fb = 0, fs = 0; for (const b of tail) { const [x, y] = split(b); fb += x; fs += y; }
         const pres = fb + fs > 0 ? fb / (fb + fs) * 100 : 50;
         tiles.push(["Net ≈ 30 นาที", sgn(fb - fs), ins.unit], ["Pressure ≈", `${pres.toFixed(0)}% ซื้อ`, pres >= 55 ? "ฝั่งซื้อนำ" : pres <= 45 ? "ฝั่งขายนำ" : "สมดุล"]); }
-      $("tblTape").innerHTML = `<tr><td colspan="5" class="empty">COMEX ไม่มี tape ฟรี เลือก "ทองคำ Binance XAUUSDT" เพื่อดูไม้ใหญ่ทีละรายการ</td></tr>`;
+      $("tblTape").innerHTML = `<tr><td colspan="5" class="empty">${ins.key === "xs" ? "XAUUSD ของโบรกเกอร์" : "COMEX"} ไม่มี tape ฟรี เลือก "ทองคำ Binance XAUUSDT" เพื่อดูไม้ใหญ่ทีละรายการ</td></tr>`;
       $("flowHint").textContent = "ประมาณจากแท่ง 1 นาที";
     }
     $("flowTiles").innerHTML = tiles.map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
@@ -1309,10 +1349,12 @@
     if (ins.gold) {
       const gc = gcPx(), sp = q.spot && q.spot.close, thb = q.thb && q.thb.close;
       tiles.push([`Last · ${ins.sub}`, last == null ? "–" : fmt(xf.a * last + xf.b, xf.dec) + (xf.unit || ""), xf.pending ? "รอราคาอ้างอิง" : modeLabel, true]);
-      tiles.push(["Binance XAUUSDT", fmt(S.xauPx, 2), "perp · มี order flow"]);
-      tiles.push(["Future · GC1!", fmt(gc, 1), q.gc ? (q.gc.update_mode === "streaming" ? "COMEX สด" : "COMEX ล่าช้า") : "รอ TradingView"]);
-      tiles.push(["Spot · XAUUSD", fmt(sp, 2), q.spot && q.spot.change != null ? `เปลี่ยน ${q.spot.change >= 0 ? "+" : "−"}${Math.abs(q.spot.change).toFixed(2)}%` : ""]);
-      tiles.push(["Offset GC − XAUUSDT", gc != null && S.xauPx != null ? sgn(gc - S.xauPx) : "–", "ใช้แปลงระดับข้ามตลาด"]);
+      // every gold price on one row, each with its gap to XAUUSD (the price TradingView's XAUUSD chart shows)
+      const vsSp = v => v != null && sp ? `${sgn(v - sp)} จาก XAUUSD` : "";
+      if (ins.key !== "xs") tiles.push(["XAUUSD · Pepperstone", fmt(sp, 2), q.spot && q.spot.change != null ? `ราคาใน TradingView · ${q.spot.change >= 0 ? "+" : "−"}${Math.abs(q.spot.change).toFixed(2)}%` : "ราคาใน TradingView"]);
+      if (ins.key !== "xau") tiles.push(["Binance XAUUSDT", fmt(S.xauPx, 2), `perp · ${vsSp(S.xauPx) || "มี order flow"}`]);
+      if (ins.key !== "gc") tiles.push(["Future · GC1!", fmt(gc, 1), `${q.gc ? (q.gc.update_mode === "streaming" ? "COMEX สด" : "COMEX ล่าช้า") : "รอ TradingView"}${vsSp(gc) ? " · " + vsSp(gc) : ""}`]);
+      if (ins.key !== "xs") tiles.push([`${ins.short || "XAUUSDT"} − XAUUSD`, last != null && sp ? sgn(last - sp) : "–", "ราคาต่างกันเพราะเป็นคนละตลาด"]);
       tiles.push(["ทองไทย 96.5% ≈", sp && thb ? fmt(sp * thb * THB_K, 0) + " ฿" : "–", thb ? `USDTHB ${fmt(thb, 3)}` : ""]);
     } else {
       const d0 = D && D.cur[0]; tiles.push(["Last · BTCUSDT", fmt(last, 1), "Binance spot", true]);
@@ -1328,6 +1370,8 @@
     const vs = S.chart.length ? vwapSeries(S.chart, I()) : [], v = vs[vs.length - 1];
     if (v) { add("VWAP", v.vwap); add("Assist +2σ", v.bands[2][1]); add("Assist +3σ", v.bands[3][1]); add("Assist −2σ", v.bands[2][0]); add("Assist −3σ", v.bands[3][0]); }
     add("POC session นี้", D.rng.poc);
+    const M = S.sdM, off = I().gold && ui.layers.sd && M && !M.why ? xauOffset(M) : null;
+    if (off != null) for (const L of M.levels) add(`${L.n === 0 ? "ฐาน SD" : L.name}${L.fut != null ? ` · F ${fmt(L.fut, 1)}` : ""}${L.n && L.pTouch != null ? ` · โอกาสแตะ ${pctTxt(L.pTouch)}` : ""}`, L.price + off);
     if (S.tracker) { const act = S.tracker.active().filter(w => w.persistent); const bw = act.filter(w => w.side === "bid")[0], aw = act.filter(w => w.side === "ask")[0];
       if (bw) add(`Wall BID ${fmtV(bw.size)} (${STATUS[bw.status]})`, bw.price); if (aw) add(`Wall ASK ${fmtV(aw.size)} (${STATUS[aw.status]})`, aw.price); }
     const Z = bigZones(); if (Z.real && Z.zones[0]) add(`Big Trades zone ${fmtV(Z.zones[0].buy + Z.zones[0].sell)}`, Z.zones[0].price);
@@ -1348,7 +1392,8 @@
     if (S.stamp.tdv) parts.push(`TradingView ${fTs(S.stamp.tdv)}`);
     $("status").textContent = parts.length ? "อัปเดต " + parts.join(" · ") : "กำลังดึงข้อมูล…";
     const msgs = Object.entries(S.errs).map(([src, e]) => errCopy(src, e)); $("errTop").hidden = !msgs.length; $("errTop").textContent = msgs.join(" · ");
-    $("noteSrc").textContent = ins.key === "xau" ? "ทองคำ Binance XAUUSDT เป็นสัญญา perpetual ที่อ้างอิงราคาทอง มี order book และรายการซื้อขายจริง แต่เป็นคนละตลาดกับ COMEX ใช้ปุ่ม \"เทียบ GC\" เพื่อแปลงระดับราคาไปเทียบกับ GC"
+    $("noteSrc").textContent = ins.key === "xs" ? "ทองคำ XAUUSD จาก PEPPERSTONE:XAUUSD บน TradingView ราคาเดียวกับกราฟ XAUUSD ที่ Gold Plan Desk ใช้ (OANDA หรือโบรกเกอร์อื่นต่างกันได้ราว 1 ดอลลาร์) · ปริมาณเป็น tick volume ของโบรกเกอร์ ไม่ใช่สัญญาจริง แผงที่มีป้าย ≈ จึงคำนวณจากแท่งเทียน · กำแพงบนกราฟคือ order book ของ Binance XAUUSDT ที่แปลงราคาแล้ว"
+      : ins.key === "xau" ? "ทองคำ Binance XAUUSDT เป็นสัญญา perpetual ที่อ้างอิงราคาทอง มี order book และรายการซื้อขายจริง แต่เป็นคนละตลาดกับ COMEX ใช้ปุ่ม \"เทียบ GC\" เพื่อแปลงระดับราคาไปเทียบกับ GC"
       : ins.key === "gc" ? "COMEX GC มีแค่แท่งเทียนจาก TradingView ไม่มี order book หรือ tape ฟรี แผงที่มีป้าย ≈ คำนวณจากแท่งเทียน สำหรับกำแพงและไม้ใหญ่ของทอง ให้เลือก \"ทองคำ Binance XAUUSDT\""
       : "BTC จาก Binance spot: แท่งเทียนบอกปริมาณผู้กดซื้อจริง, order book 1,000 ระดับ และรายการซื้อขายทีละไม้";
   }
@@ -1446,6 +1491,7 @@
 
   // ---- position size -----------------------------------------------------------------------------
   const UNITS = { xau: [["oz", "oz (Binance)", 1], ["lot", "lot XAUUSD (100 oz)", 100], ["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10]],
+                  xs: [["lot", "lot XAUUSD (100 oz)", 100], ["oz", "oz", 1], ["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10]],
                   gc: [["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10], ["lot", "lot XAUUSD (100 oz)", 100]], btc: [["btc", "BTC", 1]] };
   function unitOf() { const list = UNITS[ui.inst] || UNITS.xau; return list.find(u => u[0] === ui.size.unit[ui.inst]) || list[0]; }
   function sizeHtml(p) {
@@ -1614,7 +1660,7 @@
   // ---- futures positioning panel -------------------------------------------------------------------
   function renderFut() {
     const f = S.fut, box = $("futTiles"), ins = I(), u = ins.key === "btc" ? "BTC" : "oz", pct = v => v == null ? "–" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`;
-    $("futHint").textContent = `Binance ${f.sym} perp · ${ins.key === "gc" ? "ใช้แทน COMEX ที่ไม่มีข้อมูลนี้ฟรี" : "อัปเดตทุก 5 นาที"}`;
+    $("futHint").textContent = `Binance ${f.sym} perp · ${ins.key === "gc" ? "ใช้แทน COMEX ที่ไม่มีข้อมูลนี้ฟรี" : ins.key === "xs" ? "ใช้แทน XAUUSD ของโบรกเกอร์ที่ไม่มีข้อมูลนี้" : "อัปเดตทุก 5 นาที"}`;
     if (!f.oi.length && !f.mark) { box.innerHTML = `<p class="empty">รอข้อมูล</p>`; return; }
     const o = f.oi[f.oi.length - 1], r1 = oiRead(1), r4 = oiRead(4), r24 = oiRead(24), tiles = [];
     if (o) tiles.push(["Open Interest", `${fmtV(o.v)} ${u}`, `$${fmtV(o.usd)} · 1 ชม. ${pct(r1 && r1.dOi)} · 24 ชม. ${pct(r24 && r24.dOi)}`]);
@@ -1650,12 +1696,12 @@
   }
 
   function renderAll() {
-    rafPending = false; D = derive();
+    rafPending = false; D = derive(); S.sdM = I().gold ? sdModel() : null; syncOptions();
     const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
-    $("lblBig").hidden = ins.src !== "bin"; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
+    $("lblBig").hidden = ins.src !== "bin"; for (const e of document.querySelectorAll(".goldonly")) e.hidden = !ins.gold; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
     renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
-    $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.key === "gc" && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
+    $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.src === "tdv" && ins.gold && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
     else if (S.approve) overlay(errCopy(S.approve, S.errs[S.approve]), true);
     else if (Object.keys(S.errs).length && Object.values(S.errs).some(e => DENY.has(e.code))) overlay(Object.entries(S.errs).map(([s, e]) => errCopy(s, e)).join(" "), false);
@@ -1668,13 +1714,13 @@
   function every(ms, fn, bg = false) { const g = gen; let busy = false;
     const run = async () => { if (g !== gen || busy || (document.hidden && !bg)) return; busy = true; try { await fn(g); } finally { busy = false; } };
     run(); timers.push(setInterval(run, ms)); }
-  function stopAll() { gen++; for (const t of timers) clearInterval(t); timers = []; for (const u of unsubs) u(); unsubs = []; }
+  function stopAll() { gen++; for (const t of timers) clearInterval(t); timers = []; for (const u of unsubs) u(); unsubs = []; stopOptions(); }
   async function binLoop(g, fn) { try { await fn(); } catch (e) { if (g === gen) noteErr(BIN, e); } }
-  // ---- real XAUUSDT walls on the GC chart ---------------------------------------------------
-  // GC has no free order book. The Binance XAUUSDT book is real; its walls are tracked with the same
-  // rules as on the XAUUSDT chart and drawn at GC price = wall price + (GC price − XAUUSDT mid), only
-  // while GC is trading (a stale GC price would put the lines at the wrong level).
-  function startXauWallsForGc() {
+  // ---- real XAUUSDT walls on the GC and XAUUSD charts ------------------------------------------
+  // Neither GC nor broker XAUUSD has a free order book. The Binance XAUUSDT book is real; its walls are
+  // tracked with the same rules as on the XAUUSDT chart and drawn at chart price = wall price + (chart
+  // price − XAUUSDT mid), only while that market is trading (a stale price would put the lines at the wrong level).
+  function startXauWallsForTdv() {
     const xi = INSTR.xau, xw = S.xw;
     xw.tracker = new OF.WallTracker(xi.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
     every(10000, g => binLoop(g, async () => {
@@ -1684,30 +1730,218 @@
       const book = { ts: p.T || p.E || Date.now(), symbol: "XAUUSDT", ...OF.sortBook(p.bids.map(l => [+l[0], +l[1]]), p.asks.map(l => [+l[0], +l[1]])) };
       xw.tracker.update(bucketBook(book, xi.bucket)); xw.at = book.ts; xw.mid = (book.bids[0][0] + book.asks[0][0]) / 2; schedule(); }));
   }
-  /** GC price now and the gap to XAUUSDT, or why the walls cannot be placed */
+  /** the chart's price now and the gap to XAUUSDT, or why the walls cannot be placed */
   function gcXauGap() {
-    const xw = S.xw, bs = S.chart, last = bs[bs.length - 1], now = Date.now(), q = S.quotes.gc;
+    const ins = I(), nm = ins.short, xw = S.xw, bs = S.chart, last = bs[bs.length - 1], now = Date.now(), q = S.quotes[ins.key === "gc" ? "gc" : "spot"];
     if (!xw.tracker || xw.mid == null || now - xw.at > 60000) return { why: "ยังไม่ได้ order book ของ XAUUSDT" };
-    // GC must be trading: its newest candle within one bar + 10 minutes
-    if (!last || now / 1000 - last.t > (TF_SEC[ui.tf] || 300) + 600) return { why: "ตลาด GC ไม่ได้เปิดตอนนี้ ราคา GC ล่าสุดเก่าเกินไปที่จะใช้แปลงราคา" };
+    // the market must be trading: its newest candle within one bar + 10 minutes
+    if (!last || now / 1000 - last.t > (TF_SEC[ui.tf] || 300) + 600) return { why: `ตลาด ${nm} ไม่ได้เปิดตอนนี้ ราคา ${nm} ล่าสุดเก่าเกินไปที่จะใช้แปลงราคา` };
     const gc = q && q.update_mode === "streaming" && isFinite(+q.close) ? +q.close : last.c;
     const off = gc - xw.mid;
-    if (Math.abs(off) > gc * 0.02) return { why: `ส่วนต่าง GC − XAUUSDT ${sgn(off)} ผิดปกติ (เกิน 2%) จึงไม่วาด` };
+    if (Math.abs(off) > gc * 0.02) return { why: `ส่วนต่าง ${nm} − XAUUSDT ${sgn(off)} ผิดปกติ (เกิน 2%) จึงไม่วาด` };
     return { off, gc, mid: xw.mid, at: xw.at };
   }
-  function drawXauWallsOnGc(pl, T, St) {
+  function drawXauWallsOnTdv(pl, T, St) {
     const hint = $("wallHint"), row = $("wallHintRow"), el = $("lwMain");
     row.style.display = ui.layers.wall ? "" : "none"; el.dataset.xauWalls = "0";
     if (!ui.layers.wall) return;
     const g = gcXauGap();
     if (g.why) { hint.textContent = `กำแพงจริงจาก Binance XAUUSDT: ไม่แสดงตอนนี้ (${g.why})`; return; }
     const act = S.xw.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
-    for (const w of act) pl(w.price + g.off, `XAU ${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)} oz`, w.side === "bid" ? T.buy : T.sell,
+    for (const w of act) pl(w.price + g.off, `XAUUSDT ${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)} oz`, w.side === "bid" ? T.buy : T.sell,
       w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1);
     el.dataset.xauWalls = String(act.length);
-    hint.textContent = `กำแพง = order book จริงของ Binance XAUUSDT (${act.length} ระดับ, หน่วย oz) แปลงเป็นราคา GC ด้วยส่วนต่าง ${sgn(g.off)} `
-      + `(GC ${fmt(g.gc, 1)} − XAUUSDT ${fmt(g.mid, 2)} ณ ${fTs(g.at)}) · เป็นคำสั่งใน Binance ไม่ใช่คำสั่งใน COMEX`;
+    const nm = I().short;
+    hint.textContent = `กำแพง = order book จริงของ Binance XAUUSDT (${act.length} ระดับ, หน่วย oz) แปลงเป็นราคา ${nm} ด้วยส่วนต่าง ${sgn(g.off)} `
+      + `(${nm} ${fmt(g.gc, I().dec)} − XAUUSDT ${fmt(g.mid, 2)} ณ ${fTs(g.at)}) · เป็นคำสั่งใน Binance ไม่ใช่คำสั่งใน ${I().key === "gc" ? "COMEX" : "โบรกเกอร์"}`;
   }
+  // ---- strategy 3 SD lines, as in the Gold Plan Desk: ±1/2/3 SD around the XAUUSD day open ------------
+  // 1SD = base × %IV × √(DTE / 365); %IV = the last CBOE:GVZ close before the day opened; the Globex day starts
+  // at 17:00 Chicago (the XAUUSD daily bar on TradingView starts then too); F price = line + diff, where
+  // diff = GC1! − XAUUSD from the median of the day's 5-minute closes at shared times, rounded to 2.50.
+  // Only today's lines; the back-test and the trade plan stay in the Gold Plan Desk.
+  const SD_XAU = "PEPPERSTONE:XAUUSD", SD_GC = "COMEX:GC1!", SD_GVZ = "CBOE:GVZ";
+  const CHI = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }), chiCache = new Map();
+  function chiOffset(t) { const h = Math.floor(t / 3600); let off = chiCache.get(h);
+    if (off === undefined) { const p = {}; for (const x of CHI.formatToParts(new Date(h * 3600000))) p[x.type] = x.value;
+      off = Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) / 1000 - h * 3600) / 60) * 60; chiCache.set(h, off); }
+    return off; }
+  function tdKey(t) { let L = t + chiOffset(t); if (new Date(L * 1000).getUTCHours() >= 17) L += 86400; return new Date(L * 1000).toISOString().slice(0, 10); }
+  function ncdf(x) { const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
+  const touchProb = (dist, sd1) => !(sd1 > 0) ? null : dist === 0 ? 1 : Math.min(1, 2 * (1 - ncdf(Math.abs(dist) / sd1)));
+  const median = xs => { if (!xs.length) return null; const s = xs.slice().sort((a, z) => a - z), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+  function parseSdPaste(text) { const kv = {};
+    String(text || "").replace(/\r/g, "").split(/[;\n]/).forEach(tok => { const t = tok.replace(/\s/g, ""), eq = t.indexOf("="); if (eq > 0) kv[t.slice(0, eq).toUpperCase()] = t.slice(eq + 1); });
+    const num = k => (kv[k] != null && isFinite(parseFloat(kv[k])) ? parseFloat(kv[k]) : null); return { iv: num("IV"), dte: num("DTE"), open: num("OPEN") }; }
+  const quoteOf = k => { const q = S.quotes[k]; return q && isFinite(+q.close) && +q.close > 0 ? +q.close : null; };
+  function xauNow() { if (I().key === "xs" && S.chart.length) return S.chart[S.chart.length - 1].c; const sp = quoteOf("spot"); if (sp != null) return sp; const b = S.sd.xau5m; return b.length ? b[b.length - 1].c : null; }
+  function startSd() {
+    const d = S.sd;
+    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "1D", count: 30, format: "columns" }, p => { d.xau1d = tvBars(p); schedule(); }, false, 300000);
+    tdvWatch(OHLCV, { symbol: SD_GVZ, interval: "1D", count: 30, format: "columns" }, p => { d.gvz = tvBars(p); schedule(); }, false, 600000);
+    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "5m", count: 300, format: "columns" }, p => { d.xau5m = tvBars(p); d.got.x5 = true; schedule(); }, false, 300000);
+    tdvWatch(OHLCV, { symbol: SD_GC, interval: "5m", count: 300, format: "columns" }, p => { d.gc5m = tvBars(p); d.got.g5 = true; schedule(); }, false, 300000);
+  }
+  function sdModel() {
+    const d = S.sd, o = ui.sd, x1d = d.xau1d;
+    if (!x1d.length) return { why: "กำลังดึงแท่งรายวัน XAUUSD จาก TradingView" };
+    const day = x1d[x1d.length - 1], key = tdKey(day.t), prev = x1d.length > 1 ? x1d[x1d.length - 2] : null, paste = parseSdPaste(o.paste);
+    // diff = GC1! − XAUUSD of the day; the GC feed may run late, so only times both feeds have count
+    const gc5 = new Map(d.gc5m.map(b => [b.t, b.c])), shared = [];
+    for (const b of d.xau5m) { const g = gc5.get(b.t); if (g != null && b.t >= day.t && tdKey(b.t) === key) shared.push(g - b.c); }
+    const gq = quoteOf("gc"), sq = quoteOf("spot");
+    let diffRaw = null, diffSrc = null;
+    if (shared.length >= 3) { diffRaw = median(shared); diffSrc = "session"; } else if (gq != null && sq != null) { diffRaw = gq - sq; diffSrc = "live"; }
+    const diff = diffRaw == null ? null : Math.round(diffRaw / 2.5) * 2.5;
+    let base = day.o, baseSrc = "open";
+    if (o.baseMode === "prevClose" && prev) { base = prev.c; baseSrc = "prevClose"; }
+    else if (o.baseMode === "manual" && +o.base > 0) { base = +o.base; baseSrc = "manual"; }
+    else if (o.baseMode === "paste" && paste.open != null && diff != null) { base = paste.open - diff; baseSrc = "paste"; }
+    let iv = null, ivSrc = o.ivMode, ivAt = null;
+    if (o.ivMode === "gvz") { for (let i = d.gvz.length - 1; i >= 0; i--) if (d.gvz[i].t < day.t) { iv = d.gvz[i].c; ivAt = d.gvz[i].t; break; } }
+    else if (o.ivMode === "paste") iv = paste.iv; else iv = +o.iv;
+    const ivFallback = !(iv > 0); if (ivFallback) { iv = +o.iv > 0 ? +o.iv : null; ivSrc = "manual"; }
+    let dte = +o.dte, dteSrc = "manual"; if (o.dteMode === "paste" && paste.dte != null) { dte = paste.dte; dteSrc = "paste"; }
+    if (!(iv > 0)) return { why: o.ivMode === "gvz" ? "กำลังดึง CBOE:GVZ" : "ยังไม่มีค่า %IV ตรวจในตั้งค่าเส้น SD" };
+    if (!(dte > 0)) return { why: "DTE ต้องมากกว่า 0 แก้ในตั้งค่าเส้น SD" };
+    const sd1 = base * iv / 100 * Math.sqrt(dte / 365), px = xauNow(), levels = [];
+    for (let n = 3; n >= -3; n--) { const p = base + n * sd1; levels.push({ n, name: n === 0 ? "ฐาน" : (n > 0 ? "+" : "−") + Math.abs(n) + "SD", price: p, fut: diff != null ? p + diff : null, pTouch: px != null ? touchProb(p - px, sd1) : null }); }
+    return { key, start: day.t, open: day.o, base, baseSrc, iv, ivSrc, ivAt, ivFallback, dte, dteSrc, sd1, diff, diffRaw, diffSrc, nShared: shared.length, px,
+             z: px != null ? (px - base) / sd1 : null, levels, today: key === tdKey(Date.now() / 1000) };
+  }
+  /** offset from an XAUUSD price to the chart's own market, or null when it cannot be known yet */
+  function xauOffset(M) {
+    const k = I().key, sp = quoteOf("spot");
+    if (k === "xs") return 0;
+    if (k === "gc") return M && M.diff != null ? M.diff : null;
+    if (k === "xau") return S.xauPx != null && sp != null ? S.xauPx - sp : null;
+    return null;
+  }
+  const SD_BASE = { open: "ราคาเปิดวัน", prevClose: "ราคาปิดวันก่อน", manual: "กรอกเอง", paste: "OPEN ที่วาง − diff" };
+  const pctTxt = p => p == null ? "–" : (p * 100).toFixed(p >= 0.995 || p < 0.01 ? 1 : 0) + "%";
+  const zTxt = z => (z > 0 ? "+" : z < 0 ? "−" : "") + Math.abs(z).toFixed(2);
+  function drawSd(pl, T, St, V) {
+    const ins = I(), el = $("lwMain"), hint = $("sdHint"), M = S.sdM;
+    el.dataset.sd = "0"; C.sdY = []; $("sdHintRow").style.display = ins.gold ? "" : "none";
+    if (!ins.gold) return;
+    if (!ui.layers.sd) { hint.textContent = "เส้น SD ปิดอยู่ กดปุ่ม SD เพื่อแสดง"; return; }
+    if (!M || M.why) { hint.textContent = `เส้น SD: ${M ? M.why : "รอข้อมูล"}`; return; }
+    const off = xauOffset(M);
+    if (off == null) { hint.textContent = ins.key === "gc" ? "เส้น SD: รอส่วนต่าง GC1! − XAUUSD" : "เส้น SD: รอราคา XAUUSD และ XAUUSDT เพื่อแปลงราคา"; return; }
+    let n = 0;
+    for (const L of M.levels) {
+      const title = L.n === 0 ? `ฐาน SD${ins.key === "xs" ? "" : ` (XAU ${fmt(L.price, 2)})`}` : ins.key === "xs" ? `${L.name}${L.fut != null ? ` · F ${fmt(L.fut, 1)}` : ""}` : `${L.name} (XAU ${fmt(L.price, 2)})`;
+      pl(L.price + off, title, T.sdl, L.n === 0 ? St.Solid : Math.abs(L.n) === 3 ? St.SparseDotted : St.Dashed, L.n === 0 ? 2 : 1); n++;
+    }
+    el.dataset.sd = String(n); C.sdY = M.levels.map(L => V(L.price + off)); C.sdStep = Math.abs(V(M.sd1) - V(0));
+    const IVS = { gvz: `GVZ ปิด ${M.ivAt ? new Date(M.ivAt * 1000).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : ""}`, manual: M.ivFallback && ui.sd.ivMode !== "manual" ? "ดึงไม่ได้ ใช้ค่าที่กรอกเอง" : "กรอกเอง", paste: "จากข้อมูลที่วาง" };
+    hint.textContent = `SD ${M.today ? "วันนี้" : "วันเทรดล่าสุด"} ${M.key} (เริ่ม ${fDT(M.start)}) · ฐาน ${fmt(M.base, 2)} (${SD_BASE[M.baseSrc]}) · %IV ${fmt(M.iv, 2)} (${IVS[M.ivSrc]}) · DTE ${+M.dte.toFixed(4)} · 1SD ${fmt(M.sd1, 2)}`
+      + (M.z != null ? ` · XAUUSD ${fmt(M.px, 2)} อยู่ที่ ${zTxt(M.z)} SD` : "")
+      + (M.diff != null ? ` · diff F − XAUUSD ${fmt(M.diff, 1)} (${M.diffSrc === "session" ? `median 5 นาที ${M.nShared} จุด ${fmt(M.diffRaw, 2)}` : `ราคาตอนนี้ ${fmt(M.diffRaw, 2)}`} ปัดทีละ 2.50)` : "")
+      + (ins.key === "xau" ? ` · บนกราฟนี้แปลงเป็น XAUUSDT ด้วยส่วนต่าง ${sgn(off)}` : ins.key === "gc" ? " · บนกราฟนี้วาดที่ราคา F (เส้น + diff)" : "")
+      + " · เส้นคงที่ทั้งวัน · คำนวณแบบกลยุทธ์ 3 ของ Gold Plan Desk";
+  }
+
+  // ---- CME gold weekly options: the day's volume by strike (as in the Gold Plan Desk) ---------------------
+  // The chain expiring on the trading day: Mon G<n>M, Tue G<n>T, Wed G<n>W, Thu G<n>R, Fri OG<n>, n = which such
+  // weekday of the month; strikes every 25 around the day's gold.f open, 8 each side. TradingView has no open
+  // interest for these contracts, only volume and price, so this is volume, not OI.
+  const OPT = { step: 25, side: 8, every: 900000 };
+  function optChain(dayKey) {
+    const [y, m, d] = dayKey.split("-").map(Number), n = Math.ceil(d / 7);
+    const root = { 1: "G" + n + "M", 2: "G" + n + "T", 3: "G" + n + "W", 4: "G" + n + "R", 5: "OG" + n }[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+    return root ? { name: root + dayKey.slice(2).replace(/-/g, ""), day: dayKey } : null;
+  }
+  function stopOptions() { const o = S.opt; while (o.unsubs.length) { try { o.unsubs.pop()(); } catch { /* already stopped */ } } o.key = ""; }
+  function syncOptions() {
+    const o = S.opt, M = S.sdM, ins = I();
+    if (!mcp || !ins.gold || !ui.layers.opt || !M || M.why || M.diffRaw == null) { if (o.key) stopOptions(); return; }
+    if (!(S.sd.got.x5 && S.sd.got.g5) && M.diffSrc !== "session") return; // wait for the day's diff, the strikes centre on it
+    const center = Math.round((M.open + M.diffRaw) / OPT.step) * OPT.step, chain = optChain(M.key), key = chain ? chain.name + "@" + center : "none:" + M.key;
+    if (key === o.key) return;
+    stopOptions(); Object.assign(o, { key, chain, center, data: new Map(), errs: new Map(), at: 0 });
+    if (!chain) return;
+    for (let i = -OPT.side; i <= OPT.side; i++) for (const cp of ["C", "P"]) {
+      const strike = center + i * OPT.step, sym = "COMEX:" + chain.name + cp + strike;
+      o.unsubs.push(mcp.watchTool(TDV, OHLCV, { symbol: sym, interval: "1D", count: 1, format: "columns" }, ev => {
+        if (S.opt !== o || o.key !== key) return;
+        if (ev.type === "data") { const bs = tvBars(ev.result.payload), b = bs[bs.length - 1];
+          // a strike with no trade yet today answers with an older day's bar, or none
+          o.data.set(sym, { strike, cp, vol: b && tdKey(b.t) === chain.day ? b.v || 0 : 0 }); o.errs.delete(sym);
+          o.at = Math.max(o.at, ev.result.cache && ev.result.cache.storedAt ? ev.result.cache.storedAt : Date.now()); }
+        else o.errs.set(sym, ev.error || {});
+        schedule();
+      }, { cache: { staleTime: OPT.every / 2 }, refetchInterval: OPT.every }));
+    }
+  }
+  /** rows per strike: F price, XAUUSD price (strike − diff), call and put volume */
+  function optRows(M) {
+    const o = S.opt; if (!o.chain || !M || M.why || M.diff == null || o.chain.day !== M.key) return [];
+    const by = new Map();
+    for (const v of o.data.values()) { const r = by.get(v.strike) || { strike: v.strike, xau: v.strike - M.diff, call: 0, put: 0 }; r[v.cp === "C" ? "call" : "put"] = v.vol; by.set(v.strike, r); }
+    return [...by.values()].sort((a, z) => a.strike - z.strike);
+  }
+  function optSummary(M, rows) {
+    const o = S.opt;
+    if (!ui.layers.opt) return "Option volume ปิดอยู่ กดปุ่ม Option Vol เพื่อแสดง";
+    if (!o.key) return M && !M.why ? "Option volume: รอส่วนต่าง GC1! − XAUUSD ของวันนี้" : "Option volume: รอเส้น SD";
+    if (!o.chain) return "Option volume: วันเทรดนี้ไม่มีออปชันทองรายสัปดาห์หมดอายุ";
+    const errs = [...o.errs.values()];
+    if (!rows.length) return errs.length >= 2 * (2 * OPT.side + 1) ? `ดึง option volume ของ ${o.chain.name} ไม่ได้: ${errCopy(TDV, errs[0])}` : `กำลังดึง option volume ของ ${o.chain.name} (${o.data.size + errs.length}/${2 * (2 * OPT.side + 1)})…`;
+    const sum = k => rows.reduce((a, r) => a + r[k], 0), C = sum("call"), P = sum("put"), vf = v => v >= 1000 ? (v / 1000).toFixed(1) + "k" : String(Math.round(v));
+    const head = `Option volume ${o.chain.name} (หมดอายุ${M.today ? "วันนี้" : " " + M.key} · CME ผ่าน TradingView อาจช้า ~15 นาที · เป็นปริมาณซื้อขายวันนี้ ไม่ใช่ OI: TradingView ไม่มี OI ของออปชันชุดนี้)`;
+    if (!(C + P > 0)) return `${head} · ยังไม่มีการซื้อขายในช่วง strike ${rows[0].strike}–${rows[rows.length - 1].strike}`;
+    const top = k => rows.reduce((a, r) => (r[k] > a[k] ? r : a), rows[0]), c = top("call"), q = top("put");
+    return `${head} · Call สูงสุด F ${c.strike} = ${vf(c.call)} (≈ XAUUSD ${fmt(c.xau, 2)}) · Put สูงสุด F ${q.strike} = ${vf(q.put)} (≈ XAUUSD ${fmt(q.xau, 2)}) · รวม Call ${vf(C)} / Put ${vf(P)}`
+      + (C > 0 ? ` · Put/Call ${(P / C).toFixed(2)}` : "") + (o.at ? ` · อัปเดต ${fTs(o.at)}` : "") + (errs.length ? ` · ดึงไม่ได้ ${errs.length} สัญญา` : "");
+  }
+  // ±1SD band from the day's start and the option bars at the right edge, drawn on the price pane
+  class SdOverlay {
+    constructor() { this.band = null; this.rows = []; this.col = {}; const self = this;
+      this.views = [{ zOrder: () => "bottom", renderer: () => ({ draw: t => self.back(t) }) }, { zOrder: () => "top", renderer: () => ({ draw: t => self.front(t) }) }]; }
+    attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate; }
+    detached() { this.req = null; }
+    set(band, rows, col) { this.band = band; this.rows = rows; this.col = col; if (this.req) this.req(); }
+    updateAllViews() {}
+    paneViews() { return this.views; }
+    back(target) {
+      const b = this.band; if (!b || !this.series) return;
+      target.useMediaCoordinateSpace(({ context: ctx, mediaSize: m }) => {
+        const y1 = this.series.priceToCoordinate(b.up), y2 = this.series.priceToCoordinate(b.lo); if (y1 == null || y2 == null) return;
+        const x0 = this.chart.timeScale().logicalToCoordinate(b.from), x = Math.max(0, x0 == null ? 0 : x0 - 3);
+        ctx.fillStyle = alpha(this.col.sdl, 0.07); ctx.fillRect(x, Math.min(y1, y2), m.width - x, Math.abs(y2 - y1));
+      });
+    }
+    front(target) {
+      const rows = this.rows; if (!rows.length || !this.series) return;
+      const max = Math.max(...rows.map(r => Math.max(r.call, r.put))); if (!(max > 0)) return;
+      target.useMediaCoordinateSpace(({ context: ctx, mediaSize: m }) => {
+        const W = Math.min(150, m.width * 0.26), right = m.width - 2, h = 5;
+        ctx.font = "10px 'IBM Plex Mono', ui-monospace, monospace"; ctx.textBaseline = "middle"; ctx.textAlign = "right";
+        for (const r of rows) {
+          const y = this.series.priceToCoordinate(r.y); if (y == null || y < -8 || y > m.height + 8) continue;
+          for (const [v, dy, c] of [[r.call, -(h / 2 + 1), this.col.call], [r.put, h / 2 + 1, this.col.put]]) {
+            if (!(v > 0)) continue; const w = Math.max(2, W * v / max);
+            ctx.globalAlpha = 0.8; ctx.fillStyle = c; ctx.fillRect(right - w, y + dy - h / 2, w, h); ctx.globalAlpha = 1;
+            if (v >= 0.15 * max) { ctx.fillStyle = this.col.ink; ctx.fillText(v >= 1000 ? (v / 1000).toFixed(1) + "k" : String(Math.round(v)), right - w - 3, y + dy); }
+          }
+        }
+      });
+    }
+  }
+  function syncSdOverlay(V, T) {
+    const ins = I(), M = S.sdM, el = $("lwMain"), row = $("optHintRow"); el.dataset.opt = "0";
+    row.style.display = ins.gold ? "" : "none"; $("sdSet").hidden = !ins.gold;
+    if (!C.sdo) return;
+    const off = M && !M.why ? xauOffset(M) : null, bs = S.chart;
+    if (!ins.gold || off == null || !bs.length) { C.sdo.set(null, [], {}); if (ins.gold) $("optHint").textContent = optSummary(M, []); return; }
+    const k = Math.max(0, barIndexAt(bs, M.start)), band = ui.layers.sd ? { up: V(M.base + M.sd1 + off), lo: V(M.base - M.sd1 + off), from: bs[k].t >= M.start ? k : k + 1 } : null;
+    const rows = optRows(M), shown = ui.layers.opt ? rows.map(r => ({ ...r, y: V(r.xau + off) })) : [];
+    C.sdo.set(band, shown, { sdl: T.sdl, call: T.call, put: T.put, ink: T.ink2 });
+    el.dataset.opt = String(shown.filter(r => r.call + r.put > 0).length);
+    $("optHint").textContent = optSummary(M, rows);
+  }
+
   function startBinance() {
     const ins = I(), T = TOOLS[ins.mkt], sym = ins.symbol;
     S.tracker = new OF.WallTracker(ins.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
@@ -1771,7 +2005,7 @@
     tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false);
   }
   function startQuotes() {
-    for (const [k, sym] of [["gc", "COMEX:GC1!"], ["spot", "OANDA:XAUUSD"], ["thb", "OANDA:USDTHB"]])
+    for (const [k, sym] of [["gc", "COMEX:GC1!"], ["spot", SD_XAU], ["thb", "OANDA:USDTHB"]])
       tdvWatch(QUOTE, { symbol: sym, columns: ["close", "change", "update_mode"] }, p => { const o = asObj(p); if (o && o.data) { S.quotes[k] = o.data; schedule(); } }, false);
   }
   function start() {
@@ -1779,7 +2013,8 @@
     overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false); schedule();
     if (ins.src === "bin") startBinance(); else startTdvChart();
     if (ins.gold) { startQuotes(); startXauTicker(); }
-    if (ins.key === "gc") startXauWallsForGc();
+    if (ins.src === "tdv" && ins.gold) startXauWallsForTdv();
+    if (ins.gold) startSd();
     startNews(); startFutures(ins.key === "btc" ? "BTCUSDT" : "XAUUSDT");
     every(10000, async g => { if (g === gen) await journalTick(); }, true);
   }
@@ -1801,10 +2036,10 @@
     $(id).onclick = e => { const b = e.target.closest("button[data-k]"); if (b) on(b.dataset.k); }; }
   function renderControls() {
     const ins = I();
-    if (ins.key === "gc" && ui.mode === "gc") { ui.mode = "native"; store.set("mode", "native"); }
+    if ((ins.hide || []).includes(ui.mode)) { ui.mode = "native"; store.set("mode", "native"); }
     seg("segInst", Object.values(INSTR).map(x => [x.key, x.btn, x.sub]), ui.inst, k => { if (k === ui.inst) return; ui.inst = k; store.set("inst", k); renderControls(); start(); });
     $("segMode").hidden = !ins.gold;
-    seg("segMode", MODES.filter(m => !(ins.key === "gc" && m[0] === "gc")), ui.mode, k => { ui.mode = k; store.set("mode", k); renderControls(); schedule(); });
+    seg("segMode", MODES.filter(m => !(ins.hide || []).includes(m[0])), ui.mode, k => { ui.mode = k; store.set("mode", k); renderControls(); schedule(); });
     const units = UNITS[ins.key] || UNITS.xau; $("selUnit").innerHTML = units.map(([k, t]) => `<option value="${k}">${t}</option>`).join(""); $("selUnit").value = unitOf()[0];
     seg("segPlan", Object.entries(PLAN).map(([k, v]) => [k, v.label, `SL ${v.slK}×ATR วัน`]), ui.plan, k => { ui.plan = k; store.set("plan", k); renderControls(); schedule(); });
     seg("segTf", Object.keys(TF).map(k => [k, k]), ui.tf, k => { if (k === ui.tf) return; ui.tf = k; store.set("tf", k); renderControls(); restartChartOnly(); });
@@ -1814,7 +2049,7 @@
   }
   function applyTheme(t) { if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); store.set("theme", t || ""); schedule(); }
   async function init() {
-    if (!INSTR[ui.inst]) ui.inst = "xau";
+    if (!INSTR[ui.inst]) ui.inst = "xs";
     renderControls(); renderStatus();
     const saved = store.get("theme", ""); if (saved) applyTheme(saved);
     $("btnTheme").addEventListener("click", () => { const cur = document.documentElement.getAttribute("data-theme"); applyTheme((cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark"); });
@@ -1825,6 +2060,9 @@
     const sizeIn = () => { ui.size.cap = Math.max(0, +$("inCap").value || 0); ui.size.pct = Math.min(10, Math.max(0, +$("inPct").value || 0)); ui.size.unit[ui.inst] = $("selUnit").value; store.set("size", ui.size); schedule(); };
     for (const id of ["inCap", "inPct", "selUnit"]) $(id).addEventListener("change", sizeIn);
     $("btnJClear").addEventListener("click", clearJournal);
+    const SD_FORM = { sdIvMode: "ivMode", sdIv: "iv", sdDteMode: "dteMode", sdDte: "dte", sdBaseMode: "baseMode", sdBase: "base", sdPaste: "paste" };
+    for (const [id, k] of Object.entries(SD_FORM)) { $(id).value = ui.sd[k] ?? "";
+      $(id).addEventListener("input", e => { ui.sd[k] = e.target.value; store.set("sd", ui.sd); schedule(); }); }
     $("segJ").addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if (!b) return; ui.jAll = b.dataset.k === "true"; store.set("jAll", ui.jAll); renderJournal(); });
     initChart();
     let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(schedule, 120); });
