@@ -79,7 +79,8 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
         trend: i % 2 === 0, status: win ? "tp2" : "sl", r: win ? 2.25 : -1, tp1Hit: win, tp1At: null, closedAt: created + 3600000, exit: win ? 130 : 90 }); }
     window.claude = { use: async n => n === "db" ? db : n === "user" ? { id: async () => "u1" } : n !== "mcp" ? null : ({
       callTool: async (srv, tool, input) => { window.__calls.push(srv + ":" + tool + ":" + (input.toolName || "") + (input.arguments && input.arguments.endTime ? ":endTime" : "")); if (srv === "Binance" && tool === "tool_execute") return { payload: bin(input.toolName, input.arguments) }; throw { code: "not_in_manifest" }; },
-      watchTool(srv, tool, inp, h) { setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
+      watchTool(srv, tool, inp, h) { if (srv === "tdv" && window.__tvQuota) { window.__tvQuotaCalls = (window.__tvQuotaCalls || 0) + 1; setTimeout(() => h({ type: "error", error: { code: "tool_error", message: "tool_pre_invoke blocked by plugin ToolQuotaPlugin: TOOL_QUOTA_EXCEEDED - Tool call quota exceeded (Daily tool-call quota for this user is exhausted. It resets at 00:00 UTC)" } }), 30); return () => {}; }
+        setTimeout(() => { if (tool.includes("calendar")) h({ type: "data", result: { payload: { status: "ok", result: [
           { date: new Date(now + 50 * 60000).toISOString(), title: "Core Inflation Rate MoM", importance: 1, forecast: 0.3, previous: 0.3, actual: null, unit: "%", period: "Sep" },
           { date: new Date(now + 5 * 3600000).toISOString(), title: "Housing Starts", importance: 0, forecast: 1.3, previous: 1.275, actual: null, scale: "M" }] } } });
         else if (tool.includes("ohlcv")) { window.__tv = (window.__tv || 0) + 1; h({ type: "data", result: { payload: { bars: tv(inp) } } }); }
@@ -103,6 +104,9 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
     const num = (txt, re) => { const m = txt.match(re); return m ? +m[1].replace(/,/g, "") : NaN; };
     const sdMath = (tag, h) => { const base = num(h, /ฐาน ([\d,.]+)/), iv = num(h, /%IV ([\d,.]+)/), dte = num(h, /DTE ([\d.]+)/), sd1 = num(h, /1SD ([\d,.]+)/);
       if (!(Math.abs(base * iv / 100 * Math.sqrt(dte / 365) - sd1) <= 0.01)) errs.push(`${tag}: 1SD ${sd1} ≠ ${base} × ${iv}% × √(${dte}/365)`); return { base, iv, dte, sd1 }; };
+    const optOff = await p.evaluate(() => document.querySelector('#tgLayers button[data-k="opt"]').getAttribute("aria-pressed") === "false");
+    if (!optOff) errs.push(name + ": option volume should be off by default (34 TradingView calls a round)");
+    await p.click('#tgLayers button[data-k="opt"]'); await p.waitForTimeout(800);
     const s0 = await sdInfo(); console.log(name, "xs", s0.title, "| sd lines", s0.n, "| opt strikes", s0.opt, "|", s0.hint.slice(0, 220), "|", s0.optHint.slice(0, 200));
     if (!/XAUUSD \(Pepperstone/.test(s0.title)) errs.push(name + ": the page should open on the XAUUSD chart, title " + s0.title);
     if (s0.n !== 7) errs.push(name + ": XAUUSD chart should draw 7 SD lines, drew " + s0.n);
@@ -199,6 +203,23 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       console.log("news banner", await p.evaluate(() => document.getElementById("newsBanner").hidden ? "hidden" : document.getElementById("newsBanner").textContent.slice(0, 120)));
       console.log("fut", await p.evaluate(() => document.getElementById("futTiles").textContent.slice(0, 260)));
     } else await p.screenshot({ path: path.join(OUT, "desk-phone-dark.png"), fullPage: true });
+    await ctx.close();
+  }
+  {
+    // the daily TradingView quota is spent: the XAUUSD chart says so and offers the Binance chart, which works
+    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }), p = await ctx.newPage();
+    p.on("pageerror", e => errs.push("quota: " + e.message));
+    await p.addInitScript(() => { window.__tvQuota = true; });
+    await p.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    if (process.env.LWC_FILE) await p.route(/unpkg\.com\/lightweight-charts/, r => r.fulfill({ path: process.env.LWC_FILE, contentType: "application/javascript" }));
+    await p.goto("file://" + path.join(OUT, "desk-preview.html")); await p.waitForTimeout(2000);
+    const q = await p.evaluate(() => ({ ov: !document.getElementById("ovMain").hidden, text: document.getElementById("ovText").textContent, btn: !document.getElementById("btnOvXau").hidden, err: document.getElementById("errTop").textContent, calls: window.__tvQuotaCalls }));
+    console.log("quota:", q.ov, q.btn, "|", q.text.slice(0, 110), "| calls", q.calls);
+    if (!(q.ov && q.btn && /โควตา/.test(q.text) && /โควตา/.test(q.err))) errs.push("quota: the XAUUSD chart should explain the spent quota and offer the Binance chart");
+    await p.click("#btnOvXau"); await p.waitForTimeout(2500);
+    const after = await p.evaluate(() => ({ ov: document.getElementById("ovMain").hidden, title: document.getElementById("mainTitle").textContent, calls: window.__tvQuotaCalls }));
+    console.log("quota → XAUUSDT:", after.title, "· overlay hidden", after.ov, "· tdv calls after the switch", after.calls - q.calls);
+    if (!after.ov || !/XAUUSDT/.test(after.title) || after.calls !== q.calls) errs.push("quota: the Binance chart should load and no TradingView call should be made until the reset");
     await ctx.close();
   }
   await b.close(); console.log(errs.length ? "ERRORS\n" + errs.join("\n") : "no page errors");

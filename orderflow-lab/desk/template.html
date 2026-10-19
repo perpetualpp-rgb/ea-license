@@ -114,7 +114,7 @@
   .lwleg { position: absolute; left: 8px; top: 6px; z-index: 3; pointer-events: none; font: 12px/1.45 var(--f-data); color: var(--ink-2); background: color-mix(in srgb, var(--surface) 82%, transparent); padding: 2px 6px; border-radius: 6px; max-width: calc(100% - 90px); }
   .lwleg b { color: var(--ink); font-weight: 600; }
   @media (max-width: 600px) { .lwleg { font-size: 10.5px; max-width: calc(100% - 80px); } .lwleg .l2 { display: none; } }
-  .overlay { position: absolute; inset: 64px 14px 14px; display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 12px; background: var(--surface); }
+  .overlay { position: absolute; inset: 64px 14px 14px; display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 12px; background: var(--surface); z-index: 6; }
   .overlay p { max-width: 52ch; margin: 0 0 10px; }
   .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 6px 9px; border-radius: 8px; font-size: 12px; line-height: 1.45; white-space: nowrap; z-index: 2; font-family: var(--f-data); }
   table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
@@ -232,7 +232,7 @@
         <label class="wide">ข้อมูลที่วาง (บรรทัดแรกจาก Intraday OI Monitor)<textarea id="sdPaste" rows="2" placeholder="IV=27.54;DTE=0.6;OPEN=4333.5"></textarea></label>
       </div>
     </details>
-    <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
+    <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button> <button id="btnOvXau" type="button" hidden>เปิดกราฟ Binance XAUUSDT</button></div></div>
   </section>
 
   <section class="card" id="cardOf" aria-label="Checklist Order Flow">
@@ -353,10 +353,12 @@
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
   const ui = { ofSlBuf: store.get("ofSlBuf", 6), planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
-               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: true }, store.get("layers", {})), hover: null,
+               layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: false }, store.get("layers", {})), hover: null,
                sd: Object.assign({ ivMode: "gvz", iv: 28.22, dteMode: "manual", dte: 1, baseMode: "open", base: "", paste: "" }, store.get("sd", {})) };
   // the XAUUSD chart (the price TradingView shows) opens once after it was added; later choices are kept
   if (store.get("v", 0) < 15) { ui.inst = "xs"; store.set("inst", "xs"); store.set("v", 15); }
+  // option volume costs 34 TradingView calls a round: off unless switched on again (once, after the quota ran out)
+  if (store.get("v", 0) < 16) { ui.layers.opt = false; store.set("layers", ui.layers); store.set("v", 16); }
   const $ = id => document.getElementById(id);
   const I = () => INSTR[ui.inst] || INSTR.xs;
   const bigMin = () => { const ins = I(); return ins.src === "bin" ? (ui.big[ins.key] ?? ins.bigDef) : null; };
@@ -396,6 +398,7 @@
       case "selection_required": return `มี connector ชื่อ ${name} มากกว่าหนึ่งตัว เลือกตัวที่จะใช้ในหน้าต่างที่ claude.ai แสดง`;
       case "approval_required": return `ต้องอนุญาตให้หน้านี้ใช้ ${name} ก่อน กดปุ่ม "อนุญาตและดึงข้อมูล"`;
       case "blocked_by_policy": return `องค์กรของคุณปิดการใช้ ${name}`;
+      case "quota": return `โควตาเรียกใช้ ${name} ของบัญชีวันนี้หมดแล้ว รีเซ็ต ${new Date(tdvQuotaUntil).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น. ระหว่างนี้ข้อมูลจาก TradingView (กราฟ XAUUSD/GC, ราคา XAUUSD, เส้น SD, ข่าว) จะไม่อัปเดต ส่วน Binance ใช้ได้ปกติ`;
       case "tool_error": return `${name} ตอบว่าดึงข้อมูลไม่สำเร็จ: ${(e.message || "").slice(0, 160)}`;
       case "server_unavailable": case "rate_limited": return `${name} ไม่ตอบชั่วคราว แสดงข้อมูลล่าสุดที่มีไว้ก่อน`;
       case "not_granted": case "capability_disabled": case "capability_removed": return "มุมมองนี้เรียก connector ไม่ได้ เปิดหน้านี้ใน claude.ai";
@@ -1141,18 +1144,19 @@
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
     $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.src === "tdv" && ins.gold && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
+    else if (ins.src === "tdv" && S.errs[TDV] && S.errs[TDV].code === "quota") overlay(errCopy(TDV, S.errs[TDV]) + " · กราฟนี้ใช้ข้อมูล TradingView ทั้งหมด", false, true);
     else if (S.approve) overlay(errCopy(S.approve, S.errs[S.approve]), true);
     else if (Object.keys(S.errs).length && Object.values(S.errs).some(e => DENY.has(e.code))) overlay(Object.entries(S.errs).map(([s, e]) => errCopy(s, e)).join(" "), false);
   }
   function schedule() { if (rafPending) return; rafPending = true; requestAnimationFrame(renderAll); }
-  function overlay(text, approve) { $("ovMain").hidden = false; $("ovText").textContent = text; $("btnApprove").hidden = !approve; }
+  function overlay(text, approve, toXau = false) { $("ovMain").hidden = false; $("ovText").textContent = text; $("btnApprove").hidden = !approve; $("btnOvXau").hidden = !toXau; }
 
   // ---- data loops ------------------------------------------------------------------------------
   // bg = keep running while the tab is hidden: the journal needs candles, trades and its own tick
   function every(ms, fn, bg = false) { const g = gen; let busy = false;
     const run = async () => { if (g !== gen || busy || (document.hidden && !bg)) return; busy = true; try { await fn(g); } finally { busy = false; } };
     run(); timers.push(setInterval(run, ms)); }
-  function stopAll() { gen++; for (const t of timers) clearInterval(t); timers = []; for (const u of unsubs) u(); unsubs = []; stopOptions(); }
+  function stopAll() { gen++; for (const t of timers) { clearInterval(t); clearTimeout(t); } timers = []; for (const u of unsubs) u(); unsubs = []; tdvOff = []; stopOptions(); }
   async function binLoop(g, fn) { try { await fn(); } catch (e) { if (g === gen) noteErr(BIN, e); } }
   // ---- real XAUUSDT walls on the GC and XAUUSD charts ------------------------------------------
   // Neither GC nor broker XAUUSD has a free order book. The Binance XAUUSDT book is real; its walls are
@@ -1215,10 +1219,11 @@
   function xauNow() { if (I().key === "xs" && S.chart.length) return S.chart[S.chart.length - 1].c; const sp = quoteOf("spot"); if (sp != null) return sp; const b = S.sd.xau5m; return b.length ? b[b.length - 1].c : null; }
   function startSd() {
     const d = S.sd;
-    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "1D", count: 30, format: "columns" }, p => { d.xau1d = tvBars(p); schedule(); }, false, 300000);
-    tdvWatch(OHLCV, { symbol: SD_GVZ, interval: "1D", count: 30, format: "columns" }, p => { d.gvz = tvBars(p); schedule(); }, false, 600000);
-    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "5m", count: 300, format: "columns" }, p => { d.xau5m = tvBars(p); d.got.x5 = true; schedule(); }, false, 300000);
-    tdvWatch(OHLCV, { symbol: SD_GC, interval: "5m", count: 300, format: "columns" }, p => { d.gc5m = tvBars(p); d.got.g5 = true; schedule(); }, false, 300000);
+    // the day's open and GVZ change once a day; the 5-minute pair only feeds the day's diff
+    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "1D", count: 30, format: "columns" }, p => { d.xau1d = tvBars(p); schedule(); }, false, 1800000);
+    tdvWatch(OHLCV, { symbol: SD_GVZ, interval: "1D", count: 30, format: "columns" }, p => { d.gvz = tvBars(p); schedule(); }, false, 3600000);
+    tdvWatch(OHLCV, { symbol: SD_XAU, interval: "5m", count: 300, format: "columns" }, p => { d.xau5m = tvBars(p); d.got.x5 = true; schedule(); }, false, 600000);
+    tdvWatch(OHLCV, { symbol: SD_GC, interval: "5m", count: 300, format: "columns" }, p => { d.gc5m = tvBars(p); d.got.g5 = true; schedule(); }, false, 600000);
   }
   function sdModel() {
     const d = S.sd, o = ui.sd, x1d = d.xau1d;
@@ -1284,7 +1289,7 @@
   // The chain expiring on the trading day: Mon G<n>M, Tue G<n>T, Wed G<n>W, Thu G<n>R, Fri OG<n>, n = which such
   // weekday of the month; strikes every 25 around the day's gold.f open, 8 each side. TradingView has no open
   // interest for these contracts, only volume and price, so this is volume, not OI.
-  const OPT = { step: 25, side: 8, every: 900000 };
+  const OPT = { step: 25, side: 8, every: 1800000 };
   function optChain(dayKey) {
     const [y, m, d] = dayKey.split("-").map(Number), n = Math.ceil(d / 7);
     const root = { 1: "G" + n + "M", 2: "G" + n + "T", 3: "G" + n + "W", 4: "G" + n + "R", 5: "OG" + n }[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
@@ -1293,7 +1298,7 @@
   function stopOptions() { const o = S.opt; while (o.unsubs.length) { try { o.unsubs.pop()(); } catch { /* already stopped */ } } o.key = ""; }
   function syncOptions() {
     const o = S.opt, M = S.sdM, ins = I();
-    if (!mcp || !ins.gold || !ui.layers.opt || !M || M.why || M.diffRaw == null) { if (o.key) stopOptions(); return; }
+    if (!mcp || !ins.gold || !ui.layers.opt || !M || M.why || M.diffRaw == null || Date.now() < tdvQuotaUntil) { if (o.key) stopOptions(); return; }
     if (!(S.sd.got.x5 && S.sd.got.g5) && M.diffSrc !== "session") return; // wait for the day's diff, the strikes centre on it
     const center = Math.round((M.open + M.diffRaw) / OPT.step) * OPT.step, chain = optChain(M.key), key = chain ? chain.name + "@" + center : "none:" + M.key;
     if (key === o.key) return;
@@ -1307,7 +1312,7 @@
           // a strike with no trade yet today answers with an older day's bar, or none
           o.data.set(sym, { strike, cp, vol: b && tdKey(b.t) === chain.day ? b.v || 0 : 0 }); o.errs.delete(sym);
           o.at = Math.max(o.at, ev.result.cache && ev.result.cache.storedAt ? ev.result.cache.storedAt : Date.now()); }
-        else o.errs.set(sym, ev.error || {});
+        else { if (isQuota(ev.error)) { tdvQuotaHit(); return; } o.errs.set(sym, ev.error || {}); }
         schedule();
       }, { cache: { staleTime: OPT.every / 2 }, refetchInterval: OPT.every }));
     }
@@ -1447,11 +1452,25 @@
       const cut = S.trades[S.trades.length - 1].ts - 4 * 3600000; if (S.trades[0].ts < cut) S.trades = S.trades.filter(t => t.ts >= cut); liveCandle(); schedule(); }), true);
   }
   function startXauTicker() { every(15000, g => binLoop(g, async () => { const p = await bin("futures_usds.symbolPriceTicker", { symbol: "XAUUSDT" }); if (g !== gen) return; const px = +(Array.isArray(p) ? p[0] && p[0].price : p && p.price); if (isFinite(px)) { S.xauPx = px; schedule(); } })); }
+  // TradingView calls count against a daily per-user quota (shared with the Gold Plan Desk): once it is spent every
+  // TradingView watch stops until the reset (00:00 UTC) and the page says so, instead of failing call after call
+  const isQuota = e => !!e && /QUOTA/i.test(`${e.code || ""} ${e.message || ""}`);
+  let tdvQuotaUntil = 0, tdvOff = [];
+  function tdvQuotaHit() {
+    if (Date.now() < tdvQuotaUntil && !tdvOff.length) return;
+    const now = new Date(); tdvQuotaUntil = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    while (tdvOff.length) { try { tdvOff.pop()(); } catch { /* already stopped */ } }
+    stopOptions(); noteErr(TDV, { code: "quota" });
+    const g = gen; timers.push(setTimeout(() => { if (g === gen) start(); }, tdvQuotaUntil - Date.now() + 60000));
+  }
   function tdvWatch(tool, input, onData, critical, every = 60000) {
-    unsubs.push(mcp.watchTool(TDV, tool, input, ev => {
+    if (Date.now() < tdvQuotaUntil) { noteErr(TDV, { code: "quota" }); return; }
+    const off = mcp.watchTool(TDV, tool, input, ev => {
       if (ev.type === "data") { S.stamp.tdv = ev.result.cache ? ev.result.cache.storedAt : Date.now(); clearErr(TDV); onData(ev.result.payload); }
+      else if (isQuota(ev.error)) tdvQuotaHit();
       else if (critical || DENY.has(ev.error.code)) noteErr(TDV, ev.error);
-    }, { cache: { staleTime: Math.min(every, 300000) / 2 }, refetchInterval: every }));
+    }, { cache: { staleTime: Math.min(every, 300000) / 2 }, refetchInterval: every });
+    unsubs.push(off); tdvOff.push(off);
   }
   function startNews() {
     const day = ms => new Date(ms).toISOString().slice(0, 10), now = Date.now(), cover = { loaded: true, from: Date.parse(day(now - 86400000)), to: Date.parse(day(now + 2 * 86400000)) + 86400000 };
@@ -1480,13 +1499,14 @@
   }
   function startTdvChart() {
     const ins = I(), [, cnt] = TF[ui.tf], tvIv = TV_IV[ui.tf];
-    tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = mergeBars(S.chart, tvBars(p)); schedule(); }, true);
-    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); S.sessAt = S.stamp.tdv; schedule(); }, false);
-    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false);
+    const sec = TF_SEC[ui.tf] || 300, every = sec <= 300 ? 60000 : sec <= 1800 ? 120000 : 300000;
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: tvIv, count: cnt, format: "columns" }, p => { S.chart = mergeBars(S.chart, tvBars(p)); schedule(); }, true, every);
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1m", count: 2900, format: "columns" }, p => { S.sess = tvBars(p); S.sessAt = S.stamp.tdv; schedule(); }, false, 300000);
+    tdvWatch(OHLCV, { symbol: ins.sym, interval: "1D", count: 30, format: "columns" }, p => { S.daily = tvBars(p); schedule(); }, false, 1800000);
   }
   function startQuotes() {
     for (const [k, sym] of [["gc", "COMEX:GC1!"], ["spot", SD_XAU], ["thb", "OANDA:USDTHB"]])
-      tdvWatch(QUOTE, { symbol: sym, columns: ["close", "change", "update_mode"] }, p => { const o = asObj(p); if (o && o.data) { S.quotes[k] = o.data; schedule(); } }, false);
+      tdvWatch(QUOTE, { symbol: sym, columns: ["close", "change", "update_mode"] }, p => { const o = asObj(p); if (o && o.data) { S.quotes[k] = o.data; schedule(); } }, false, 300000);
   }
   function start() {
     stopAll(); resetData(); const ins = I();
@@ -1536,6 +1556,7 @@
     try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule); } catch { /* old browsers */ }
     $("selBig").addEventListener("change", e => { ui.big[I().key] = +e.target.value; store.set("big", ui.big); schedule(); });
     $("btnApprove").addEventListener("click", approve);
+    $("btnOvXau").addEventListener("click", () => { ui.inst = "xau"; store.set("inst", "xau"); renderControls(); start(); });
     $("inCap").value = ui.size.cap; $("inPct").value = ui.size.pct;
     $("inSlBuf").value = ui.ofSlBuf;
     $("inSlBuf").addEventListener("change", e => { ui.ofSlBuf = Math.min(7, Math.max(5, +e.target.value || 6)); e.target.value = ui.ofSlBuf; store.set("ofSlBuf", ui.ofSlBuf); schedule(); });
