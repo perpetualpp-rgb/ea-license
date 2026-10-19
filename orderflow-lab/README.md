@@ -190,9 +190,26 @@ python3 -m live.check                        # สรุปความครบ
 * เรียก Binance ได้เฉพาะ 11 endpoint ข้อมูลตลาดที่อยู่ใน allowlist (`BIN_ALLOW` ใน `template.html`)
   คำสั่งซื้อขาย/โอน/leverage ถูกบล็อก
 
+* กติกาแผน (แนวราคา น้ำหนัก โซน ราคาเข้า/SL/TP คะแนนทิศทาง การอ่าน OI) อยู่ใน `desk/plan.js` ไฟล์เดียวที่ทั้งหน้าและตัวทดสอบย้อนหลังใช้
+
 ```bash
-python3 desk/build.py   # template.html + cot_*.html + web/engine.js + desk/journal.js → desk/orderflow-desk.html
+python3 desk/build.py   # template.html + cot_*.html + web/engine.js + desk/journal.js + desk/plan.js → desk/orderflow-desk.html
 node desk/check.js      # เปิดหน้าด้วย connector จำลอง แล้วจับภาพไว้ที่ data/ (ต้องมี playwright)
+```
+
+### ทดสอบแผนย้อนหลัง (`desk/backtest.js`)
+
+เล่นแท่ง 5 นาทีย้อนหลังทีละแท่งผ่าน `plan.js` + `journal.js` ชุดเดียวกับหน้า: สร้างแผนจากข้อมูล ณ ตอนนั้น,
+ล็อก/แตะ/แท่งยืนยัน/เข้า/ตัดสินผลแบบเดียวกับ "บันทึกผลแผน" สไตล์ละฝั่งละหนึ่งไม้ ข้อมูลมาจากคลังสาธารณะ
+`data.binance.vision` เก็บใน `data/backtest/` (git ไม่เก็บ) ทดสอบไม่ได้: กำแพง order book, โซนไม้ใหญ่ และการกรองข่าว
+(ไม่มีข้อมูลย้อนหลัง) ตัวทดสอบเข้มกว่าหน้าจริงสองจุด: นับการแตะตั้งแต่แท่งถัดจากที่ล็อก และแท่งที่แตะ SL ก่อนยืนยันยกเลิกแผน
+`tests/test_backtest.py` ตรวจว่าไม่มี look-ahead (ตัดข้อมูลแล้วไม้ก่อนจุดตัดไม่เปลี่ยน) และเข้าที่ราคาปิดแท่งยืนยัน
+
+```bash
+# แท่ง 5 นาที (รายเดือน + รายวันของเดือนปัจจุบัน) และ OI (futures metrics รายวัน) จาก https://data.binance.vision/
+node desk/backtest.js --sym XAUUSDT --ins xau --metrics data/backtest/metrics --fee 0.001 --out data/backtest/XAUUSDT.json
+node desk/backtest.js --sym BTCUSDT --ins btc --metrics data/backtest/metrics --fee 0.002   # BTC spot + OI ของ BTCUSDT perp
+node desk/backtest.js --sym PAXGUSDT --ins paxg --fee 0.002                                  # ทองโทเคน ย้อนถึงปี 2021, ไม่มี OI
 ```
 
 ### ข้อตกลงสำคัญ

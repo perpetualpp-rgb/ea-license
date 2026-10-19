@@ -1,4 +1,4 @@
-"""Assemble the claude.ai desk page: template + COT card + engine.js + journal.js -> orderflow-desk.html."""
+"""Assemble the claude.ai desk page: template + COT card + engine.js + journal.js + plan.js -> orderflow-desk.html."""
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +14,7 @@ def build():
     page = page.replace("<!--COT_SECTION-->", read("cot_section.html").rstrip("\n"))
     page = page.replace("<!--ENGINE-->", "<script>\n" + read("..", "web", "engine.js") + "\n</script>")
     page = page.replace("<!--JOURNAL-->", "<script>\n" + read("journal.js") + "\n</script>")
+    page = page.replace("<!--PLAN-->", "<script>\n" + read("plan.js") + "\n</script>")
     page += "\n" + read("cot_script.html")
     with open(os.path.join(HERE, "orderflow-desk.html"), "w", encoding="utf-8") as f:
         f.write(page)

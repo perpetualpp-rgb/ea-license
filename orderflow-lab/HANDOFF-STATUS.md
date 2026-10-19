@@ -7,7 +7,7 @@
 
 | ชุดเทสต์ | คำสั่ง | ผล |
 |---|---|---|
-| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 119 ผ่าน |
+| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python, backtest ไม่มี look-ahead) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 123 ผ่าน |
 | Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
 | แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 84 ผ่าน |
 | แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 51 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ และกราฟเต็มจอเปิด/ปิดได้) |
@@ -17,6 +17,22 @@
 | bundle รุ่น production ไม่มีโค้ด connector | `npm run build:single` | ผ่าน |
 | Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error · เปิดที่กราฟ XAUUSD, เส้น SD 7 เส้นบนกราฟ XAUUSD/XAUUSDT/GC, 1SD = ฐาน × %IV × √(DTE/365) ตรงกับตัวเลขบนจอ, IV = GVZ ปิดก่อนเปิดวัน, diff = median 5 นาทีปัด 2.50, โหมดวางข้อมูล IV/DTE/OPEN, option volume ตาม strike |
 | openapi.json ตรงกับโค้ด | `cd orderflow-lab/server && python3 -m app.openapi_export --check` | ตรงกัน |
+
+## ทดสอบแผนของหน้า Desk ย้อนหลัง (19 ต.ค. 2026)
+
+`desk/backtest.js` ใช้ `plan.js` + `journal.js` ชุดเดียวกับหน้า เล่นแท่ง 5 นาทีจาก data.binance.vision
+(ไม่มีกำแพง order book, ไม้ใหญ่ และการกรองข่าว เพราะไม่มีข้อมูลย้อนหลัง) R = ระยะ SL ของไม้นั้น
+
+| ตลาด, ช่วง | สไตล์ | ไม้ | กำไร | R ก่อนค่าธรรมเนียม | R หลังค่าธรรมเนียม |
+|---|---|---|---|---|---|
+| Binance XAUUSDT perp, 14 ธ.ค. 2025 – 17 ต.ค. 2026, ค่าธรรมเนียม 0.10% | เดย์เทรด | 730 | 40% | −37.2 (PF 0.91) | −148.7 |
+| | สวิง | 249 | 45% | +12.3 (PF 1.10) | −6.9 |
+| Binance BTCUSDT spot, 4 ธ.ค. 2025 – 18 ต.ค. 2026, ค่าธรรมเนียม 0.20% | เดย์เทรด | 743 | 45% | +1.2 (PF 1.00) | −133.6 |
+| | สวิง | 241 | 43% | −7.2 (PF 0.94) | −29.9 |
+
+สรุป: กติกาแผนชุดปัจจุบันยังไม่มีความได้เปรียบหลังค่าธรรมเนียมในทั้งสองตลาด ไม้ที่ไปทางเดียวกับคะแนนทิศทาง ("ตามแรง")
+ดีกว่าไม้สวนแรงทั้งใน XAUUSDT และ BTC (เดย์เทรด +13.6R / +36.2R เทียบกับ −36.4R / −38.7R ก่อนค่าธรรมเนียม)
+แต่ยังติดลบหลังค่าธรรมเนียม และเป็นข้อสังเกตหลังเห็นผล ต้องทดสอบล่วงหน้าก่อนใช้
 
 ## ทีละขั้นของ handoff
 

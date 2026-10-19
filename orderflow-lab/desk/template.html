@@ -289,6 +289,7 @@
 <script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
 <!--ENGINE-->
 <!--JOURNAL-->
+<!--PLAN-->
 
 <script>
 "use strict";
@@ -388,32 +389,11 @@
     return rows.filter(r => isFinite(r.c) && r.v >= 0).sort((a, z) => a.t - z.t); }
 
   // ---- per-bar flow (exact when the bar carries taker-buy volume) -------------------------
-  const exact = b => isFinite(b.bv);
-  function split(b) { if (exact(b)) return [b.bv, Math.max(0, b.v - b.bv)]; const r = b.h - b.l, f = r > 0 ? (b.c - b.l) / r : 0.5; return [b.v * f, b.v * (1 - f)]; }
-  const delta = b => { const [x, y] = split(b); return x - y; };
+  const { exact, split, delta, sessions } = OFP;
 
   // ---- sessions -----------------------------------------------------------------------
-  function sessions(bs, ins) {
-    const out = []; let cur = [], key = null;
-    for (let i = 0; i < bs.length; i++) {
-      const b = bs[i], k = ins.src === "bin" ? Math.floor((b.t - ins.sessOff) / 86400) : null;
-      const brk = i > 0 && (ins.src === "bin" ? k !== key : b.t - bs[i - 1].t >= 2400);
-      if (brk && cur.length) { out.push(cur); cur = []; }
-      cur.push(b); key = k;
-    }
-    if (cur.length) out.push(cur);
-    return out;
-  }
   const p95 = arr => { const s = arr.slice().sort((a, z) => a - z); return s.length ? s[Math.max(0, Math.ceil(0.95 * s.length) - 1)] : Infinity; };
-  function derive() {
-    const ins = I(); if (S.sess.length < 5) return null;
-    const ss = sessions(S.sess, ins), cur = ss[ss.length - 1], prev = ss.length > 1 ? ss[ss.length - 2] : null;
-    const prof = OF.profileFromBars(cur, ins.tick), rng = OF.sessionRange(prof, 0.70), mag = OF.valueArea(prof, 0.30);
-    let pr = null;
-    if (prev && prev.length > 10) { const pp = OF.profileFromBars(prev, ins.tick), r = OF.sessionRange(pp, 0.70), m = OF.valueArea(pp, 0.30);
-      pr = { yhi: Math.max(...prev.map(b => b.h)), ylo: Math.min(...prev.map(b => b.l)), poc: r.poc, vah: r.va_high, val: r.va_low, mhi: m[1], mlo: m[0] }; }
-    return { cur, prev, prof, rng, mag, pr, last: cur[cur.length - 1] };
-  }
+  const derive = () => OFP.derive(S.sess, I());
 
   // ---- price modes: display value = a·price + b ------------------------------------------
   function refPrice() { const ins = I(); if (ins.key === "xau") return S.xauPx; if (ins.key === "gc") return S.chart.length ? S.chart[S.chart.length - 1].c : (S.quotes.gc && S.quotes.gc.close);
@@ -808,96 +788,24 @@
   }
 
   // ---- trade plan: rule-based scenarios from the levels on this page -------------------------
-  // day: risk sized by the 1-hour ATR; swing: by the 4-hour ATR with wider targets
-  // stops and zones scale with the daily ATR so quiet hours (weekends, Asia) don't shrink them
-  // confirmation, lock and timeout rules live in journal.js (OFJ.RULES) so the table and the runner share them
-  const PLAN = { day: { ...OFJ.RULES.styles.day, label: "เดย์เทรด", slK: 0.25, clK: 0.10, floor: 0.002, minR: [1.5, 2.5], rounds: 4 },
-                 swing: { ...OFJ.RULES.styles.swing, label: "สวิง", slK: 0.5, clK: 0.15, floor: 0.004, minR: [2, 3.5], rounds: 8 } };
+  // the plan rules (levels, zones, entry/SL/TP, bias) live in plan.js (OFP), shared with desk/backtest.js
+  const PLAN = OFP.PLAN;
   function lastPx() { return I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.chart.length ? S.chart[S.chart.length - 1].c : null; }
-  function atrDaily(bars) {
-    const d = bars.length > 4 ? bars.slice(0, -1) : bars; if (d.length < 3) return null; // drop the forming day
-    const tr = d.slice(1).map((x, i) => Math.max(x.h - x.l, Math.abs(x.h - d[i].c), Math.abs(x.l - d[i].c))).slice(-14);
-    return tr.reduce((a, v) => a + v, 0) / tr.length;
-  }
-  function atrOf(bars, sec) {
-    const g = new Map();
-    for (const b of bars) { const k = Math.floor(b.t / sec), x = g.get(k); if (!x) g.set(k, { h: b.h, l: b.l, c: b.c }); else { x.h = Math.max(x.h, b.h); x.l = Math.min(x.l, b.l); x.c = b.c; } }
-    let hs = [...g.entries()].sort((a, z) => a[0] - z[0]).map(e => e[1]); if (hs.length > 4) hs = hs.slice(0, -1); // drop the forming bar
-    if (hs.length < 3) return null;
-    const tr = hs.slice(1).map((x, i) => Math.max(x.h - x.l, Math.abs(x.h - hs[i].c), Math.abs(x.l - hs[i].c))).slice(-14);
-    return tr.reduce((a, v) => a + v, 0) / tr.length;
-  }
-  function planLevels(last, st) {
-    const L = [], add = (p, name, w) => { if (p != null && isFinite(p)) L.push({ p, name, w }); }, ins = I();
-    if (D.pr) { add(D.pr.yhi, "Y-Hi", 1.5); add(D.pr.vah, "Top zone", 1.5); add(D.pr.mhi, "Magnet บน", 1); add(D.pr.poc, "POC ก่อน", 1.5); add(D.pr.mlo, "Magnet ล่าง", 1); add(D.pr.val, "Bottom zone", 1.5); add(D.pr.ylo, "Y-Lo", 1.5); }
-    const dd = S.daily.length > 1 ? S.daily.slice(0, -1) : [];
-    for (const [n, w] of [[5, 1.5], [20, 1.25]]) if (dd.length >= n) { const z = dd.slice(-n); add(Math.max(...z.map(b => b.h)), `สูงสุด ${n} วัน`, w); add(Math.min(...z.map(b => b.l)), `ต่ำสุด ${n} วัน`, w); }
-    const vw = OF.vwapBands(D.cur, [2, 3]), v = vw[vw.length - 1];
-    if (v) { add(v.vwap, "VWAP", 1); add(v.bands[2][1], "Assist +2σ", 1); add(v.bands[3][1], "Assist +3σ", 1); add(v.bands[2][0], "Assist −2σ", 1); add(v.bands[3][0], "Assist −3σ", 1); }
-    add(D.rng.poc, "POC วันนี้", 1);
-    if (S.tracker) for (const w of S.tracker.active().filter(x => x.persistent).slice(0, 6)) add(w.price, `Wall ${w.side === "bid" ? "BID" : "ASK"} ${fmtV(w.size)}`, 2.5);
-    const Z = bigZones(); if (Z.real) for (const z of Z.zones.slice(0, 3)) add(z.price, `ไม้ใหญ่ ${fmtV(z.buy + z.sell)}`, 1.5);
-    const r0 = Math.floor(last / ins.round) * ins.round; for (let k = -st.rounds + 1; k <= st.rounds; k++) add(r0 + k * ins.round, "เลขกลม", 0.75);
-    return { L, v };
-  }
-  function cluster(levels, side, last, win) {
-    // candidate zones on one side of price, scored by the weight of levels stacked within win
-    const c = levels.filter(l => side === "res" ? l.p > last + 0.5 * win : l.p < last - 0.5 * win).sort((a, z) => Math.abs(a.p - last) - Math.abs(z.p - last));
-    let best = null;
-    for (const seed of c.slice(0, 6)) {
-      const mem = c.filter(l => Math.abs(l.p - seed.p) <= win), score = mem.reduce((s, l) => s + l.w, 0) - Math.abs(seed.p - last) / win * 0.15;
-      if (!best || score > best.score) best = { score, mem, lo: Math.min(...mem.map(l => l.p)), hi: Math.max(...mem.map(l => l.p)) };
-    }
-    return best;
-  }
   // ---- news, futures positioning, bias ---------------------------------------------------------
   const NEWS_PAD = OFJ.RULES.newsPadMs;
   function newsWindow(now) { return S.cal.find(e => e.importance >= 1 && now >= e.ts - NEWS_PAD && now <= e.ts + NEWS_PAD) || null; }
   function nextHighNews(now, withinMs) { return S.cal.find(e => e.importance >= 1 && e.ts > now && e.ts - now <= withinMs) || null; }
-  function oiRead(hours) {
-    // price change vs open-interest change over the same window
-    const oi = S.fut.oi; if (oi.length < 2) return null;
-    const lastO = oi[oi.length - 1], ref = [...oi].reverse().find(o => o.ts <= lastO.ts - hours * 3600000); if (!ref) return null;
-    const px = ts => { const i = barIndexAt(S.sess, ts / 1000); return i >= 0 ? S.sess[i].c : null; }, p1 = px(lastO.ts), p0 = px(ref.ts);
-    const dOi = (lastO.v - ref.v) / ref.v * 100, dPx = p0 && p1 ? (p1 - p0) / p0 * 100 : null;
-    let label = "ทรงตัว", sign = 0;
-    if (dPx != null && Math.abs(dOi) >= 0.3) {
-      if (dPx > 0.05) [label, sign] = dOi > 0 ? ["Long ใหม่เข้า", 1] : ["Short ปิดหนี", 0];
-      else if (dPx < -0.05) [label, sign] = dOi > 0 ? ["Short ใหม่เข้า", -1] : ["Long ปิดหนี", 0];
-      else label = dOi > 0 ? "OI เพิ่ม ราคานิ่ง" : "OI ลด ราคานิ่ง";
-    }
-    return { dOi, dPx, label, sign };
+  // what the page knows beyond the candles: persistent walls, big-trade zones, the last 5 minutes of the tape, the OI read
+  function planCtx() {
+    const ins = I(), Z = bigZones();
+    let press = null;
+    if (ins.src === "bin" && S.trades.length) { const now = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => now - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0); press = tot ? b / tot * 100 : 50; }
+    return { ins, D, daily: S.daily, sess: S.sess, last: lastPx(), press, oi: oiRead(1),
+             walls: S.tracker ? S.tracker.active().filter(x => x.persistent).slice(0, 6).map(w => ({ p: w.price, name: `Wall ${w.side === "bid" ? "BID" : "ASK"} ${fmtV(w.size)}` })) : [],
+             big: Z.real ? Z.zones.slice(0, 3).map(z => ({ p: z.price, name: `ไม้ใหญ่ ${fmtV(z.buy + z.sell)}` })) : [] };
   }
-  function biasModel(last, v) {
-    const ins = I(), cvd = D.cur.reduce((a, b) => a + delta(b), 0); let score = 0; const why = [];
-    if (v) { if (last > v.vwap) { score++; why.push("ราคาเหนือ VWAP"); } else { score--; why.push("ราคาใต้ VWAP"); } }
-    if (cvd > 0) { score++; why.push("CVD วันนี้เป็นบวก"); } else if (cvd < 0) { score--; why.push("CVD วันนี้เป็นลบ"); }
-    if (ins.src === "bin" && S.trades.length) { const now = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => now - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0), pr = tot ? b / tot * 100 : 50;
-      if (pr >= 55) { score++; why.push(`แรงซื้อ 5 นาที ${pr.toFixed(0)}%`); } else if (pr <= 45) { score--; why.push(`แรงขาย 5 นาที ${(100 - pr).toFixed(0)}%`); } }
-    const o = oiRead(1); if (o && o.sign) { score += o.sign; why.push(`OI 1 ชม.: ${o.label}`); }
-    return { score, why, bias: score >= 2 ? "เอียงซื้อ" : score <= -2 ? "เอียงขาย" : "สองทาง รอราคาเข้าโซน" };
-  }
-
-  // ---- plan model (shared by the table and the journal) ------------------------------------------
-  function planModel(styleKey) {
-    const ins = I(), st = PLAN[styleKey], last = lastPx();
-    if (!D || last == null) return { err: "รอข้อมูล" };
-    const dAtr = atrDaily(S.daily), hAtr = atrOf(S.sess, 3600), atr = dAtr || (hAtr ? hAtr * 4 : null);
-    if (!atr) return { err: "ข้อมูลย้อนหลังยังไม่พอคำนวณ ATR" };
-    const slGap = Math.max(st.slK * atr, last * st.floor), win = st.clK * atr, gap2 = Math.max(win, 0.25 * atr), { L, v } = planLevels(last, st);
-    const B = biasModel(last, v), plans = {};
-    for (const [side, z] of [["sell", cluster(L, "res", last, win)], ["buy", cluster(L, "sup", last, win)]]) {
-      if (!z) continue; const sell = side === "sell", dir = sell ? -1 : 1, entry = sell ? z.lo : z.hi, stop = sell ? z.hi + slGap : z.lo - slGap, risk = Math.abs(entry - stop);
-      const ahead = L.filter(l => (l.p - entry) * dir > 0).sort((a, b) => Math.abs(a.p - entry) - Math.abs(b.p - entry));
-      const pick = (minR, after) => ahead.find(l => Math.abs(l.p - entry) >= minR * risk && (after == null || Math.abs(l.p - entry) >= Math.abs(after - entry) + gap2))
-        || { p: entry + dir * Math.max(minR * risk, after == null ? 0 : Math.abs(after - entry) + gap2), name: `${minR}R (ไม่มีแนวถัดไป)` };
-      const t1 = pick(st.minR[0], null), t2 = pick(st.minR[1], t1.p);
-      plans[side] = { inst: ins.key, style: styleKey, side, zoneLo: z.lo, zoneHi: z.hi, entry, stop, risk, tp1: t1.p, tp1Name: t1.name, tp2: t2.p, tp2Name: t2.name,
-                      names: [...new Set(z.mem.map(l => l.name))].join(" + "), trend: B.score === 0 ? null : (sell ? B.score < 0 : B.score > 0) };
-    }
-    return { st, atr, atrName: dAtr ? "ATR รายวัน" : "ATR รายวัน ≈ (ATR 1 ชม. × 4)", slGap, last, ...B, plans };
-  }
-
+  const planModel = styleKey => OFP.planModel(planCtx(), styleKey);
+  const oiRead = hours => OFP.oiRead(S.fut.oi, S.sess, hours);
   // ---- position size -----------------------------------------------------------------------------
   const UNITS = { xau: [["oz", "oz (Binance)", 1], ["lot", "lot XAUUSD (100 oz)", 100], ["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10]],
                   xs: [["lot", "lot XAUUSD (100 oz)", 100], ["oz", "oz", 1], ["gc", "GC (100 oz)", 100], ["mgc", "MGC (10 oz)", 10]],
