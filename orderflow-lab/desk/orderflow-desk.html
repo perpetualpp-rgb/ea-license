@@ -157,6 +157,21 @@
   #newsBanner { font-weight: 500; }
   footer { color: var(--muted); font-size: 0.76rem; max-width: 120ch; }
   [hidden] { display: none !important; }
+  .ofgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+  @media (max-width: 860px) { .ofgrid { grid-template-columns: minmax(0, 1fr); } }
+  .ofl { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .ofl li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr); gap: 2px 6px; padding: 5px 6px; border-radius: 8px; font-size: 0.84rem; }
+  .ofl li .i { font-family: var(--f-data); font-weight: 600; text-align: center; }
+  .ofl li.pass .i { color: var(--buy); } .ofl li.fail .i { color: var(--sell); } .ofl li.warn .i { color: var(--brass); }
+  .ofl li.fail.req { background: var(--zone-top); }
+  .ofl li .d { grid-column: 2; font-size: 0.76rem; color: var(--ink-2); overflow-wrap: anywhere; }
+  .ofl li .opt { font-size: 0.7rem; color: var(--muted); margin-left: 4px; }
+  .ofticket { background: var(--raised); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; font-size: 0.86rem; min-width: 0; }
+  .ofticket .side { font-family: var(--f-display); font-size: 1.15rem; }
+  .ofticket .why { display: block; font-size: 0.76rem; color: var(--muted); }
+  .ofticket table td { padding: 3px 4px; } .ofticket table td.num { white-space: nowrap; }
+  .ofpill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+  .ofpill.go { background: var(--buy); color: #fff; } .ofpill.wait { background: var(--raised); color: var(--ink); outline: 1px solid var(--axis); }
 </style>
 
 <div class="wrap">
@@ -218,6 +233,22 @@
       </div>
     </details>
     <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
+  </section>
+
+  <section class="card" id="cardOf" aria-label="Checklist Order Flow">
+    <h2>Checklist Order Flow <span class="tag approx">ตามคู่มือ The Trader X</span><span class="hint" id="ofHint"></span></h2>
+    <p class="note" id="ofStatus" style="margin-bottom:8px">รอข้อมูล</p>
+    <div class="ofgrid">
+      <ul class="ofl" id="ofList"></ul>
+      <div class="ofticket" id="ofTicket"></div>
+    </div>
+    <div class="bar" style="margin-top:8px">
+      <label for="inSlBuf">SL เลยโซน $ <input id="inSlBuf" type="number" min="5" max="7" step="0.5" inputmode="decimal"></label>
+      <button type="button" id="btnOfCopy">คัดลอกใบสั่ง (ราคา XAUUSD)</button><span class="hint" id="ofCopied"></span>
+    </div>
+    <p class="cotnote">ตรวจอัตโนมัติจาก order flow จริงของ Binance XAUUSDT (CVD จากปริมาณผู้กดซื้อจริง, กำแพงและ Order Book ทุก 10 วิ, tape ไม้ใหญ่) ข้อที่มีป้าย "เสริม" ไม่บังคับ ·
+      เข้า = ราคาปิดแท่งยืนยัน · SL = เลยขอบโซนและปลายแท่งยืนยันตามที่ตั้ง · TP1 = VWAP หรือกำแพงจริงแรก (เก็บครึ่ง เลื่อน SL บังทุน) · TP2 = ขอบเมฆฝั่งตรงข้าม / กำแพงจริง / Magnet · TP3 = กำแพงใหญ่ฝั่งตรงข้าม ·
+      <b>หน้านี้ไม่ส่งคำสั่งซื้อขาย</b> เมื่อเงื่อนไขครบจะบันทึกเป็นไม้จำลองในบันทึกผล (สไตล์ "Checklist OF") ส่วนการเข้าไม้จริงให้กดเองที่โบรกเกอร์ · ราคา XAUUSD แปลงจาก XAUUSDT ด้วยส่วนต่างตอนนี้ · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</p>
   </section>
 
   <section class="card" aria-label="แผนเทรด">
@@ -1022,7 +1053,128 @@
     return { st, atr, atrName: dAtr ? "ATR รายวัน" : "ATR รายวัน ≈ (ATR 1 ชม. × 4)", slGap, last, ...B, plans };
   }
 
-  return { PLAN, exact, split, delta, sessions, derive, atrDaily, atrOf, barIndexAt, oiRead, planLevels, cluster, biasModel, planModel };
+  // ---- order-flow checklist (the owner's The Trader X notes) ---------------------------------------------------
+  // One side for the day from CVD (red: sells only, green: buys only), the zone on that side where levels stack,
+  // then the checks before an entry; the entry is the close of the trigger candle, SL beyond the zone by slBuf
+  // dollars, TP1 VWAP or the first real wall, TP2 the far Assist edge / a wall / Magnet, TP3 a big opposite wall.
+  const OF_REQUIRED = ["cvd", "cloud", "expand", "lane", "wall", "bigx", "trigger", "flow", "sltp", "news"];
+  const OF_SOFT = new Set(["lane", "news"]);   // "warn" there (not known / outside the main hours) does not block
+  const OF_LABEL = {
+    cvd: "CVD ใต้น้ำหรือเหนือน้ำ · ไม้ไปทางเดียวกับ CVD", cloud: "ราคาอยู่โซนแพง/ถูกของ Assist (ไม่ใช่กลางๆ)",
+    expand: "Assist ไม่ได้ระเบิดสวนทางไม้", lane: "เลนของ Range · ไม้นี้เล่นในเลนเดียวกัน", round: "มีเลขกลมตรงโซน",
+    wall: "Wall ที่ยืนนาน (S/เส้นทึบ) อยู่ที่โซน และกำแพงยังไม่หด", book: "Order Book ที่โซน ≥ 2SD และติด (+)",
+    bigx: "ไม่มี Big Trade ✕ (โซนต่อสู้) ที่โซน", trigger: "แท่ง 5 นาทีปิดสีตรงข้ามในโซน หรือ 15 นาทีทิ้งหาง",
+    flow: "Flow: Net / Pressure ไปทางเดียวกับไม้", sltp: "SL / TP1 / TP2 ครบ ขนาดไม้คิดจากระยะ SL", news: "ช่วงเวลาและข่าว",
+  };
+  const OF_ORDER = ["cvd", "cloud", "expand", "lane", "round", "wall", "book", "bigx", "trigger", "flow", "sltp", "news"];
+
+  /** keeps the zone of a side once the price is near it (the plan's zone search skips levels at the price) */
+  function ofZone(prev, M, side, last, now, o = {}) {
+    const radius = (o.radius || 1.5) * (M && M.slGap || 0), maxMs = o.maxMs || 4 * 3600000;
+    if (prev && prev.side === side && now - prev.at <= maxMs && last >= prev.lo - 2 * radius && last <= prev.hi + 2 * radius) return prev;
+    const p = M && M.plans && M.plans[side]; if (!p) return null;
+    const edge = side === "sell" ? p.zoneLo : p.zoneHi;
+    return { side, lo: p.zoneLo, hi: p.zoneHi, names: p.names, at: now, locked: Math.abs(last - edge) <= radius };
+  }
+
+  /**
+   * c = {ins, D, last, now (ms), sess (5m bars, oldest first), zone ({side, lo, hi, names} from ofZone),
+   *      walls (WallTracker.active()), book ({bids, asks} bucketed), prevBook ({bid: Map, ask: Map}), bucket,
+   *      bigZones ([{price, buy, sell, contested}]), zoneTick, tape ({net5, pressure} or null), news ({status, title})}
+   */
+  function checklist(c, opt = {}) {
+    const o = { slBuf: 6, roundTol: 1.5, ...opt }, { ins, D, last, now } = c, items = {};
+    const set = (id, state, detail) => { items[id] = { id, label: OF_LABEL[id], state, detail, required: OF_REQUIRED.includes(id), soft: OF_SOFT.has(id) }; };
+    if (!D || last == null) return { err: "รอข้อมูล" };
+    const cvd = D.cur.reduce((a, b) => a + delta(b), 0), side = cvd < 0 ? "sell" : cvd > 0 ? "buy" : null, sell = side === "sell", dir = sell ? -1 : 1;
+    const f = v => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    set("cvd", side ? "pass" : "fail", side ? `CVD session นี้ ${cvd > 0 ? "+" : "−"}${f(Math.abs(cvd))} ${sell ? "ใต้น้ำ → หาแต่จุดขาย" : "เหนือน้ำ → หาแต่จุดซื้อ"}` : "CVD เป็นศูนย์ ยังไม่มีขา");
+    const z = c.zone && side && c.zone.side === side ? c.zone : null;
+    // closed candles only: the last 5-minute one and the last whole 15-minute one
+    const closed = c.sess.filter(b => (b.t + 300) * 1000 <= now), b5 = closed[closed.length - 1] || null;
+    let b15 = null;
+    if (closed.length) { const k = Math.floor((closed[closed.length - 1].t + 300) / 900) * 900 - 900, part = closed.filter(b => b.t >= k && b.t < k + 900);
+      if (part.length === 3) b15 = { t: k, o: part[0].o, h: Math.max(...part.map(b => b.h)), l: Math.min(...part.map(b => b.l)), c: part[2].c }; }
+    // Assist: where the price sits in sigma, and whether the band is blowing out
+    const vw = OF.vwapBands(D.cur, [1, 2, 3]), v = vw[vw.length - 1], shape = OF.bandShape(vw);
+    if (!v || !side) { set("cloud", "fail", "ยังไม่มี VWAP"); set("expand", "fail", "—"); }
+    else {
+      const ref = sell ? Math.max(last, b5 ? b5.h : last) : Math.min(last, b5 ? b5.l : last), zs = v.sd > 0 ? (ref - v.vwap) / v.sd : 0, zz = zs * dir * -1;
+      set("cloud", zz >= 2 ? "pass" : zz >= 1 ? "warn" : "fail", `${sell ? "สูงสุดล่าสุด" : "ต่ำสุดล่าสุด"} อยู่ที่ ${zs >= 0 ? "+" : "−"}${Math.abs(zs).toFixed(2)}σ จาก VWAP ${f(v.vwap)} · ${sell ? "ขายในเมฆบน (≥ +2σ)" : "ซื้อในเมฆล่าง (≤ −2σ)"}`);
+      const up = last > v.vwap, against = shape === "expanding" && (sell ? up : !up);
+      set("expand", against ? "fail" : "pass", shape === "expanding" ? (against ? `เมฆระเบิด${up ? "ขึ้น" : "ลง"} ห้ามสวน` : "เมฆระเบิดไปทางเดียวกับไม้") : shape === "flat" ? "เมฆแบน (sideway) เล่นกลับค่ากลางได้" : "เมฆขยายตัวเล็กน้อย");
+    }
+    // Range lanes of the previous session
+    const pr = D.pr;
+    if (!pr) set("lane", "warn", "ยังไม่มี Range ของ session ก่อน");
+    else {
+      const lane = last > pr.yhi ? "เหนือ Y-Hi" : last >= pr.vah ? "Top Zone" : last > pr.mhi ? "เหนือ Magnet" : last >= pr.mlo ? "Magnet" : last > pr.val ? "ใต้ Magnet" : last >= pr.ylo ? "Bottom Zone" : "ใต้ Y-Lo";
+      const bad = side && (sell ? last < pr.val : last >= pr.vah);
+      set("lane", !side ? "fail" : bad ? "fail" : "pass", `ราคาอยู่ ${lane}${bad ? (sell ? " · ไม่ขายในโซนล่าง" : " · Top Zone อันตราย ไม่ซื้อ") : ""}`);
+    }
+    const tol = 2 * (c.bucket || 0);
+    const atZone = p => z && p >= z.lo - tol && p <= z.hi + tol;
+    if (!z) for (const id of ["round", "wall", "book", "bigx", "trigger"]) set(id, "fail", "ยังไม่มีโซนที่หลายระดับซ้อนกันฝั่งนี้");
+    else {
+      const step = ins.round, r0 = Math.ceil((z.lo - o.roundTol) / step) * step, hit = r0 <= z.hi + o.roundTol ? r0 : null;
+      set("round", hit != null ? "pass" : "warn", hit != null ? `เลขกลม ${f(hit)} อยู่ในโซน` : "ไม่มีเลขกลมในโซน (มีน้ำหนักเมื่อซ้อนกับสัญญาณอื่นเท่านั้น)");
+      const ws = (c.walls || []).filter(w => w.side === (sell ? "ask" : "bid") && atZone(w.price)).sort((a, b) => b.size - a.size);
+      const strong = ws.find(w => w.persistent && w.status !== "pulling"), pulling = ws.find(w => w.status === "pulling");
+      set("wall", strong ? "pass" : "fail", strong ? `${sell ? "Ask" : "Bid"} ${f(strong.size)} ที่ ${f(strong.price)} ยืน ${Math.round(strong.age_ms / 60000)} นาที (${strong.status === "adding" ? "เติม" : "ยืน"})`
+        : pulling ? `กำแพง ${f(pulling.price)} กำลังหด (ถอนออเดอร์)` : ws.length ? "มีกำแพงแต่ยังใหม่ (N/เส้นประ) ถอนง่าย" : "ไม่มีกำแพงฝั่งนี้ที่โซน");
+      const lv = c.book ? (sell ? c.book.asks : c.book.bids) : [], vals = lv.slice(0, 200).map(l => l[1]);
+      if (!vals.length) set("book", "warn", "ไม่มี Order Book");
+      else {
+        const m = vals.reduce((a, x) => a + x, 0) / vals.length, sd = Math.sqrt(vals.reduce((a, x) => a + (x - m) * (x - m), 0) / vals.length) || 1;
+        const best = lv.filter(l => atZone(l[0])).map(l => ({ p: l[0], q: l[1], z: (l[1] - m) / sd })).sort((a, b) => b.z - a.z)[0];
+        const prev = best && c.prevBook ? (c.prevBook[sell ? "ask" : "bid"].get(best.p) || 0) : null, chg = best && prev != null ? best.q - prev : null;
+        set("book", best && best.z >= 2 && (chg == null || chg >= 0) ? "pass" : best && best.z >= 2 ? "fail" : "warn",
+          best ? `ใหญ่สุดในโซน ${f(best.q)} ที่ ${f(best.p)} = ${best.z.toFixed(1)}SD${chg == null ? "" : chg > 0 ? ` (+${f(chg)})` : chg < 0 ? ` (−${f(-chg)} เริ่มถอด)` : " (คงที่)"}` : "ไม่มีระดับใน book ที่โซน");
+      }
+      const bz = (c.bigZones || []).filter(b => b.price >= z.lo - (c.zoneTick || 0) && b.price <= z.hi + (c.zoneTick || 0));
+      const fight = bz.find(b => b.contested), opp = bz.find(b => (sell ? b.buy > b.sell * 2 : b.sell > b.buy * 2));
+      set("bigx", fight ? "fail" : opp ? "warn" : "pass", fight ? `ไม้ใหญ่สองฝั่งปะทะที่ ${f(fight.price)} = โซนต่อสู้ รอดูผล` : opp ? `ไม้ใหญ่ฝั่ง${sell ? "ซื้อ" : "ขาย"}เดี่ยวที่ ${f(opp.price)} ระวังวิ่งแรง/กวาด` : bz.length ? "ไม้ใหญ่ที่โซนอยู่ฝั่งเดียวกับไม้" : "ไม่มีไม้ใหญ่ที่โซน");
+    }
+    // the trigger: a closed 5m candle into the zone in the trade's colour, or a 15m candle with a wick off it
+    let trig = null;
+    if (z && b5 && (sell ? b5.h >= z.lo && b5.c < b5.o : b5.l <= z.hi && b5.c > b5.o)) trig = { kind: "5m", bar: b5, sec: 300 };
+    else if (z && b15) { const rng = b15.h - b15.l, wick = sell ? b15.h - Math.max(b15.o, b15.c) : Math.min(b15.o, b15.c) - b15.l;
+      if (rng > 0 && wick >= 0.5 * rng && (sell ? b15.h >= z.lo : b15.l <= z.hi)) trig = { kind: "15m", bar: b15, sec: 900 }; }
+    if (z) set("trigger", trig ? "pass" : "fail", trig ? `แท่ง ${trig.kind} ปิด ${f(trig.bar.c)} ${trig.kind === "5m" ? (sell ? "สีแดง" : "สีเขียว") : "ทิ้งหาง"}ในโซน` : b5 ? `แท่ง 5 นาทีล่าสุดปิด ${f(b5.c)} ยังไม่${sell ? "แตะโซนแล้วปิดแดง" : "แตะโซนแล้วปิดเขียว"} → รอ / ไป Next Station` : "รอแท่งปิด");
+    const t = c.tape;
+    if (!t || !side) set("flow", "fail", "ยังไม่มีข้อมูล tape");
+    else { const okNet = sell ? t.net5 < 0 : t.net5 > 0, okPr = sell ? t.pressure < 50 : t.pressure > 50;
+      set("flow", okNet && okPr ? "pass" : okNet || okPr ? "warn" : "fail", `Net 5 นาที ${t.net5 >= 0 ? "+" : "−"}${f(Math.abs(t.net5))} · Pressure ${t.pressure.toFixed(0)}% ซื้อ`); }
+    // the order: entry at the trigger close (or the zone edge while waiting), SL beyond the zone and the trigger's tip
+    let plan = null;
+    if (z && side && v) {
+      const entry = trig ? trig.bar.c : sell ? z.lo : z.hi, tip = trig ? (sell ? trig.bar.h : trig.bar.l) : (sell ? z.hi : z.lo);
+      const stop = sell ? Math.max(z.hi, tip) + o.slBuf : Math.min(z.lo, tip) - o.slBuf, risk = Math.abs(entry - stop);
+      const ahead = p => (p - entry) * dir > 0.5 * risk, walls = (c.walls || []).filter(w => w.persistent && w.side === (sell ? "bid" : "ask") && (w.price - entry) * dir > 0).sort((a, b) => (a.price - b.price) * dir);
+      const pick = list => list.filter(x => x && ahead(x.p)).sort((a, b) => (a.p - b.p) * dir)[0] || null;
+      const far = sell ? 0 : 1, edge2 = v.bands[2][far], edge3 = v.bands[3][far];
+      const t1 = pick([{ p: v.vwap, name: "VWAP (เส้นกลาง Assist)" }, walls[0] && { p: walls[0].price, name: `กำแพงจริงแรก ${f(walls[0].size)}` }]) || { p: entry + dir * risk, name: "1R (ไม่มีแนว)" };
+      const after = x => x && (x.p - t1.p) * dir > 0.5 * risk;
+      const t2 = [{ p: edge2, name: `ขอบเมฆ${sell ? "ล่าง" : "บน"} (${sell ? "−" : "+"}2σ)` }, ...walls.slice(1).map(w => ({ p: w.price, name: `กำแพงจริง ${f(w.size)}` })), pr && { p: pr.poc, name: "Magnet (POC session ก่อน)" }]
+        .filter(after).sort((a, b) => (a.p - b.p) * dir)[0] || { p: t1.p + dir * risk, name: "TP1 + 1R (ไม่มีแนว)" };
+      const big = walls.filter(w => (w.price - t2.p) * dir > 0).sort((a, b) => b.size - a.size)[0];
+      const t3 = big ? { p: big.price, name: `กำแพงใหญ่ฝั่งตรงข้าม ${f(big.size)}` } : { p: edge3, name: `เมฆ${sell ? "ล่าง" : "บน"} ${sell ? "−" : "+"}3σ` };
+      plan = { side, entry, planned: !trig, stop, risk, tp1: t1.p, tp1Name: t1.name, tp2: t2.p, tp2Name: t2.name, tp3: (t3.p - t2.p) * dir > 0 ? t3.p : null, tp3Name: t3.name,
+               zoneLo: z.lo, zoneHi: z.hi, names: z.names, trigger: trig ? { kind: trig.kind, t: trig.bar.t, end: (trig.bar.t + trig.sec) * 1000 } : null };
+    }
+    set("sltp", plan && (plan.tp1 - plan.entry) * dir > 0 && (plan.tp2 - plan.tp1) * dir > 0 ? "pass" : "fail",
+      plan ? `SL ${f(plan.stop)} (เลยโซน ${o.slBuf} ดอลลาร์) · TP1 ${f(plan.tp1)} · TP2 ${f(plan.tp2)}` : "ยังวางไม่ได้");
+    // hours (Bangkok): Europe ≈ 14:00–15:00, US ≈ 19:30–20:30 are the real moves; and no new entry around high-impact news
+    const mins = Math.floor(now / 60000 + 420) % 1440, main = (mins >= 840 && mins < 900) ? "ยุโรปเปิด" : (mins >= 1170 && mins < 1230) ? "สหรัฐเปิด" : null;
+    const n = c.news || { status: "unavailable" };
+    set("news", n.status === "news" ? "fail" : main && n.status === "ok" ? "pass" : "warn",
+      n.status === "news" ? `ช่วงข่าวแรง ${n.title || ""}: ไม่เปิดไม้ใหม่` : `${main ? `ช่วง${main} (จังหวะจริง)` : mins >= 360 && mins < 840 ? "เช้าเอเชีย flow เบา เน้นเฝ้าดู" : "นอกช่วงเปิดยุโรป/สหรัฐ"}${n.status === "unavailable" ? " · ปฏิทินข่าวยังไม่พร้อม" : " · ไม่มีข่าวแรงใน ±30 นาที"}`);
+    const list = OF_ORDER.map(id => items[id]);
+    const ready = !!plan && !plan.planned && list.filter(i => i.required).every(i => i.state === "pass" || (i.soft && i.state === "warn"));
+    return { side, cvd, zone: z, vwap: v || null, shape, items: list, ready, plan };
+  }
+
+  return { PLAN, exact, split, delta, sessions, derive, atrDaily, atrOf, barIndexAt, oiRead, planLevels, cluster, biasModel, planModel, ofZone, checklist, OF_REQUIRED };
 });
 
 </script>
@@ -1054,7 +1206,7 @@
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
-  const ui = { planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+  const ui = { ofSlBuf: store.get("ofSlBuf", 6), planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
                layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: true }, store.get("layers", {})), hover: null,
                sd: Object.assign({ ivMode: "gvz", iv: 28.22, dteMode: "manual", dte: 1, baseMode: "open", base: "", paste: "" }, store.get("sd", {})) };
   // the XAUUSD chart (the price TradingView shows) opens once after it was added; later choices are kept
@@ -1065,9 +1217,9 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
   function sdEmpty() { return { xau1d: [], gvz: [], xau5m: [], gc5m: [], got: {} }; }
   function optEmpty() { return { key: "", chain: null, center: null, unsubs: [], data: new Map(), errs: new Map(), at: 0 }; }
 
@@ -1262,6 +1414,9 @@
     drawSd(pl, T, St, V); syncSdOverlay(V, T);
     if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
       for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
+    const ofp = S.ofRes && S.ofRes.plan;
+    if (ui.layers.plan && ofp && !ofp.planned) { const buy = ofp.side === "buy";
+      pl(ofp.entry, `OF ${buy ? "▲" : "▼"} เข้า`, T.ink, St.Solid, 2); pl(ofp.stop, "OF SL", T.sell, St.Dashed, 1); pl(ofp.tp1, "OF TP1", T.buy, St.Dashed, 1); pl(ofp.tp2, "OF TP2", T.buy, St.Dotted, 1); if (ofp.tp3 != null) pl(ofp.tp3, "OF TP3", T.buy, St.SparseDotted, 1); }
     if (ui.layers.plan && !ui.planFull) for (const p of S.planShown) { const buy = p.side === "buy", c = buy ? T.buy : T.sell; // zones only: the entry rules did not pass the back-test
       pl(buy ? p.zoneHi : p.zoneLo, buy ? "โซนรับ" : "โซนต้าน", c, St.Dotted, 2); if (p.zoneHi - p.zoneLo > 1e-9) pl(buy ? p.zoneLo : p.zoneHi, "", c, St.Dotted, 1, false); }
     else if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
@@ -1595,6 +1750,64 @@
     $("planHint").textContent = `${st.label} · อัปเดต ${fTs(now)} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
   }
 
+  // ---- order-flow checklist card ---------------------------------------------------------------------------
+  const styleLabel = s => s === "of" ? "Checklist OF" : (PLAN[s] || { label: s }).label;
+  /** XAUUSD (Pepperstone) − XAUUSDT now, to write the order in the broker's price */
+  function ofOffset() { const sp = S.quotes.spot && +S.quotes.spot.close, x = I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.xauPx; return sp > 0 && x > 0 ? sp - x : null; }
+  function ofEval(now) {
+    const ins = I(); if (!ins.gold || ins.src !== "bin" || !D) return null;
+    const last = lastPx(), M = planModel("day"); if (last == null || M.err) return null;
+    const cvd = D.cur.reduce((a, b) => a + delta(b), 0), side = cvd < 0 ? "sell" : cvd > 0 ? "buy" : null;
+    S.ofZone = side ? OFP.ofZone(S.ofZone, M, side, last, now) : null;
+    let tape = null;
+    if (S.trades.length) { const t1 = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => t1 - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0);
+      tape = { net5: 2 * b - tot, pressure: tot ? b / tot * 100 : 50 }; }
+    const Z = bigZones();
+    return OFP.checklist({ ins, D, last, now, sess: S.sess, zone: S.ofZone, walls: S.tracker ? S.tracker.active() : [], book: S.bucketed, prevBook: S.prevBuckets, bucket: ins.bucket,
+      bigZones: Z.real ? Z.zones : [], zoneTick: ins.zone, tape, news: OFJ.newsStatus(S.cal, S.calCover, now) }, { slBuf: Math.min(7, Math.max(5, +ui.ofSlBuf || 6)) });
+  }
+  function ofOrderText(res) {
+    const p = res && res.plan, off = ofOffset(); if (!p || off == null) return "";
+    const F = v => fmt(v + off, 2), sell = p.side === "sell", [k, , mult] = unitOf(), cap = +ui.size.cap, pct = +ui.size.pct;
+    const size = cap > 0 && pct > 0 ? ` · ขนาด ${fmtV(cap * pct / 100 / p.risk / mult)} ${k === "oz" ? "oz" : k.toUpperCase()} (เสี่ยง $${fmtV(cap * pct / 100)})` : "";
+    return `${sell ? "SELL" : "BUY"} XAUUSD ${p.planned ? "(รอแท่งยืนยัน) ที่โซน " + F(p.zoneLo) + "–" + F(p.zoneHi) : "เข้า " + F(p.entry)} · SL ${F(p.stop)} · TP1 ${F(p.tp1)} (ปิดครึ่ง เลื่อน SL บังทุน) · TP2 ${F(p.tp2)}${p.tp3 != null ? " · TP3 " + F(p.tp3) : ""}${size}`;
+  }
+  function renderOf() {
+    const ins = I(), card = $("cardOf"), st = $("ofStatus"), list = $("ofList"), tk = $("ofTicket");
+    card.hidden = !ins.gold;
+    if (!ins.gold) return;
+    if (ins.src !== "bin") {
+      st.innerHTML = `Checklist ใช้ order flow จริง (tape, กำแพง, Order Book) ซึ่งมีเฉพาะ Binance XAUUSDT <button type="button" id="btnOfXau">เปิดกราฟ XAUUSDT</button> ใบสั่งจะแสดงเป็นราคา XAUUSD ให้`;
+      $("btnOfXau").onclick = () => { ui.inst = "xau"; store.set("inst", "xau"); renderControls(); start(); };
+      list.innerHTML = ""; tk.innerHTML = ""; $("ofHint").textContent = ""; return;
+    }
+    const res = S.ofRes;
+    if (!res || res.err) { st.textContent = res ? res.err : "รอข้อมูล"; list.innerHTML = ""; tk.innerHTML = ""; return; }
+    const need = res.items.filter(i => i.required && !(i.state === "pass" || (i.soft && i.state === "warn")));
+    const sideTxt = res.side === "sell" ? "ขาย" : res.side === "buy" ? "ซื้อ" : null;
+    st.innerHTML = !res.side ? "CVD ยังไม่มีขา (เป็นศูนย์) ยังไม่หาไม้"
+      : res.ready ? `<span class="ofpill go">ครบเงื่อนไข · ${sideTxt}</span> แท่งยืนยันปิดแล้ว ดูใบสั่งด้านขวา`
+      : `<span class="ofpill wait">รอ · ${sideTxt}เท่านั้น</span> ยังไม่ผ่าน ${need.length} ข้อ: ${need.map(i => i.label.split(" ·")[0].split(" (")[0]).join(", ")}`;
+    const icon = { pass: "✓", fail: "✕", warn: "!", na: "–" };
+    list.innerHTML = res.items.map(i => `<li class="${i.state}${i.required ? " req" : ""}"><span class="i">${icon[i.state]}</span><span>${i.label}${i.required ? "" : '<span class="opt">เสริม</span>'}</span><span class="d">${i.detail || ""}</span></li>`).join("");
+    const p = res.plan, off = ofOffset(), F = v => fmt(v, 2), Fx = v => off == null ? "–" : fmt(v + off, 2);
+    if (!p) { tk.innerHTML = `<div class="side">ยังไม่มีใบสั่ง</div><div class="why">${res.side ? `ยังไม่มีโซนที่หลายระดับซ้อนกันฝั่ง${sideTxt}` : "รอ CVD เลือกขา"}</div>`; }
+    else {
+      const sell = p.side === "sell", rr = t => ((t - p.entry) * (sell ? -1 : 1) / p.risk).toFixed(1);
+      const row = (k, v, extra) => `<tr><td>${k}</td><td class="num">${Fx(v)}</td><td class="num">${F(v)}</td><td>${extra || ""}</td></tr>`;
+      tk.innerHTML = `<div class="side">${sell ? "▼ SELL" : "▲ BUY"} XAUUSD ${p.planned ? "<small>(รอแท่งยืนยัน)</small>" : "<small>(เงื่อนไขครบ)</small>"}</div>
+        <div class="why">โซน ${F(p.zoneLo)}–${F(p.zoneHi)} (XAUUSDT) · ${p.names}</div>
+        <div class="tbl"><table><thead><tr><th></th><th class="num">XAUUSD</th><th class="num">XAUUSDT</th><th></th></tr></thead><tbody>
+          ${row(p.planned ? "เข้า (คาด)" : "เข้า", p.entry, p.planned ? "ราคาปิดแท่งยืนยัน" : `ปิดแท่ง ${p.trigger.kind}`)}${row("SL", p.stop, `เสี่ยง ${F(p.risk)}`)}
+          ${row("TP1", p.tp1, `${rr(p.tp1)}R · ${p.tp1Name}`)}${row("TP2", p.tp2, `${rr(p.tp2)}R · ${p.tp2Name}`)}${p.tp3 != null ? row("TP3", p.tp3, `${rr(p.tp3)}R · ${p.tp3Name}`) : ""}
+        </tbody></table></div>
+        <div>ขนาดไม้: ${sizeHtml(p)}</div>
+        <div class="why">${off == null ? "รอราคา XAUUSD เพื่อแปลงราคา" : `XAUUSD = XAUUSDT ${off >= 0 ? "+" : "−"}${fmt(Math.abs(off), 2)} (ส่วนต่างตอนนี้)`}</div>`;
+    }
+    const ofTrades = S.journal.filter(t => t.style === "of"), stt = OFJ.stats(ofTrades);
+    $("ofHint").textContent = `ไม้จำลองจาก checklist: ปิดแล้ว ${stt.n} · เปิดอยู่ ${stt.open}${stt.n ? ` · R รวม ${stt.sum >= 0 ? "+" : "−"}${Math.abs(stt.sum).toFixed(2)}` : ""}`;
+  }
+
   // ---- journal (simulation for personal research): every confirmed plan entry is recorded and ----------
   // followed to its outcome by the rules in journal.js (OFJ), the same rules the plan table prints.
   const J = { col: null, err: "", busy: false, clearArm: 0, lastTick: 0, recent: [], older: [], loading: false };
@@ -1635,6 +1848,17 @@
           const id = `${a.inst}-${style}-${side}-${ok.at}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
         }
       }
+      // order-flow checklist: every required check passed on a trigger candle that just closed -> one simulated entry
+      const of = ins.gold && ins.src === "bin" ? ofEval(now) : null, op = of && of.plan;
+      if (of && of.ready && op.trigger && op.trigger.end > S.ofLast && now - op.trigger.end <= 300000 && !openTrade(ins.key, "of", of.side)) {
+        S.ofLast = op.trigger.end;
+        const rec = { kind: "simulation", rule_version: R.version, inst: ins.key, style: "of", side: of.side, created: op.trigger.end, entry: op.entry, stop: op.stop, risk: op.risk,
+                      tp1: op.tp1, tp2: op.tp2, tp1Name: op.tp1Name, tp2Name: op.tp2Name, zoneLo: op.zoneLo, zoneHi: op.zoneHi, names: op.names, trend: true, bias: `CVD ${of.side === "sell" ? "ใต้น้ำ" : "เหนือน้ำ"}`,
+                      conditions: { checklist: Object.fromEntries(of.items.map(i => [i.id, i.state])), news: OFJ.newsStatus(S.cal, S.calCover, op.trigger.end).status, trigger: op.trigger.kind,
+                                    cvd: of.cvd, tp3: op.tp3, tp3Name: op.tp3Name, slBuf: +ui.ofSlBuf, xauusdOffset: ofOffset(), src: ins.src },
+                      status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
+        const id = `${ins.key}-of-${of.side}-${op.trigger.end}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+      }
       await resolveTrades();
       J.err = ""; J.lastTick = now;
     } catch (e) { J.err = e && e.code === "quota_exceeded" ? "ที่เก็บบันทึกเต็ม ลบบันทึกเก่าก่อน" : `บันทึกไม่สำเร็จ (${(e && e.code) || "ไม่ทราบสาเหตุ"})`; }
@@ -1652,7 +1876,7 @@
   }
   function renderJournal() {
     const ins = I(), xf = X(), st = PLAN[ui.plan], box = $("jStats"), body = $("tblJournal"), now = Date.now(), V = OFJ.RULES.version;
-    const Rs = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}R`, Fp = (t, p) => fmt(p, (INSTR[t.inst] || ins).dec), name = k => (INSTR[k] || { sub: k }).sub;
+    const Rs = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}R`, Fp = (t, p) => fmt(p, (INSTR[t.inst] || ins).dec), name = k => (INSTR[k] || { sub: k }).sub, styleName = styleLabel;
     const pct = s => s.n ? `${(s.tp1Rate * 100).toFixed(0)}%` : "–";
     $("jHint").textContent = `${ui.jAll ? "ทุกสินทรัพย์ · ทุกสไตล์" : `${ins.label} · ${st.label}`} · จำลอง กติการุ่น ${V}`;
     $("segJ").innerHTML = [[false, `${ins.sub} · ${st.label}`], [true, "ทั้งหมด"]].map(([k, t]) => `<button type="button" data-k="${k}" aria-pressed="${k === ui.jAll}">${t}</button>`).join("");
@@ -1673,10 +1897,10 @@
     const groups = new Map(); for (const t of S.journal) { const k = t.inst + "|" + t.style; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
     $("jSumBox").hidden = !groups.size;
     $("tblJSum").innerHTML = [...groups].map(([k, arr]) => { const [inst, style] = k.split("|"), g = OFJ.stats(arr);
-      return `<tr><td>${name(inst)} · ${(PLAN[style] || { label: style }).label}</td><td class="num">${g.n}</td><td class="num">${g.open}</td><td class="num">${g.ambiguous}</td><td class="num">${pct(g)}</td><td class="num">${g.n ? Rs(g.avg) : "–"}</td><td class="num">${g.n ? Rs(g.sum) : "–"}</td></tr>`; }).join("");
+      return `<tr><td>${name(inst)} · ${styleName(style)}</td><td class="num">${g.n}</td><td class="num">${g.open}</td><td class="num">${g.ambiguous}</td><td class="num">${pct(g)}</td><td class="num">${g.n ? Rs(g.avg) : "–"}</td><td class="num">${g.n ? Rs(g.sum) : "–"}</td></tr>`; }).join("");
     const last = lastPx(), k = OFJ.RULES.tp1Share, liveR = t => { if (t.inst !== ins.key || last == null) return null; const dir = t.side === "sell" ? -1 : 1, R = p => (p - t.entry) * dir / t.risk; return t.tp1Hit ? k * R(t.tp1) + (1 - k) * R(last) : R(last); };
     const rCell = t => { if (t.status === "ambiguous") return `${Rs(t.rCons)} … ${Rs(t.rOpt)}`; if (t.r != null) return Rs(t.r); const lr = t.status === "open" ? liveR(t) : null; return lr != null ? `${Rs(lr)} ตอนนี้` : "–"; };
-    body.innerHTML = mine.slice(0, 20).map(t => `<tr><td>${fClock(t.created)}</td><td>${name(t.inst)} · ${(PLAN[t.style] || { label: t.style }).label}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}${t.trend === null ? "" : t.trend ? " · ตามแรง" : " · สวนแรง"}</td>` +
+    body.innerHTML = mine.slice(0, 20).map(t => `<tr><td>${fClock(t.created)}</td><td>${name(t.inst)} · ${styleName(t.style)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "ซื้อ" : "ขาย"}${t.trend === null ? "" : t.trend ? " · ตามแรง" : " · สวนแรง"}</td>` +
       `<td class="num">${Fp(t, t.entry)}</td><td class="num">${Fp(t, t.stop)}</td><td class="num">${Fp(t, t.tp1)} / ${Fp(t, t.tp2)}</td><td>${OFJ.STATUS[t.status] || t.status}${t.status === "open" && t.tp1Hit ? " · ถึง TP1 แล้ว" : ""}` +
       `${t.conditions && t.conditions.news === "unavailable" ? " · ไม่ทราบข่าว" : ""}${t.rule_version === V ? "" : " · กติการุ่นก่อน"}</td><td class="num">${rCell(t)}</td></tr>`).join("")
       || `<tr><td colspan="8" class="empty">ยังไม่มีไม้ ระบบจะบันทึกเองเมื่อครบเงื่อนไขในตารางแผน</td></tr>`;
@@ -1763,7 +1987,8 @@
     rafPending = false; D = derive(); S.sdM = I().gold ? sdModel() : null; syncOptions();
     const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
     $("lblBig").hidden = ins.src !== "bin"; for (const e of document.querySelectorAll(".goldonly")) e.hidden = !ins.gold; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
-    renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
+    S.ofRes = ofEval(Date.now());
+    renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderOf(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
     $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.src === "tdv" && ins.gold && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
@@ -2121,6 +2346,10 @@
     $("selBig").addEventListener("change", e => { ui.big[I().key] = +e.target.value; store.set("big", ui.big); schedule(); });
     $("btnApprove").addEventListener("click", approve);
     $("inCap").value = ui.size.cap; $("inPct").value = ui.size.pct;
+    $("inSlBuf").value = ui.ofSlBuf;
+    $("inSlBuf").addEventListener("change", e => { ui.ofSlBuf = Math.min(7, Math.max(5, +e.target.value || 6)); e.target.value = ui.ofSlBuf; store.set("ofSlBuf", ui.ofSlBuf); schedule(); });
+    $("btnOfCopy").addEventListener("click", async () => { const txt = ofOrderText(S.ofRes); if (!txt) { $("ofCopied").textContent = "ยังไม่มีใบสั่ง"; return; }
+      try { await navigator.clipboard.writeText(txt); $("ofCopied").textContent = "คัดลอกแล้ว"; } catch { $("ofCopied").textContent = txt; } });
     $("btnPlanFull").addEventListener("click", () => { ui.planFull = !ui.planFull; store.set("planFull", ui.planFull); renderControls(); schedule(); });
     const sizeIn = () => { ui.size.cap = Math.max(0, +$("inCap").value || 0); ui.size.pct = Math.min(10, Math.max(0, +$("inPct").value || 0)); ui.size.unit[ui.inst] = $("selUnit").value; store.set("size", ui.size); schedule(); };
     for (const id of ["inCap", "inPct", "selUnit"]) $(id).addEventListener("change", sizeIn);

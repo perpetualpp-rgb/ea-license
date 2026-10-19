@@ -7,7 +7,7 @@
 
 | ชุดเทสต์ | คำสั่ง | ผล |
 |---|---|---|
-| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python, backtest ไม่มี look-ahead) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 123 ผ่าน |
+| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python, backtest ไม่มี look-ahead, checklist order flow) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 129 ผ่าน |
 | Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
 | แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 84 ผ่าน |
 | แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 51 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ และกราฟเต็มจอเปิด/ปิดได้) |

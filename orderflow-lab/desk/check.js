@@ -129,6 +129,15 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       if (sx.n !== 7 || !/แปลงเป็น XAUUSDT ด้วยส่วนต่าง/.test(sx.hint)) errs.push("xau: SD lines not drawn on the XAUUSDT chart: " + sx.hint.slice(0, 120));
     }
     console.log(name, name === "light" ? "xau" : "xs", JSON.stringify(await info()));
+    // order-flow checklist: on XAUUSDT twelve checks and a ticket; on XAUUSD a button to open XAUUSDT
+    const ofc = await p.evaluate(() => ({ items: document.querySelectorAll("#ofList li").length, status: document.getElementById("ofStatus").textContent, ticket: document.getElementById("ofTicket").textContent,
+      hidden: document.getElementById("cardOf").hidden, sw: !!document.getElementById("btnOfXau") }));
+    if (name === "light") {
+      await p.click("#btnOfCopy"); await p.waitForTimeout(200); const copied = await p.textContent("#ofCopied");
+      console.log("checklist:", ofc.items, "items ·", ofc.status.slice(0, 90), "· ticket", ofc.ticket.slice(0, 80), "· copy:", copied.slice(0, 120));
+      await p.locator("#cardOf").screenshot({ path: path.join(OUT, "desk-checklist.png") });
+      if (ofc.items !== 12 || ofc.hidden || !/CVD|รอ|ครบ/.test(ofc.status) || !(/XAUUSD/.test(copied) || /ยังไม่มีใบสั่ง|คัดลอกแล้ว/.test(copied))) errs.push("checklist card on XAUUSDT not complete");
+    } else if (!(ofc.sw && ofc.items === 0)) errs.push(name + ": checklist on the XAUUSD chart should offer the XAUUSDT chart");
     if (name === "light") {
       await p.click('#segMode button[data-k="gc"]'); await p.waitForTimeout(300); console.log("mode gc last:", await p.textContent("#strip .q.hl .v"));
       await p.click('#segMode button[data-k="native"]'); await p.waitForTimeout(200);
