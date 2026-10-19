@@ -33,7 +33,7 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       if (tool === "futures_usds.markPrice") return { symbol: a.symbol, markPrice: "4167.9", lastFundingRate: "0.00010000", nextFundingTime: now + 3 * 3600000, time: now };
       if (tool === "futures_usds.topTraderLongShortRatioPositions") return Array.from({ length: a.limit }, (_, i) => { const l = 0.7 + i * 0.003; return { symbol: a.symbol, longAccount: String(l), shortAccount: String(1 - l), longShortRatio: String(l / (1 - l)), timestamp: now - (a.limit - i) * 3600000 }; });
       if (tool === "futures_usds.takerBuySellVolume") return Array.from({ length: a.limit }, (_, i) => ({ buyVol: String(400 + r() * 100), sellVol: String(400 + r() * 100), buySellRatio: "1.0", timestamp: now - (a.limit - i) * 3600000 })); if (/PriceTicker/.test(tool)) return { price: "4167.56", symbol: "XAUUSDT", time: Date.now() }; throw { code: "tool_error", message: "unknown " + tool }; };
-    const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - 40 * 3600 - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
+    const gc = () => { const c = { t: [], o: [], h: [], l: [], c: [], v: [] }; let p = 4186; for (let i = 0; i < 300; i++) { const o = p, cl = o + (r() - 0.5) * 6; c.t.push(Math.floor(now / 1000) - (window.__gcAgoH || 0) * 3600 - (300 - i) * 300); c.o.push(o); c.h.push(Math.max(o, cl) + 1); c.l.push(Math.min(o, cl) - 1); c.c.push(cl); c.v.push(Math.round(50 + r() * 400)); p = cl; } return c; };
     window.__calls = []; window.__dbWrites = []; window.__dbReads = [];
     // in-memory db (where / orderBy / limit / get / onSnapshot like the real store, pages capped at 1000)
     // with one seeded open trade so the resolver has work to do, and older closed records for pagination
@@ -99,7 +99,20 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       await p.click('#segPlan button[data-k="swing"]'); await p.waitForTimeout(200); await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-swing.png") });
       await p.click('#segPlan button[data-k="day"]'); await p.waitForTimeout(200);
       await p.click('#segInst button[data-k="btc"]'); await p.waitForTimeout(1200); console.log("btc", JSON.stringify(await info())); await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-btc.png") }); await p.screenshot({ path: path.join(OUT, "desk-btc.png"), fullPage: true });
-      await p.click('#segInst button[data-k="gc"]'); await p.waitForTimeout(800); console.log("gc", JSON.stringify(await info())); await p.screenshot({ path: path.join(OUT, "desk-gc.png"), fullPage: true });
+      // GC trading: real XAUUSDT walls are drawn at GC price (needs two book polls = 10 s+ for persistence)
+      await p.click('#segInst button[data-k="gc"]'); await p.waitForTimeout(12500); console.log("gc", JSON.stringify(await info()));
+      const gw = await p.evaluate(() => ({ n: +(document.getElementById("lwMain").dataset.xauWalls || 0), hint: document.getElementById("wallHint").textContent }));
+      console.log("gc xau walls", gw.n, "|", gw.hint.slice(0, 150));
+      if (!(gw.n > 0 && /แปลงเป็นราคา GC ด้วยส่วนต่าง/.test(gw.hint))) errs.push("gc: XAUUSDT walls not drawn on the GC chart");
+      await p.screenshot({ path: path.join(OUT, "desk-gc.png"), fullPage: true });
+      // GC closed (session ended 40 h ago): no walls (the gap would be stale), the reason is shown; OI still covers the GC session
+      await p.evaluate(() => { window.__gcAgoH = 40; }); await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(600);
+      await p.click('#segInst button[data-k="gc"]'); await p.waitForTimeout(3000);
+      const gs = await p.evaluate(() => ({ n: +(document.getElementById("lwMain").dataset.xauWalls || 0), hint: document.getElementById("wallHint").textContent, oi: document.getElementById("oiHint").textContent }));
+      console.log("gc closed:", gs.n, "|", gs.hint.slice(0, 120), "|", gs.oi);
+      if (gs.n !== 0 || !/ตลาด GC ไม่ได้เปิด/.test(gs.hint) || !/OI XAUUSDT/.test(gs.oi)) errs.push("gc closed: expected no walls with a reason and the OI pane");
+      await p.screenshot({ path: path.join(OUT, "desk-gc-closed.png"), fullPage: true });
+      await p.evaluate(() => { window.__gcAgoH = 0; });
       await p.click('#segTf button[data-k="1H"]'); await p.waitForTimeout(400);
       await p.click('#segInst button[data-k="xau"]'); await p.waitForTimeout(800);
       const calls = await p.evaluate(() => [...new Set(window.__calls)]); console.log("calls", calls.join(" "));

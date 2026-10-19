@@ -193,6 +193,7 @@
     </div>
     <div class="lw" id="lwMain" role="img" aria-label="กราฟราคาแบบเลื่อนและซูมได้ พร้อมกำแพงออเดอร์ ไม้ใหญ่ แผนเทรด และ CVD ในแผงล่าง ตัวเลขอยู่ในบันไดราคาและ Order Book"><div class="lwleg" id="lwLegend"></div></div>
     <div class="legend" style="margin-top:6px"><span>แผงล่าง = CVD <span class="tag" id="tagCvd"></span></span><span id="cvdHint"></span><span id="oiHint"></span></div>
+    <div class="legend" id="wallHintRow" style="display:none"><span id="wallHint"></span></div>
     <div class="overlay" id="ovMain"><div><p id="ovText">กำลังขอข้อมูล ครั้งแรก claude.ai จะถามว่าอนุญาตให้หน้านี้ใช้ connector หรือไม่</p><button id="btnApprove" type="button" hidden>อนุญาตและดึงข้อมูล</button></div></div>
   </section>
 
@@ -301,9 +302,9 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
 
   // ---- formatting ---------------------------------------------------------------------
   const fmt = (v, d) => v == null || !isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -505,6 +506,7 @@
     if (ui.layers.round) { const recent = bs.slice(-400), lo = V(Math.min(...recent.map(b => b.l))), hi = V(Math.max(...recent.map(b => b.h))); let step = xf.step;
       while ((Math.max(lo, hi) - Math.min(lo, hi)) / step > 24) step *= 2;
       for (let d = Math.ceil(Math.min(lo, hi) / step) * step; d <= Math.max(lo, hi); d += step) pl((d - xf.b) / xf.a, "", T.axis, St.SparseDotted, 1, false); }
+    if (ins.key === "gc") drawXauWallsOnGc(pl, T, St); else $("wallHintRow").style.display = "none";
     if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
       for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
     if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
@@ -561,6 +563,9 @@
     if (p && p.point && S.tracker && ins.src === "bin") { const y = C.candles.coordinateToPrice(p.point.y);
       if (y != null) { const raw = (y - xf.b) / xf.a, w = S.tracker.active().filter(x => Math.abs(x.price - raw) <= ins.bucket * 2).sort((a, z) => Math.abs(a.price - raw) - Math.abs(z.price - raw))[0];
         if (w) html += `<br>Wall ${w.side.toUpperCase()} ${F(w.price)} · ${fmtV(w.size)} · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
+    if (p && p.point && ins.key === "gc" && ui.layers.wall && S.xw.tracker) { const y = C.candles.coordinateToPrice(p.point.y), g = gcXauGap();
+      if (y != null && !g.why) { const raw = (y - xf.b) / xf.a, w = S.xw.tracker.active().filter(x => Math.abs(x.price + g.off - raw) <= INSTR.xau.bucket * 2).sort((a, z) => Math.abs(a.price + g.off - raw) - Math.abs(z.price + g.off - raw))[0];
+        if (w) html += `<br>กำแพง XAUUSDT ${w.side.toUpperCase()} ${F(w.price + g.off)} (XAU ${fmt(w.price, 2)}) · ${fmtV(w.size)} oz · ${STATUS[w.status]} · ${fAge(w.age_ms)}`; } }
     el.innerHTML = html;
   }
   async function loadOlder() {
@@ -1059,7 +1064,7 @@
     $("lblBig").hidden = ins.src !== "bin"; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
     renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
-    $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : "") : "";
+    $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.key === "gc" && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
     if (S.chart.length) $("ovMain").hidden = true;
     else if (S.approve) overlay(errCopy(S.approve, S.errs[S.approve]), true);
     else if (Object.keys(S.errs).length && Object.values(S.errs).some(e => DENY.has(e.code))) overlay(Object.entries(S.errs).map(([s, e]) => errCopy(s, e)).join(" "), false);
@@ -1074,6 +1079,44 @@
     run(); timers.push(setInterval(run, ms)); }
   function stopAll() { gen++; for (const t of timers) clearInterval(t); timers = []; for (const u of unsubs) u(); unsubs = []; }
   async function binLoop(g, fn) { try { await fn(); } catch (e) { if (g === gen) noteErr(BIN, e); } }
+  // ---- real XAUUSDT walls on the GC chart ---------------------------------------------------
+  // GC has no free order book. The Binance XAUUSDT book is real; its walls are tracked with the same
+  // rules as on the XAUUSDT chart and drawn at GC price = wall price + (GC price − XAUUSDT mid), only
+  // while GC is trading (a stale GC price would put the lines at the wrong level).
+  function startXauWallsForGc() {
+    const xi = INSTR.xau, xw = S.xw;
+    xw.tracker = new OF.WallTracker(xi.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
+    every(10000, g => binLoop(g, async () => {
+      let p; try { p = await bin("futures_usds.orderBook", { symbol: "XAUUSDT", limit: 1000 }); xw.fails = 0; }
+      catch (e) { if (g === gen && ++xw.fails === 2) xw.tracker.bookLost(Date.now()); throw e; }
+      if (g !== gen || !p || !p.bids || !p.bids.length || !p.asks.length) return;
+      const book = { ts: p.T || p.E || Date.now(), symbol: "XAUUSDT", ...OF.sortBook(p.bids.map(l => [+l[0], +l[1]]), p.asks.map(l => [+l[0], +l[1]])) };
+      xw.tracker.update(bucketBook(book, xi.bucket)); xw.at = book.ts; xw.mid = (book.bids[0][0] + book.asks[0][0]) / 2; schedule(); }));
+  }
+  /** GC price now and the gap to XAUUSDT, or why the walls cannot be placed */
+  function gcXauGap() {
+    const xw = S.xw, bs = S.chart, last = bs[bs.length - 1], now = Date.now(), q = S.quotes.gc;
+    if (!xw.tracker || xw.mid == null || now - xw.at > 60000) return { why: "ยังไม่ได้ order book ของ XAUUSDT" };
+    // GC must be trading: its newest candle within one bar + 10 minutes
+    if (!last || now / 1000 - last.t > (TF_SEC[ui.tf] || 300) + 600) return { why: "ตลาด GC ไม่ได้เปิดตอนนี้ ราคา GC ล่าสุดเก่าเกินไปที่จะใช้แปลงราคา" };
+    const gc = q && q.update_mode === "streaming" && isFinite(+q.close) ? +q.close : last.c;
+    const off = gc - xw.mid;
+    if (Math.abs(off) > gc * 0.02) return { why: `ส่วนต่าง GC − XAUUSDT ${sgn(off)} ผิดปกติ (เกิน 2%) จึงไม่วาด` };
+    return { off, gc, mid: xw.mid, at: xw.at };
+  }
+  function drawXauWallsOnGc(pl, T, St) {
+    const hint = $("wallHint"), row = $("wallHintRow"), el = $("lwMain");
+    row.style.display = ui.layers.wall ? "" : "none"; el.dataset.xauWalls = "0";
+    if (!ui.layers.wall) return;
+    const g = gcXauGap();
+    if (g.why) { hint.textContent = `กำแพงจริงจาก Binance XAUUSDT: ไม่แสดงตอนนี้ (${g.why})`; return; }
+    const act = S.xw.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
+    for (const w of act) pl(w.price + g.off, `XAU ${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)} oz`, w.side === "bid" ? T.buy : T.sell,
+      w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1);
+    el.dataset.xauWalls = String(act.length);
+    hint.textContent = `กำแพง = order book จริงของ Binance XAUUSDT (${act.length} ระดับ, หน่วย oz) แปลงเป็นราคา GC ด้วยส่วนต่าง ${sgn(g.off)} `
+      + `(GC ${fmt(g.gc, 1)} − XAUUSDT ${fmt(g.mid, 2)} ณ ${fTs(g.at)}) · เป็นคำสั่งใน Binance ไม่ใช่คำสั่งใน COMEX`;
+  }
   function startBinance() {
     const ins = I(), T = TOOLS[ins.mkt], sym = ins.symbol;
     S.tracker = new OF.WallTracker(ins.bucket, { minMult: 4, maxLevels: 200, mergeGap: 0, persistMs: 60000, maxDistPct: 1.0, missLimit: 2, minSeen: 2 });
@@ -1145,6 +1188,7 @@
     overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false); schedule();
     if (ins.src === "bin") startBinance(); else startTdvChart();
     if (ins.gold) { startQuotes(); startXauTicker(); }
+    if (ins.key === "gc") startXauWallsForGc();
     startNews(); startFutures(ins.key === "btc" ? "BTCUSDT" : "XAUUSDT");
     every(10000, async g => { if (g === gen) await journalTick(); }, true);
   }
