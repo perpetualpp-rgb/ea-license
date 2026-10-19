@@ -145,6 +145,13 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-day.png") });
       await p.click('#segPlan button[data-k="swing"]'); await p.waitForTimeout(200); await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-swing.png") });
       await p.click('#segPlan button[data-k="day"]'); await p.waitForTimeout(200);
+      // the plan table shows zones only (its entry rules did not pass the back-test); the button shows the old table
+      const head = async () => p.evaluate(() => [...document.querySelectorAll("#planHead th")].map(t => t.textContent));
+      const h0 = await head(), rows0 = await p.evaluate(() => document.querySelectorAll("#tblPlan tr").length);
+      await p.click("#btnPlanFull"); await p.waitForTimeout(300); const h1 = await head(), sizeShown = await p.evaluate(() => !document.getElementById("planSize").hidden);
+      await p.click("#btnPlanFull"); await p.waitForTimeout(300); const h2 = await head();
+      console.log("plan zones:", h0.join("|"), rows0, "rows · full:", h1.length, "columns, size inputs", sizeShown);
+      if (!(h0.includes("ระดับที่ซ้อนกัน") && !h0.includes("SL") && h1.includes("SL") && h1.length === 9 && sizeShown && h2.join() === h0.join())) errs.push("plan: zones-only default or the full-table toggle is wrong");
       await p.click('#segInst button[data-k="btc"]'); await p.waitForTimeout(1200); console.log("btc", JSON.stringify(await info())); await p.locator('section[aria-label="แผนเทรด"]').screenshot({ path: path.join(OUT, "desk-plan-btc.png") }); await p.screenshot({ path: path.join(OUT, "desk-btc.png"), fullPage: true });
       // GC trading: real XAUUSDT walls are drawn at GC price (needs two book polls = 10 s+ for persistence)
       await p.click('#segInst button[data-k="gc"]'); await p.waitForTimeout(12500); console.log("gc", JSON.stringify(await info()));

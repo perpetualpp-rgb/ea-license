@@ -212,6 +212,15 @@ node desk/backtest.js --sym BTCUSDT --ins btc --metrics data/backtest/metrics --
 node desk/backtest.js --sym PAXGUSDT --ins paxg --fee 0.002                                  # ทองโทเคน ย้อนถึงปี 2021, ไม่มี OI
 ```
 
+กลยุทธ์ 3 ของ Gold Plan Desk ทดสอบด้วย engine.js ของหน้านั้นเอง (ไฟล์ของ artifact เจ้าของ ไม่อยู่ใน repo) และ GVZ จาก CBOE:
+
+```bash
+curl -L -o data/backtest/gvz/GVZ_History.csv https://cdn.cboe.com/api/global/us_indices/daily_prices/GVZ_History.csv
+node desk/backtest_s3.js --engine <engine.js ของ Gold Plan Desk> --sym PAXGUSDT --mode fade    # หรือ --mode trend, --sym XAUUSDT
+```
+
+ตาราง "แผน" ในหน้าแสดงแค่โซนเป็นค่าเริ่มต้น เพราะราคาเข้า/SL/TP ไม่ผ่านการทดสอบนี้
+
 ### ข้อตกลงสำคัญ
 * `Trade.side` คือ **ฝั่งผู้กดซื้อ/ขาย (taker)** เสมอ Coinbase ส่งฝั่ง maker มา
   parser จะกลับด้านให้ ถ้าพลาดตรงนี้ CVD จะกลับเครื่องหมายทั้งหมด

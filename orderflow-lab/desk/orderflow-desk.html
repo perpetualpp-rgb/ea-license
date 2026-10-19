@@ -149,13 +149,14 @@
     #tblPlan { display: block; } #tblPlan tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--grid); }
     #tblPlan td { display: block; border: 0; padding: 0; text-align: left !important; white-space: normal !important; }
     #tblPlan td::before { content: attr(data-l); display: block; font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
-    #tblPlan td[data-l="แผน"], #tblPlan td[data-l="โซนเข้า"], #tblPlan td[data-l="เงื่อนไขยืนยัน"] { grid-column: 1 / -1; }
+    #tblPlan td[data-l="แผน"], #tblPlan td[data-l="โซนเข้า"], #tblPlan td[data-l="เงื่อนไขยืนยัน"], #tblPlan td[data-l="ระดับที่ซ้อนกัน"] { grid-column: 1 / -1; }
     #planTable thead { display: none; }
   }
   input[type=number] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; width: 7.5em; }
   #tblNews tr.hi td { font-weight: 600; } #tblNews td:nth-child(2) { white-space: normal; }
   #newsBanner { font-weight: 500; }
   footer { color: var(--muted); font-size: 0.76rem; max-width: 120ch; }
+  [hidden] { display: none !important; }
 </style>
 
 <div class="wrap">
@@ -221,12 +222,14 @@
 
   <section class="card" aria-label="แผนเทรด">
     <h2>แผนเทรด <span class="tag" id="tagPlan"></span><span class="hint" id="planHint"></span></h2>
+    <p class="note" id="planNote" style="margin-bottom:8px">ทดสอบย้อนหลังแล้ว (19 ต.ค. 2026, desk/backtest.js): ราคาเข้า/SL/TP ตามกติกาของตารางนี้ขาดทุนทั้งใน Binance XAUUSDT, BTCUSDT และ PAXGUSDT ปี 2021–2026 แม้ก่อนหักค่าธรรมเนียม ตารางจึงแสดงแค่โซนที่หลายระดับซ้อนกัน ไม่ใช่จุดเข้า
+      <button type="button" id="btnPlanFull" style="margin-left:6px"></button></p>
     <div class="bar" style="margin-bottom:8px"><div class="seg" id="segPlan" role="group" aria-label="สไตล์แผน"></div>
-      <label for="inCap">ทุน $ <input id="inCap" type="number" min="0" step="100" inputmode="decimal"></label>
+      <span id="planSize" class="bar"><label for="inCap">ทุน $ <input id="inCap" type="number" min="0" step="100" inputmode="decimal"></label>
       <label for="inPct">เสี่ยงต่อไม้ % <input id="inPct" type="number" min="0.1" max="10" step="0.1" inputmode="decimal"></label>
-      <label for="selUnit">หน่วย <select id="selUnit"></select></label></div>
+      <label for="selUnit">หน่วย <select id="selUnit"></select></label></span></div>
     <div class="tiles" id="planBias"></div>
-    <div class="tbl"><table id="planTable"><thead><tr><th>แผน</th><th>โซนเข้า</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th class="num">R:R</th><th class="num">ขนาดไม้</th><th>เงื่อนไขยืนยัน</th><th>ยกเลิกเมื่อ</th></tr></thead><tbody id="tblPlan"><tr><td colspan="9" class="empty">รอข้อมูล</td></tr></tbody></table></div>
+    <div class="tbl"><table id="planTable"><thead id="planHead"></thead><tbody id="tblPlan"><tr><td colspan="9" class="empty">รอข้อมูล</td></tr></tbody></table></div>
     <p class="cotnote">ระบบเลือกโซนที่มีหลายระดับซ้อนกัน (กำแพงที่ยืนนาน, Range ของ session ก่อน, สูง/ต่ำหลายวัน, Assist, โซนไม้ใหญ่, เลขกลม) · SL = ขอบโซน + ATR รายวัน × 0.25 (เดย์เทรด) หรือ × 0.5 (สวิง) ไม่ต่ำกว่า 0.2% / 0.4% ของราคา · TP = แนวถัดไปที่ได้อย่างน้อย 1.5R / 2.5R (สวิง 2R / 3.5R) ถ้าไม่มีแนวจะใช้ระยะ R แทน · แผนเปลี่ยนตามข้อมูลสด ใช้ประกอบการตัดสินใจเท่านั้น</p>
   </section>
 
@@ -1051,7 +1054,7 @@
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
-  const ui = { jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+  const ui = { planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
                layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: true }, store.get("layers", {})), hover: null,
                sd: Object.assign({ ivMode: "gvz", iv: 28.22, dteMode: "manual", dte: 1, baseMode: "open", base: "", paste: "" }, store.get("sd", {})) };
   // the XAUUSD chart (the price TradingView shows) opens once after it was added; later choices are kept
@@ -1259,7 +1262,9 @@
     drawSd(pl, T, St, V); syncSdOverlay(V, T);
     if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
       for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
-    if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
+    if (ui.layers.plan && !ui.planFull) for (const p of S.planShown) { const buy = p.side === "buy", c = buy ? T.buy : T.sell; // zones only: the entry rules did not pass the back-test
+      pl(buy ? p.zoneHi : p.zoneLo, buy ? "โซนรับ" : "โซนต้าน", c, St.Dotted, 2); if (p.zoneHi - p.zoneLo > 1e-9) pl(buy ? p.zoneLo : p.zoneHi, "", c, St.Dotted, 1, false); }
+    else if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
       pl(p.entry, buy ? "▲ เข้า" : "▼ เข้า", T.ink, St.Solid, 2); pl(p.stop, "SL", T.sell, St.Dashed, 1); pl(p.tp1, "TP1", T.buy, St.Dashed, 1); pl(p.tp2, "TP2", T.buy, St.Dotted, 1); }
     // keep the user's view: prepended history shifts it, new bars follow only when it sits at the live edge
     if (!prevN || !prevRange) ts.setVisibleLogicalRange({ from: Math.max(0, bs.length - viewBars()), to: bs.length + 8 });
@@ -1557,12 +1562,21 @@
     const ins = I(), xf = X(), body = $("tblPlan"), M = planModel(ui.plan), now = Date.now();
     setTag("tagPlan", ins.src === "bin"); $("tagPlan").textContent = ins.src === "bin" ? "จาก order flow จริง" : "จากแท่งเทียน";
     S.planShown = [];
-    if (M.err) { body.innerHTML = `<tr><td colspan="9" class="empty">${M.err}</td></tr>`; $("planBias").innerHTML = ""; return; }
+    const full = ui.planFull, cols = full ? 9 : 4;
+    $("planHead").innerHTML = full ? `<tr><th>แผน</th><th>โซนเข้า</th><th class="num">เข้า</th><th class="num">SL</th><th class="num">TP1 / TP2</th><th class="num">R:R</th><th class="num">ขนาดไม้</th><th>เงื่อนไขยืนยัน</th><th>ยกเลิกเมื่อ</th></tr>`
+      : `<tr><th>โซน</th><th class="num">ช่วงราคา</th><th class="num">ห่างจากราคา</th><th>ระดับที่ซ้อนกัน</th></tr>`;
+    $("planSize").hidden = !full;
+    $("btnPlanFull").textContent = full ? "แสดงแค่โซน" : "แสดงราคาเข้า/SL/TP (ไม่ผ่านการทดสอบ)";
+    if (M.err) { body.innerHTML = `<tr><td colspan="${cols}" class="empty">${M.err}</td></tr>`; $("planBias").innerHTML = ""; return; }
     const st = M.st, F = p => fmt(xf.a * p + xf.b, xf.dec), Dd = d => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d * xf.a), Math.max(0, xf.dec - 1))}`;
     const news = newsWindow(now), ns = OFJ.newsStatus(S.cal, S.calCover, now), rows = [];
     const newsNote = ns.status === "news" ? `<b>⚠ ช่วงข่าว ${ns.title}: ไม่เปิดไม้ใหม่</b> · ` : ns.status === "unavailable" ? `<b>ปฏิทินข่าวยังไม่พร้อม: ถ้าเข้าไม้จะบันทึกว่า "ไม่ทราบข่าว"</b> · ` : "";
     for (const side of M.score < 0 ? ["sell", "buy"] : ["buy", "sell"]) {
       const a = S.armed[akey(ui.plan, side)], p = a || M.plans[side]; if (!p) continue; S.planShown.push(p);
+      if (!full) { const sell = side === "sell", d = sell ? p.zoneLo - M.last : p.zoneHi - M.last, inside = M.last >= p.zoneLo && M.last <= p.zoneHi;
+        rows.push(`<tr><td data-l="โซน">${sell ? "โซนต้านด้านบน" : "โซนรับด้านล่าง"}<span class="why">${inside ? "ราคาอยู่ในโซนนี้" : `ห่าง ${fmt(Math.abs(d) / M.atr, 2)} × ATR วัน`}</span></td>` +
+          `<td data-l="ช่วงราคา" class="num">${F(p.zoneLo)}–${F(p.zoneHi)}</td><td data-l="ห่างจากราคา" class="num">${inside ? "ในโซน" : Dd(d)}</td><td data-l="ระดับที่ซ้อนกัน">${p.names}</td></tr>`);
+        continue; }
       const sell = side === "sell", rr = t => ((t - p.entry) * (sell ? -1 : 1) / p.risk).toFixed(1), open = openTrade(ins.key, ui.plan, side);
       const ft = { entry: F(p.entry), zoneLo: F(p.zoneLo), zoneHi: F(p.zoneHi), stop: F(p.stop) };
       const state = open ? "มีไม้เปิดอยู่ ดูในบันทึกผล" : a ? (a.touchedAt ? `ราคาแตะโซนแล้ว รอแท่ง ${st.conf} ยืนยัน` : "ล็อกแผนแล้ว รอราคาเข้าโซน") : "รอราคาเข้าโซน";
@@ -1573,9 +1587,9 @@
         `<td data-l="เงื่อนไขยืนยัน">${newsNote}${OFJ.confirmText(ui.plan, side, ft)}</td>` +
         `<td data-l="ยกเลิกเมื่อ">${OFJ.cancelText(ui.plan, side, ft)}</td></tr>`);
     }
-    body.innerHTML = rows.join("") || `<tr><td colspan="9" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
+    body.innerHTML = rows.join("") || `<tr><td colspan="${cols}" class="empty">ยังหาโซนที่ชัดไม่ได้</td></tr>`;
     const nx = news || nextHighNews(now, 6 * 3600000), tiles = [["ทิศทางตอนนี้", M.bias, M.why.join(" · ") || "ข้อมูลยังน้อย"], ["ราคา", F(M.last), MODES.find(m => m[0] === ui.mode)[1]],
-      [M.atrName, fmt(M.atr * xf.a, Math.max(0, xf.dec - 1)), `SL ห่างขอบโซน ${fmt(M.slGap * xf.a, Math.max(0, xf.dec - 1))} (${st.slK} × ATR) · TP ≥ ${st.minR[0]}R / ${st.minR[1]}R`]];
+      [M.atrName, fmt(M.atr * xf.a, Math.max(0, xf.dec - 1)), full ? `SL ห่างขอบโซน ${fmt(M.slGap * xf.a, Math.max(0, xf.dec - 1))} (${st.slK} × ATR) · TP ≥ ${st.minR[0]}R / ${st.minR[1]}R` : `โซนกว้างไม่เกิน ${st.clK} × ATR · ระดับห่างกันไม่เกินนี้รวมเป็นโซนเดียว`]];
     tiles.push(["ข่าวแรงถัดไป", nx ? (nx.ts > now ? `อีก ${fAge(nx.ts - now)}` : "กำลังออก") : "ไม่มีใน 6 ชม.", nx ? `${nx.title} · ${fClock(nx.ts)}` : "ปฏิทินข่าว US"]);
     $("planBias").innerHTML = tiles.map(([k, val, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`).join("");
     $("planHint").textContent = `${st.label} · อัปเดต ${fTs(now)} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
@@ -2091,7 +2105,7 @@
     $("segMode").hidden = !ins.gold;
     seg("segMode", MODES.filter(m => !(ins.hide || []).includes(m[0])), ui.mode, k => { ui.mode = k; store.set("mode", k); renderControls(); schedule(); });
     const units = UNITS[ins.key] || UNITS.xau; $("selUnit").innerHTML = units.map(([k, t]) => `<option value="${k}">${t}</option>`).join(""); $("selUnit").value = unitOf()[0];
-    seg("segPlan", Object.entries(PLAN).map(([k, v]) => [k, v.label, `SL ${v.slK}×ATR วัน`]), ui.plan, k => { ui.plan = k; store.set("plan", k); renderControls(); schedule(); });
+    seg("segPlan", Object.entries(PLAN).map(([k, v]) => [k, v.label, ui.planFull ? `SL ${v.slK}×ATR วัน` : `โซน ≤ ${v.clK}×ATR วัน`]), ui.plan, k => { ui.plan = k; store.set("plan", k); renderControls(); schedule(); });
     seg("segTf", Object.keys(TF).map(k => [k, k]), ui.tf, k => { if (k === ui.tf) return; ui.tf = k; store.set("tf", k); renderControls(); restartChartOnly(); });
     if (ins.src === "bin") { const sel = $("selBig"); sel.innerHTML = ins.bigOpts.map(v => `<option value="${v}">${v} ${ins.unit}</option>`).join(""); sel.value = String(bigMin()); }
     $("tgLayers").innerHTML = LAYERS.map(([k, t]) => `<button type="button" data-k="${k}" aria-pressed="${!!ui.layers[k]}">${t}</button>`).join("");
@@ -2107,6 +2121,7 @@
     $("selBig").addEventListener("change", e => { ui.big[I().key] = +e.target.value; store.set("big", ui.big); schedule(); });
     $("btnApprove").addEventListener("click", approve);
     $("inCap").value = ui.size.cap; $("inPct").value = ui.size.pct;
+    $("btnPlanFull").addEventListener("click", () => { ui.planFull = !ui.planFull; store.set("planFull", ui.planFull); renderControls(); schedule(); });
     const sizeIn = () => { ui.size.cap = Math.max(0, +$("inCap").value || 0); ui.size.pct = Math.min(10, Math.max(0, +$("inPct").value || 0)); ui.size.unit[ui.inst] = $("selUnit").value; store.set("size", ui.size); schedule(); };
     for (const id of ["inCap", "inPct", "selUnit"]) $(id).addEventListener("change", sizeIn);
     $("btnJClear").addEventListener("click", clearJournal);
