@@ -1,0 +1,79 @@
+{
+ "access": {
+  "data_until": "2026-01-05T10:47:00Z",
+  "delay_minutes": 0,
+  "level": "realtime",
+  "valid_until": null
+ },
+ "at": "2026-01-05T10:47:00Z",
+ "instrument_id": 1,
+ "items": [
+  {
+   "at": "2026-01-05T10:46:58Z",
+   "evidence": "walls",
+   "kind": "wall",
+   "units": {
+    "price": "USDT",
+    "size": "BTC"
+   },
+   "values": {
+    "age_s": "1610",
+    "mult": "20.0",
+    "price": "99.5",
+    "side": "bid",
+    "size": "20"
+   },
+   "window_s": null
+  },
+  {
+   "at": "2026-01-05T10:46:00Z",
+   "evidence": "oi",
+   "kind": "oi",
+   "units": {},
+   "values": {
+    "oi_change_pct": "0.89",
+    "price_change_pct": "0.00"
+   },
+   "window_s": 300
+  },
+  {
+   "at": "2026-01-05T10:46:55Z",
+   "evidence": "oi",
+   "kind": "funding",
+   "units": {},
+   "values": {
+    "kind": "estimated",
+    "rate_pct": "0.0100"
+   },
+   "window_s": null
+  },
+  {
+   "at": "2026-01-05T10:47:00Z",
+   "evidence": "chart",
+   "kind": "cvd",
+   "units": {
+    "cvd_change": "BTC"
+   },
+   "values": {
+    "cvd_change": "-0.125",
+    "price_change_pct": "-0.10"
+   },
+   "window_s": 300
+  },
+  {
+   "at": "2026-01-05T10:47:00Z",
+   "evidence": "walls",
+   "kind": "bigtrade",
+   "units": {
+    "net_size": "BTC"
+   },
+   "values": {
+    "buy_count": "20",
+    "net_size": "0",
+    "sell_count": "20",
+    "threshold": "0.125"
+   },
+   "window_s": 1800
+  }
+ ]
+}

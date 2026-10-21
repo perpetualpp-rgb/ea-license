@@ -1,0 +1,305 @@
+// Order Flow Lab — TradingView indicator (Pine Script v6)
+//
+// Session CVD from TradingView's volume footprint (falls back to a candle
+// estimate when footprint data is not available on the account/symbol),
+// session VWAP ±1σ/±2σ, previous-session POC / 70% value area / 30% magnet,
+// stacked imbalance zones, high-volume price levels and round numbers.
+//
+// The indicator sits in its own pane (CVD); everything price-based is drawn
+// on the main chart with force_overlay.
+//
+// For education and personal analysis only. Not investment advice.
+
+//@version=6
+indicator("Order Flow Lab", shorttitle="OFL", overlay=false, max_boxes_count=200, max_lines_count=80, max_labels_count=300)
+
+//=============================================================================
+// INPUTS
+//=============================================================================
+
+grpData = "ข้อมูล"
+int fpTicks = input.int(5, "Footprint: ticks ต่อชั้นราคา", minval=1, group=grpData, tooltip="ทองคำ GC (tick 0.1): 5 = ชั้นละ 0.5 ดอลลาร์\nBTC: เพิ่มเป็น 50–200 ตาม tick ของตลาด")
+int imbPct = input.int(300, "Imbalance %", minval=100, step=25, group=grpData, tooltip="300 = ฝั่งหนึ่งมากกว่าอีกฝั่งประมาณ 3:1")
+float rowSizeIn = input.float(0.0, "ขนาดชั้นของ session profile (0 = อัตโนมัติ)", minval=0.0, group=grpData)
+
+grpShow = "แสดงผล"
+bool showVwap = input.bool(true, "VWAP ±σ ของ session", group=grpShow)
+bool showPrev = input.bool(true, "POC / โซน 70% / แม่เหล็ก 30% ของ session ก่อน", group=grpShow)
+bool showStacks = input.bool(true, "Stacked imbalance", group=grpShow)
+int stackSize = input.int(3, "จำนวนชั้นขั้นต่ำของ stack", minval=2, group=grpShow)
+bool showBig = input.bool(true, "จุดปริมาณหนาแน่นรายระดับราคา", group=grpShow)
+float bigPct = input.float(99.0, "เกณฑ์ percentile ของจุดปริมาณหนาแน่น", minval=90.0, maxval=99.9, step=0.1, group=grpShow)
+bool showRound = input.bool(true, "เลขกลม", group=grpShow)
+float roundStep = input.float(25.0, "ระยะเลขกลม", minval=0.0001, group=grpShow, tooltip="ทองคำ 25 · BTC 500 หรือ 1000")
+int divLen = input.int(20, "ช่วงตรวจ divergence (แท่ง)", minval=5, group=grpShow)
+
+grpColor = "สี"
+color cBuy = input.color(color.rgb(0, 131, 0), "ฝั่งซื้อ", group=grpColor)
+color cSell = input.color(color.rgb(227, 73, 72), "ฝั่งขาย", group=grpColor)
+color cVwap = input.color(color.rgb(42, 120, 214), "VWAP", group=grpColor)
+color cLevel = input.color(color.rgb(184, 140, 40), "POC / โซน", group=grpColor)
+
+//=============================================================================
+// DATA
+//=============================================================================
+
+footprint fp = request.footprint(fpTicks, 70, imbPct)
+bool hasFp = not na(fp)
+bool newSession = timeframe.change("1D")
+
+array<volume_row> rows = array.new<volume_row>()
+if hasFp
+    rows := fp.rows()
+
+float barDelta = 0.0
+if hasFp
+    for r in rows
+        barDelta += r.delta()
+else
+    float rng = high - low
+    if rng > 0
+        barDelta := volume * ((close - low) - (high - close)) / rng
+
+//=============================================================================
+// SESSION CVD (pane)
+//=============================================================================
+
+var float cvd = 0.0
+if newSession
+    cvd := 0.0
+cvd += barDelta
+
+plot(cvd, "CVD ของ session", color=cvd >= 0 ? cBuy : cSell, linewidth=2, style=plot.style_stepline)
+plot(barDelta, "Delta ต่อแท่ง", color=barDelta >= 0 ? color.new(cBuy, 65) : color.new(cSell, 65), style=plot.style_columns)
+hline(0, "ศูนย์", color=color.new(color.gray, 50), linestyle=hline.style_dotted)
+
+float hiPrev = ta.highest(high, divLen)[1]
+float loPrev = ta.lowest(low, divLen)[1]
+float cvdHiPrev = ta.highest(cvd, divLen)[1]
+float cvdLoPrev = ta.lowest(cvd, divLen)[1]
+bool bearDiv = high > hiPrev and cvd < cvdHiPrev
+bool bullDiv = low < loPrev and cvd > cvdLoPrev
+plotshape(bearDiv, "ราคาทำจุดสูงใหม่ แต่ CVD ไม่ตาม", shape.triangledown, location.top, cSell, size=size.tiny)
+plotshape(bullDiv, "ราคาทำจุดต่ำใหม่ แต่ CVD ไม่ตาม", shape.triangleup, location.bottom, cBuy, size=size.tiny)
+
+//=============================================================================
+// SESSION VWAP ±σ (main chart)
+//=============================================================================
+
+[vw, vwUp1, vwLo1] = ta.vwap(hlc3, newSession, 1.0)
+[vw2, vwUp2, vwLo2] = ta.vwap(hlc3, newSession, 2.0)
+plot(showVwap ? vw : na, "VWAP", cVwap, 2, force_overlay=true)
+plot(showVwap ? vwUp1 : na, "VWAP +1σ", color.new(cVwap, 55), 1, force_overlay=true)
+plot(showVwap ? vwLo1 : na, "VWAP −1σ", color.new(cVwap, 55), 1, force_overlay=true)
+plot(showVwap ? vwUp2 : na, "VWAP +2σ", color.new(cVwap, 30), 1, force_overlay=true)
+plot(showVwap ? vwLo2 : na, "VWAP −2σ", color.new(cVwap, 30), 1, force_overlay=true)
+
+//=============================================================================
+// SESSION PROFILE -> previous-session POC / value area / magnet
+//=============================================================================
+
+// Smallest contiguous band around the POC holding `pct` of volume.
+// Expands toward the larger neighbour, the same rule as engine/profile.py.
+f_valueArea(map<int, float> pr, float pct) =>
+    array<int> keys = pr.keys()
+    array.sort(keys, order.ascending)
+    int n = array.size(keys)
+    int pocI = 0
+    float best = -1.0
+    float total = 0.0
+    for i = 0 to n - 1
+        float v = pr.get(array.get(keys, i))
+        total += v
+        if v > best
+            best := v
+            pocI := i
+    int lo = pocI
+    int hi = pocI
+    float acc = best
+    float target = total * pct
+    while acc < target and (lo > 0 or hi < n - 1)
+        float down = -1.0
+        float up = -1.0
+        if lo > 0
+            down := pr.get(array.get(keys, lo - 1))
+        if hi < n - 1
+            up := pr.get(array.get(keys, hi + 1))
+        if up > down
+            hi += 1
+            acc += up
+        else
+            lo -= 1
+            acc += down
+    [array.get(keys, pocI), array.get(keys, lo), array.get(keys, hi)]
+
+f_addVol(map<int, float> pr, int key, float v) =>
+    float cur = pr.contains(key) ? pr.get(key) : 0.0
+    pr.put(key, cur + v)
+
+var map<int, float> prof = map.new<int, float>()
+var float rowSize = na
+var float prevPoc = na
+var float prevVah = na
+var float prevVal = na
+var float prevMagHi = na
+var float prevMagLo = na
+var array<line> prevLines = array.new<line>()
+var array<label> prevLabels = array.new<label>()
+
+f_level(float price, string txt, int w, color col) =>
+    line ln = line.new(bar_index, price, bar_index + 1, price, extend=extend.right, color=col, width=w, force_overlay=true)
+    label lb = label.new(bar_index, price, txt, style=label.style_label_right, color=color.new(color.black, 100), textcolor=col, size=size.small, force_overlay=true)
+    array.push(prevLines, ln)
+    array.push(prevLabels, lb)
+
+if newSession and prof.size() > 0
+    [pocK, valK, vahK] = f_valueArea(prof, 0.70)
+    [pocK2, magLoK, magHiK] = f_valueArea(prof, 0.30)
+    prevPoc := pocK * rowSize
+    prevVal := valK * rowSize
+    prevVah := vahK * rowSize
+    prevMagLo := magLoK * rowSize
+    prevMagHi := magHiK * rowSize
+    if showPrev
+        for ln in prevLines
+            line.delete(ln)
+        for lb in prevLabels
+            label.delete(lb)
+        array.clear(prevLines)
+        array.clear(prevLabels)
+        f_level(prevPoc, "POC ก่อน", 2, cLevel)
+        f_level(prevVah, "ขอบบน 70%", 1, color.new(cLevel, 35))
+        f_level(prevVal, "ขอบล่าง 70%", 1, color.new(cLevel, 35))
+        f_level(prevMagHi, "แม่เหล็ก 30% บน", 1, color.new(cLevel, 60))
+        f_level(prevMagLo, "แม่เหล็ก 30% ล่าง", 1, color.new(cLevel, 60))
+    prof.clear()
+
+if newSession or na(rowSize)
+    rowSize := rowSizeIn > 0 ? rowSizeIn : math.max(syminfo.mintick, math.round_to_mintick(close * 0.0002))
+
+if hasFp
+    for r in rows
+        float mid = (r.up_price() + r.down_price()) / 2.0
+        f_addVol(prof, int(math.round(mid / rowSize)), r.total_volume())
+else if volume > 0
+    int k0 = int(math.round(low / rowSize))
+    int span = math.min(int(math.round(high / rowSize)) - k0, 400)
+    float share = volume / (span + 1)
+    for k = k0 to k0 + span
+        f_addVol(prof, k, share)
+
+//=============================================================================
+// HIGH-VOLUME PRICE LEVELS (footprint rows above the Nth percentile)
+//=============================================================================
+
+var array<float> rowVols = array.new<float>()
+if showBig and hasFp and barstate.isconfirmed and array.size(rows) > 0
+    float thr = array.size(rowVols) >= 200 ? array.percentile_nearest_rank(rowVols, bigPct) : na
+    if not na(thr) and thr > 0
+        for r in rows
+            float v = r.total_volume()
+            if v >= thr
+                float d = r.delta()
+                float mid = (r.up_price() + r.down_price()) / 2.0
+                label.new(bar_index, mid, "", style=label.style_circle, color=color.new(d >= 0 ? cBuy : cSell, 15), size=v >= thr * 2 ? size.small : size.tiny, tooltip="ปริมาณ " + str.tostring(v, format.volume) + " · delta " + str.tostring(d, format.volume), force_overlay=true)
+    for r in rows
+        array.push(rowVols, r.total_volume())
+    while array.size(rowVols) > 5000
+        array.shift(rowVols)
+
+//=============================================================================
+// STACKED IMBALANCES (zone extends right until price returns to it)
+//=============================================================================
+
+var array<box> stBoxes = array.new<box>()
+var array<int> stOrigin = array.new<int>()
+var array<bool> stActive = array.new<bool>()
+var array<float> stLo = array.new<float>()
+var array<float> stHi = array.new<float>()
+
+f_addStack(float lo, float hi, int dir) =>
+    color c = dir == 1 ? cBuy : cSell
+    box b = box.new(bar_index, hi, bar_index + 1, lo, border_color=color.new(c, 45), bgcolor=color.new(c, 78), extend=extend.right, force_overlay=true)
+    array.push(stBoxes, b)
+    array.push(stOrigin, bar_index)
+    array.push(stActive, true)
+    array.push(stLo, lo)
+    array.push(stHi, hi)
+    if array.size(stBoxes) > 150
+        box.delete(array.shift(stBoxes))
+        array.shift(stOrigin)
+        array.shift(stActive)
+        array.shift(stLo)
+        array.shift(stHi)
+
+if showStacks and barstate.isconfirmed and array.size(stBoxes) > 0
+    for i = 0 to array.size(stBoxes) - 1
+        if array.get(stActive, i) and bar_index > array.get(stOrigin, i) and high >= array.get(stLo, i) and low <= array.get(stHi, i)
+            box b = array.get(stBoxes, i)
+            box.set_extend(b, extend.none)
+            box.set_right(b, bar_index)
+            array.set(stActive, i, false)
+
+if showStacks and hasFp and barstate.isconfirmed and array.size(rows) > 0
+    int bRun = 0
+    float bLo = na
+    float bHi = na
+    int sRun = 0
+    float sLo = na
+    float sHi = na
+    for r in rows
+        if r.has_buy_imbalance()
+            bLo := bRun == 0 ? r.down_price() : math.min(bLo, r.down_price())
+            bHi := bRun == 0 ? r.up_price() : math.max(bHi, r.up_price())
+            bRun += 1
+        else
+            if bRun >= stackSize
+                f_addStack(bLo, bHi, 1)
+            bRun := 0
+        if r.has_sell_imbalance()
+            sLo := sRun == 0 ? r.down_price() : math.min(sLo, r.down_price())
+            sHi := sRun == 0 ? r.up_price() : math.max(sHi, r.up_price())
+            sRun += 1
+        else
+            if sRun >= stackSize
+                f_addStack(sLo, sHi, -1)
+            sRun := 0
+    if bRun >= stackSize
+        f_addStack(bLo, bHi, 1)
+    if sRun >= stackSize
+        f_addStack(sLo, sHi, -1)
+
+//=============================================================================
+// ROUND NUMBERS
+//=============================================================================
+
+var array<line> roundLines = array.new<line>()
+if showRound and barstate.islast
+    for ln in roundLines
+        line.delete(ln)
+    array.clear(roundLines)
+    float base = math.floor(close / roundStep) * roundStep
+    for k = -2 to 3
+        float lvl = base + k * roundStep
+        array.push(roundLines, line.new(bar_index - 1, lvl, bar_index, lvl, extend=extend.both, color=color.new(color.gray, 45), style=line.style_dashed, width=1, force_overlay=true))
+
+//=============================================================================
+// INFO TABLE (pane)
+//=============================================================================
+
+var table info = table.new(position.top_right, 2, 6, bgcolor=color.new(chart.bg_color, 10), frame_color=color.new(chart.fg_color, 80), frame_width=1, border_width=0)
+if barstate.islast
+    float sd = vwUp1 - vw
+    float z = sd > 0 ? (close - vw) / sd : 0.0
+    table.cell(info, 0, 0, "Footprint", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 0, hasFp ? "ข้อมูลจริง" : "ไม่มี · CVD เป็นค่าประมาณ", text_color=chart.fg_color, text_size=size.small, text_halign=text.align_right)
+    table.cell(info, 0, 1, "CVD session", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 1, str.tostring(cvd, format.volume), text_color=cvd >= 0 ? cBuy : cSell, text_size=size.small, text_halign=text.align_right)
+    table.cell(info, 0, 2, "ราคา vs VWAP", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 2, "z " + str.tostring(z, "#.##"), text_color=chart.fg_color, text_size=size.small, text_halign=text.align_right)
+    table.cell(info, 0, 3, "POC ก่อน", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 3, na(prevPoc) ? "–" : str.tostring(prevPoc, format.mintick), text_color=cLevel, text_size=size.small, text_halign=text.align_right)
+    table.cell(info, 0, 4, "โซน 70% ก่อน", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 4, na(prevVal) ? "–" : str.tostring(prevVal, format.mintick) + " – " + str.tostring(prevVah, format.mintick), text_color=chart.fg_color, text_size=size.small, text_halign=text.align_right)
+    table.cell(info, 0, 5, "แม่เหล็ก 30% ก่อน", text_color=color.new(chart.fg_color, 40), text_size=size.small, text_halign=text.align_left)
+    table.cell(info, 1, 5, na(prevMagLo) ? "–" : str.tostring(prevMagLo, format.mintick) + " – " + str.tostring(prevMagHi, format.mintick), text_color=chart.fg_color, text_size=size.small, text_halign=text.align_right)

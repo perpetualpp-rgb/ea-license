@@ -1,0 +1,3 @@
+# collector output stays local; nothing under data/ is committed
+*
+!.gitignore

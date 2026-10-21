@@ -1,0 +1,12 @@
+# run from orderflow-lab/live:  docker compose up -d   (logs: docker compose logs -f)
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: live/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ../data/live:/app/data/live
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

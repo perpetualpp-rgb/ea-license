@@ -1,0 +1,2 @@
+# the rest of orderflow-lab is stdlib-only; the collector needs a WebSocket client
+websockets==15.0.1

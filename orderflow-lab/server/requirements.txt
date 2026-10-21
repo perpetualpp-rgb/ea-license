@@ -1,0 +1,11 @@
+# Flow Lab API server (tested with Python 3.13, PostgreSQL 16)
+fastapi==0.143.3
+starlette==1.6.0
+pydantic==2.13.5
+uvicorn==0.53.0
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+PyJWT==2.14.0
+# tests
+pytest==9.1.1
+httpx==0.28.1

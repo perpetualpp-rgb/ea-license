@@ -1,0 +1,31 @@
+{
+ "access": {
+  "data_until": "2026-01-05T10:47:00Z",
+  "delay_minutes": 0,
+  "level": "realtime",
+  "valid_until": null
+ },
+ "items": [
+  {
+   "base_asset": "BTC",
+   "contract_multiplier": "1",
+   "contract_type": "linear",
+   "instrument_id": 1,
+   "latest_book_at": "2026-01-05T10:46:50Z",
+   "latest_kline_close_at": "2026-01-05T10:47:00Z",
+   "latest_trade_at": "2026-01-05T10:46:30Z",
+   "market_type": "perpetual",
+   "metadata_version": 1,
+   "multiplier_unit": "base",
+   "qty_step": null,
+   "quote_asset": "USDT",
+   "session_timezone": "UTC",
+   "settlement_asset": "USDT",
+   "source_notice": "แหล่งข้อมูลแสดงตามความจำเป็น ไม่ได้สื่อว่าเป็นพันธมิตรหรือได้รับการรับรอง",
+   "spec_status": "unverified",
+   "symbol": "BTCTESTUSDT",
+   "tick_size": null,
+   "venue": "testvenue"
+  }
+ ]
+}

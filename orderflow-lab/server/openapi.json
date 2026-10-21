@@ -1,0 +1,6525 @@
+{
+  "components": {
+    "schemas": {
+      "Access": {
+        "properties": {
+          "data_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Until"
+          },
+          "delay_minutes": {
+            "title": "Delay Minutes",
+            "type": "integer"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "level",
+          "delay_minutes",
+          "data_until",
+          "valid_until"
+        ],
+        "title": "Access",
+        "type": "object"
+      },
+      "Bar": {
+        "properties": {
+          "close": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "t": {
+            "title": "T",
+            "type": "string"
+          },
+          "taker_buy_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taker Buy Volume"
+          },
+          "taker_sell_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taker Sell Volume"
+          },
+          "trades": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trades"
+          },
+          "unknown_side_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Side Volume"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "t",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "taker_buy_volume",
+          "taker_sell_volume",
+          "unknown_side_volume",
+          "delta",
+          "trades",
+          "complete"
+        ],
+        "title": "Bar",
+        "type": "object"
+      },
+      "BarsResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            },
+            "title": "Bars",
+            "type": "array"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/Gap"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "tf": {
+            "title": "Tf",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "tf",
+          "source",
+          "method",
+          "units",
+          "access",
+          "from",
+          "to",
+          "bars",
+          "gaps"
+        ],
+        "title": "BarsResponse",
+        "type": "object"
+      },
+      "BigTrade": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "description": "taker side",
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "side",
+          "price",
+          "size"
+        ],
+        "title": "BigTrade",
+        "type": "object"
+      },
+      "BigTrades": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BigTrade"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          }
+        },
+        "required": [
+          "threshold",
+          "items",
+          "method"
+        ],
+        "title": "BigTrades",
+        "type": "object"
+      },
+      "BookState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WallEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "boolean"
+          },
+          "walls": {
+            "items": {
+              "$ref": "#/components/schemas/Wall"
+            },
+            "title": "Walls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "synced",
+          "walls",
+          "events",
+          "method"
+        ],
+        "title": "BookState",
+        "type": "object"
+      },
+      "CashflowCreate": {
+        "properties": {
+          "amount": {
+            "description": "signed: + credited to the member, - debited",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_rate": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "currency -> settlement currency",
+            "title": "Fx Rate"
+          },
+          "fx_reference": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Reference"
+          },
+          "import_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Key"
+          },
+          "kind": {
+            "enum": [
+              "funding",
+              "rebate",
+              "fee",
+              "adjustment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ts",
+          "kind",
+          "amount",
+          "currency"
+        ],
+        "title": "CashflowCreate",
+        "type": "object"
+      },
+      "CashflowOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate"
+          },
+          "fx_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Reference"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "import_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Key"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "trade_id": {
+            "format": "uuid",
+            "title": "Trade Id",
+            "type": "string"
+          },
+          "ts": {
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trade_id",
+          "ts",
+          "kind",
+          "amount",
+          "currency",
+          "fx_rate",
+          "fx_reference",
+          "import_key",
+          "note",
+          "created_at"
+        ],
+        "title": "CashflowOut",
+        "type": "object"
+      },
+      "CashflowResult": {
+        "properties": {
+          "cashflow": {
+            "$ref": "#/components/schemas/CashflowOut"
+          },
+          "trade": {
+            "$ref": "#/components/schemas/TradeOut"
+          }
+        },
+        "required": [
+          "cashflow",
+          "trade"
+        ],
+        "title": "CashflowResult",
+        "type": "object"
+      },
+      "Change24h": {
+        "properties": {
+          "pct": {
+            "description": "(price / ref_price - 1) x 100, two decimals",
+            "title": "Pct",
+            "type": "string"
+          },
+          "ref_at": {
+            "description": "close time of the 1m kline 24 h (+-5 min) before last_trade.at",
+            "title": "Ref At",
+            "type": "string"
+          },
+          "ref_price": {
+            "title": "Ref Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pct",
+          "ref_price",
+          "ref_at"
+        ],
+        "title": "Change24h",
+        "type": "object"
+      },
+      "Delivery": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "state_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Reason"
+          }
+        },
+        "required": [
+          "channel",
+          "state",
+          "state_reason",
+          "attempts",
+          "created_at",
+          "delivered_at"
+        ],
+        "title": "Delivery",
+        "type": "object"
+      },
+      "DetailsResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "big_trades": {
+            "$ref": "#/components/schemas/BigTrades"
+          },
+          "book": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "funding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "oi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OiState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            },
+            "title": "Prices",
+            "type": "array"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "items": {
+              "$ref": "#/components/schemas/StreamQuality"
+            },
+            "title": "Quality",
+            "type": "array"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "from",
+          "to",
+          "units",
+          "book",
+          "big_trades",
+          "profile",
+          "oi",
+          "funding",
+          "prices",
+          "quality"
+        ],
+        "title": "DetailsResponse",
+        "type": "object"
+      },
+      "Entry": {
+        "properties": {
+          "client_draft_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Draft Id"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "entry_type": {
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facts"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "lessons": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessons"
+          },
+          "market_observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Observed At"
+          },
+          "personal_trade_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Trade Id"
+          },
+          "post_review": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Review"
+          },
+          "reason_before_entry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Before Entry"
+          },
+          "review_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "sync_state": {
+            "default": "server_confirmed",
+            "description": "always server_confirmed: the row is committed",
+            "title": "Sync State",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entry_type",
+          "created_at",
+          "updated_at",
+          "market_observed_at",
+          "instrument_id",
+          "title",
+          "facts",
+          "hypothesis",
+          "reason_before_entry",
+          "post_review",
+          "lessons",
+          "tags",
+          "snapshot_id",
+          "personal_trade_id",
+          "review_at",
+          "revision",
+          "client_draft_id"
+        ],
+        "title": "Entry",
+        "type": "object"
+      },
+      "EntryCreate": {
+        "properties": {
+          "client_draft_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Draft Id"
+          },
+          "entry_type": {
+            "default": "observation",
+            "enum": [
+              "observation",
+              "trade"
+            ],
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "what was observed on the chart",
+            "title": "Facts"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the member's own hypothesis",
+            "title": "Hypothesis"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "lessons": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessons"
+          },
+          "market_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Observed At"
+          },
+          "personal_trade_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Trade Id"
+          },
+          "post_review": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "review written after the exit",
+            "title": "Post Review"
+          },
+          "reason_before_entry": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "reason written before entering; later edits need change_reason",
+            "title": "Reason Before Entry"
+          },
+          "review_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review At"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "EntryCreate",
+        "type": "object"
+      },
+      "EntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "EntryPage",
+        "type": "object"
+      },
+      "EntryPatch": {
+        "properties": {
+          "change_reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "expected_revision": {
+            "description": "revision the client edited; a mismatch returns 409",
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facts"
+          },
+          "hypothesis": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hypothesis"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "lessons": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessons"
+          },
+          "market_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Observed At"
+          },
+          "personal_trade_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Trade Id"
+          },
+          "post_review": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Review"
+          },
+          "reason_before_entry": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Before Entry"
+          },
+          "review_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review At"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "EntryPatch",
+        "type": "object"
+      },
+      "Event": {
+        "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "comparator": {
+            "title": "Comparator",
+            "type": "string"
+          },
+          "data_quality": {
+            "title": "Data Quality",
+            "type": "string"
+          },
+          "dedupe_key": {
+            "title": "Dedupe Key",
+            "type": "string"
+          },
+          "deliveries": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Delivery"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliveries"
+          },
+          "delivery_policy": {
+            "title": "Delivery Policy",
+            "type": "string"
+          },
+          "detected_at": {
+            "title": "Detected At",
+            "type": "string"
+          },
+          "engine_version": {
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "is_backfill": {
+            "title": "Is Backfill",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_value": {
+            "title": "Observed Value",
+            "type": "string"
+          },
+          "rule_id": {
+            "format": "uuid",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "source_watermark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Watermark"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "window_end": {
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "rule_id",
+          "dedupe_key",
+          "instrument_id",
+          "metric",
+          "comparator",
+          "observed_value",
+          "threshold",
+          "unit",
+          "window_start",
+          "window_end",
+          "observed_at",
+          "detected_at",
+          "source_watermark",
+          "engine_version",
+          "data_quality",
+          "is_backfill",
+          "delivery_policy",
+          "message",
+          "acknowledged_at"
+        ],
+        "title": "Event",
+        "type": "object"
+      },
+      "EventPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "EventPage",
+        "type": "object"
+      },
+      "FillCreate": {
+        "properties": {
+          "action": {
+            "enum": [
+              "entry",
+              "exit"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "correction_reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Reason"
+          },
+          "corrects_fill_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects Fill Id"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "fee": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "paid (+) or rebate (-); omit when unknown (trade incomplete)",
+            "title": "Fee"
+          },
+          "fee_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Currency"
+          },
+          "fee_fx_rate": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "fee currency -> settlement currency",
+            "title": "Fee Fx Rate"
+          },
+          "fx_reference": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Reference"
+          },
+          "import_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "unique per member; re-importing the same key is a no-op",
+            "title": "Import Key"
+          },
+          "price": {
+            "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Price",
+            "type": "string"
+          },
+          "quantity": {
+            "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ts",
+          "action",
+          "quantity",
+          "price"
+        ],
+        "title": "FillCreate",
+        "type": "object"
+      },
+      "FillOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "correction_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Reason"
+          },
+          "corrects_fill_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects Fill Id"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "fee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee"
+          },
+          "fee_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Currency"
+          },
+          "fee_fx_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Fx Rate"
+          },
+          "fx_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Reference"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "import_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Key"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "superseded": {
+            "title": "Superseded",
+            "type": "boolean"
+          },
+          "trade_id": {
+            "format": "uuid",
+            "title": "Trade Id",
+            "type": "string"
+          },
+          "ts": {
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trade_id",
+          "ts",
+          "action",
+          "quantity",
+          "price",
+          "fee",
+          "fee_currency",
+          "fee_fx_rate",
+          "fx_reference",
+          "import_key",
+          "external_id",
+          "corrects_fill_id",
+          "correction_reason",
+          "superseded",
+          "created_at"
+        ],
+        "title": "FillOut",
+        "type": "object"
+      },
+      "FillResult": {
+        "properties": {
+          "fill": {
+            "$ref": "#/components/schemas/FillOut"
+          },
+          "trade": {
+            "$ref": "#/components/schemas/TradeOut"
+          }
+        },
+        "required": [
+          "fill",
+          "trade"
+        ],
+        "title": "FillResult",
+        "type": "object"
+      },
+      "FundingState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "estimated",
+              "settled"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "rate_pct": {
+            "title": "Rate Pct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rate_pct",
+          "kind",
+          "next_at",
+          "at"
+        ],
+        "title": "FundingState",
+        "type": "object"
+      },
+      "Gap": {
+        "properties": {
+          "detected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected At"
+          },
+          "expected_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Count"
+          },
+          "first_missing_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Missing Id"
+          },
+          "gap_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap End"
+          },
+          "gap_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Start"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_missing_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Missing Id"
+          },
+          "present_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Present Count"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "repaired_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repaired At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "stream": {
+            "title": "Stream",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stream",
+          "reason",
+          "status",
+          "gap_start",
+          "gap_end",
+          "first_missing_id",
+          "last_missing_id",
+          "expected_count",
+          "present_count",
+          "detected_at",
+          "repaired_at"
+        ],
+        "title": "Gap",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Instrument": {
+        "properties": {
+          "base_asset": {
+            "title": "Base Asset",
+            "type": "string"
+          },
+          "contract_multiplier": {
+            "title": "Contract Multiplier",
+            "type": "string"
+          },
+          "contract_type": {
+            "title": "Contract Type",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "latest_book_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Book At"
+          },
+          "latest_kline_close_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Kline Close At"
+          },
+          "latest_trade_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Trade At"
+          },
+          "market_type": {
+            "title": "Market Type",
+            "type": "string"
+          },
+          "metadata_version": {
+            "title": "Metadata Version",
+            "type": "integer"
+          },
+          "multiplier_unit": {
+            "title": "Multiplier Unit",
+            "type": "string"
+          },
+          "qty_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty Step"
+          },
+          "quote_asset": {
+            "title": "Quote Asset",
+            "type": "string"
+          },
+          "session_timezone": {
+            "title": "Session Timezone",
+            "type": "string"
+          },
+          "settlement_asset": {
+            "title": "Settlement Asset",
+            "type": "string"
+          },
+          "source_notice": {
+            "default": "แหล่งข้อมูลแสดงตามความจำเป็น ไม่ได้สื่อว่าเป็นพันธมิตรหรือได้รับการรับรอง",
+            "title": "Source Notice",
+            "type": "string"
+          },
+          "spec_status": {
+            "title": "Spec Status",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "tick_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Size"
+          },
+          "venue": {
+            "title": "Venue",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "venue",
+          "symbol",
+          "market_type",
+          "contract_type",
+          "base_asset",
+          "quote_asset",
+          "settlement_asset",
+          "contract_multiplier",
+          "multiplier_unit",
+          "tick_size",
+          "qty_step",
+          "session_timezone",
+          "spec_status",
+          "metadata_version"
+        ],
+        "title": "Instrument",
+        "type": "object"
+      },
+      "InstrumentList": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Instrument"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "access",
+          "items"
+        ],
+        "title": "InstrumentList",
+        "type": "object"
+      },
+      "LastTrade": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "source": {
+            "description": "trade = newest trade; kline = newest closed 1m kline close",
+            "enum": [
+              "trade",
+              "kline"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "at",
+          "source"
+        ],
+        "title": "LastTrade",
+        "type": "object"
+      },
+      "MarkQuote": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "index",
+          "at"
+        ],
+        "title": "MarkQuote",
+        "type": "object"
+      },
+      "Me": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issuer": {
+            "title": "Issuer",
+            "type": "string"
+          },
+          "market_data": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "notice": {
+            "title": "Notice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "issuer",
+          "email",
+          "display_name",
+          "created_at",
+          "market_data",
+          "notice"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "MetricEvent": {
+        "properties": {
+          "approximate": {
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "engine_version": {
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "evidence_ref": {
+            "additionalProperties": true,
+            "title": "Evidence Ref",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "metric_type": {
+            "title": "Metric Type",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "session_anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Anchor"
+          },
+          "source_watermark": {
+            "title": "Source Watermark",
+            "type": "string"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "window_end": {
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "metric_type",
+          "window_start",
+          "window_end",
+          "source_watermark",
+          "session_anchor",
+          "unit",
+          "value",
+          "parameters",
+          "engine_version",
+          "approximate",
+          "partial",
+          "revision",
+          "supersedes_id",
+          "evidence_ref"
+        ],
+        "title": "MetricEvent",
+        "type": "object"
+      },
+      "MetricEventList": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MetricEvent"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "access",
+          "items"
+        ],
+        "title": "MetricEventList",
+        "type": "object"
+      },
+      "Observation": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "evidence": {
+            "enum": [
+              "chart",
+              "oi",
+              "walls"
+            ],
+            "title": "Evidence",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "cvd",
+              "oi",
+              "wall",
+              "bigtrade",
+              "funding"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "object"
+          },
+          "window_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window S"
+          }
+        },
+        "required": [
+          "kind",
+          "at",
+          "window_s",
+          "evidence",
+          "values",
+          "units"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "ObservationsResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "at",
+          "items"
+        ],
+        "title": "ObservationsResponse",
+        "type": "object"
+      },
+      "OiPoint": {
+        "properties": {
+          "t": {
+            "title": "T",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "value"
+        ],
+        "title": "OiPoint",
+        "type": "object"
+      },
+      "OiState": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "change_1h_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 1H Pct"
+          },
+          "change_5m_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 5M Pct"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/OiPoint"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "at",
+          "change_5m_pct",
+          "change_1h_pct",
+          "series"
+        ],
+        "title": "OiState",
+        "type": "object"
+      },
+      "PricePoint": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "type": {
+            "enum": [
+              "last_trade",
+              "mark",
+              "index"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "type",
+          "value",
+          "at"
+        ],
+        "title": "PricePoint",
+        "type": "object"
+      },
+      "ProfileState": {
+        "properties": {
+          "bin_size": {
+            "title": "Bin Size",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "poc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poc"
+          },
+          "va_high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Va High"
+          },
+          "va_low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Va Low"
+          }
+        },
+        "required": [
+          "bin_size",
+          "poc",
+          "va_low",
+          "va_high",
+          "method"
+        ],
+        "title": "ProfileState",
+        "type": "object"
+      },
+      "QualityResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "definition": {
+            "title": "Definition",
+            "type": "string"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/Gap"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "streams": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StreamCoverage"
+            },
+            "title": "Streams",
+            "type": "object"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "from",
+          "to",
+          "definition",
+          "streams",
+          "gaps"
+        ],
+        "title": "QualityResponse",
+        "type": "object"
+      },
+      "QuoteResponse": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "change_24h": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Change24h"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when no 1m kline closed 24 h (+-5 min) before"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "last_trade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastTrade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarkQuote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for spot or when no mark row was collected"
+          },
+          "spark": {
+            "description": "1m kline closes every 30 min over the 24 h before last_trade.at, oldest first, at most 49",
+            "items": {
+              "$ref": "#/components/schemas/SparkPoint"
+            },
+            "title": "Spark",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "access",
+          "last_trade",
+          "mark",
+          "change_24h",
+          "spark"
+        ],
+        "title": "QuoteResponse",
+        "type": "object"
+      },
+      "Revision": {
+        "properties": {
+          "author_id": {
+            "format": "uuid",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "change_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed Fields",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "additionalProperties": true,
+            "title": "Current",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "previous": {
+            "additionalProperties": true,
+            "title": "Previous",
+            "type": "object"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "author_id",
+          "changed_fields",
+          "previous",
+          "current",
+          "change_reason",
+          "created_at"
+        ],
+        "title": "Revision",
+        "type": "object"
+      },
+      "Rule": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "comparator": {
+            "title": "Comparator",
+            "type": "string"
+          },
+          "cooldown_seconds": {
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "required_quality": {
+            "title": "Required Quality",
+            "type": "string"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "string"
+          },
+          "threshold_unit": {
+            "title": "Threshold Unit",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "window_seconds": {
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "instrument_id",
+          "name",
+          "metric",
+          "comparator",
+          "threshold",
+          "threshold_unit",
+          "window_seconds",
+          "cooldown_seconds",
+          "channel",
+          "enabled",
+          "required_quality",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Rule",
+        "type": "object"
+      },
+      "RuleCreate": {
+        "properties": {
+          "channel": {
+            "default": "in_app",
+            "description": "telegram is not available yet",
+            "enum": [
+              "in_app",
+              "telegram"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "comparator": {
+            "default": "gt",
+            "enum": [
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "abs_gt"
+            ],
+            "title": "Comparator",
+            "type": "string"
+          },
+          "cooldown_seconds": {
+            "default": 900,
+            "maximum": 604800.0,
+            "minimum": 0.0,
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "instrument_id": {
+            "description": "asset + venue + market (one stored instrument)",
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "metric": {
+            "enum": [
+              "cvd_change",
+              "price_change_pct",
+              "big_trade_qty",
+              "oi_change_pct",
+              "funding_rate",
+              "liquidation_qty"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "required_quality": {
+            "default": "complete",
+            "description": "observations below this quality pause the rule instead of alerting",
+            "enum": [
+              "complete",
+              "allow_partial"
+            ],
+            "title": "Required Quality",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Threshold",
+            "type": "string"
+          },
+          "threshold_unit": {
+            "enum": [
+              "base",
+              "quote",
+              "pct"
+            ],
+            "title": "Threshold Unit",
+            "type": "string"
+          },
+          "window_seconds": {
+            "default": 300,
+            "maximum": 86400.0,
+            "minimum": 60.0,
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "metric",
+          "threshold",
+          "threshold_unit"
+        ],
+        "title": "RuleCreate",
+        "type": "object"
+      },
+      "RulePatch": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_app",
+                  "telegram"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "comparator": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "abs_gt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparator"
+          },
+          "cooldown_seconds": {
+            "anyOf": [
+              {
+                "maximum": 604800.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Seconds"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "required_quality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "complete",
+                  "allow_partial"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Quality"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "threshold_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "quote",
+                  "pct"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Unit"
+          },
+          "window_seconds": {
+            "anyOf": [
+              {
+                "maximum": 86400.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Seconds"
+          }
+        },
+        "title": "RulePatch",
+        "type": "object"
+      },
+      "Snapshot": {
+        "properties": {
+          "captured_at": {
+            "title": "Captured At",
+            "type": "string"
+          },
+          "chart_layers": {
+            "items": {},
+            "title": "Chart Layers",
+            "type": "array"
+          },
+          "chart_viewport": {
+            "additionalProperties": true,
+            "title": "Chart Viewport",
+            "type": "object"
+          },
+          "data_access": {
+            "title": "Data Access",
+            "type": "string"
+          },
+          "engine_version": {
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Object Key"
+          },
+          "image_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Sha256"
+          },
+          "image_status": {
+            "title": "Image Status",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "metric_values": {
+            "additionalProperties": true,
+            "title": "Metric Values",
+            "type": "object"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "quality_flags": {
+            "additionalProperties": true,
+            "title": "Quality Flags",
+            "type": "object"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_event_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Event Time"
+          },
+          "source_watermark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Watermark"
+          }
+        },
+        "required": [
+          "id",
+          "instrument_id",
+          "captured_at",
+          "source_event_time",
+          "source_watermark",
+          "data_access",
+          "metric_values",
+          "parameters",
+          "engine_version",
+          "schema_version",
+          "quality_flags",
+          "chart_viewport",
+          "chart_layers",
+          "image_object_key",
+          "image_sha256",
+          "image_status"
+        ],
+        "title": "Snapshot",
+        "type": "object"
+      },
+      "SnapshotCreate": {
+        "properties": {
+          "image_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SHA-256 of the chart image the client will upload (upload not implemented yet; only the key and hash are stored)",
+            "title": "Image Sha256"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "layers": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Layers",
+            "type": "array"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "tf": {
+            "default": "1m",
+            "enum": [
+              "1m",
+              "5m",
+              "15m",
+              "1h",
+              "4h",
+              "1d"
+            ],
+            "title": "Tf",
+            "type": "string"
+          },
+          "viewport_from": {
+            "format": "date-time",
+            "title": "Viewport From",
+            "type": "string"
+          },
+          "viewport_to": {
+            "format": "date-time",
+            "title": "Viewport To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "viewport_from",
+          "viewport_to"
+        ],
+        "title": "SnapshotCreate",
+        "type": "object"
+      },
+      "SparkPoint": {
+        "properties": {
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "t": {
+            "title": "T",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "close"
+        ],
+        "title": "SparkPoint",
+        "type": "object"
+      },
+      "StreamCoverage": {
+        "properties": {
+          "coverage_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Pct"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "has_data": {
+            "title": "Has Data",
+            "type": "boolean"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "present": {
+            "title": "Present",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "present",
+          "expected",
+          "coverage_pct",
+          "has_data"
+        ],
+        "title": "StreamCoverage",
+        "type": "object"
+      },
+      "StreamQuality": {
+        "properties": {
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "stale",
+              "book_resync",
+              "disconnected",
+              "incomplete",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stream": {
+            "enum": [
+              "trades",
+              "book",
+              "kline",
+              "oi",
+              "mark",
+              "liquidations"
+            ],
+            "title": "Stream",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stream",
+          "status",
+          "last_at",
+          "note"
+        ],
+        "title": "StreamQuality",
+        "type": "object"
+      },
+      "TradeCreate": {
+        "properties": {
+          "contract_multiplier": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "units per lot/contract from the broker's spec (e.g. oz per CFD lot, USD per inverse contract); required without instrument_id, never assumed",
+            "title": "Contract Multiplier"
+          },
+          "contract_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "linear",
+                  "inverse"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Type"
+          },
+          "funding_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_applicable",
+                  "recorded",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Status"
+          },
+          "initial_risk_amount": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Amount"
+          },
+          "initial_risk_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Currency"
+          },
+          "initial_risk_fx_rate": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "risk currency -> settlement currency",
+            "title": "Initial Risk Fx Rate"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "stored instrument; its contract spec is copied",
+            "title": "Instrument Id"
+          },
+          "market_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "spot",
+                  "perpetual",
+                  "future",
+                  "cfd",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Type"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "quote_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Currency"
+          },
+          "settlement_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement Currency"
+          },
+          "side": {
+            "enum": [
+              "long",
+              "short"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "import"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Reference"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "venue_label": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Label"
+          }
+        },
+        "required": [
+          "side"
+        ],
+        "title": "TradeCreate",
+        "type": "object"
+      },
+      "TradeOut": {
+        "properties": {
+          "cashflows": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CashflowOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashflows"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "contract_multiplier": {
+            "title": "Contract Multiplier",
+            "type": "string"
+          },
+          "contract_type": {
+            "title": "Contract Type",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "fills": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FillOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fills"
+          },
+          "funding_status": {
+            "title": "Funding Status",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "initial_risk_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Amount"
+          },
+          "initial_risk_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Currency"
+          },
+          "initial_risk_fx_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Fx Rate"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "market_type": {
+            "title": "Market Type",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "quote_currency": {
+            "title": "Quote Currency",
+            "type": "string"
+          },
+          "risk_locked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Locked At"
+          },
+          "settlement_currency": {
+            "title": "Settlement Currency",
+            "type": "string"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Reference"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "venue_label": {
+            "title": "Venue Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "instrument_id",
+          "venue_label",
+          "symbol",
+          "market_type",
+          "contract_type",
+          "contract_multiplier",
+          "quote_currency",
+          "settlement_currency",
+          "side",
+          "initial_risk_amount",
+          "initial_risk_currency",
+          "initial_risk_fx_rate",
+          "risk_locked_at",
+          "source",
+          "source_reference",
+          "status",
+          "funding_status",
+          "opened_at",
+          "closed_at",
+          "notes",
+          "created_at",
+          "updated_at",
+          "summary"
+        ],
+        "title": "TradeOut",
+        "type": "object"
+      },
+      "TradePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "TradePage",
+        "type": "object"
+      },
+      "TradePatch": {
+        "properties": {
+          "funding_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_applicable",
+                  "recorded",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Status"
+          },
+          "initial_risk_amount": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Amount"
+          },
+          "initial_risk_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Currency"
+          },
+          "initial_risk_fx_rate": {
+            "anyOf": [
+              {
+                "description": "decimal number as a string (JSON numbers are accepted, strings are exact)",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Risk Fx Rate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "cancelled",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "only before the first fill",
+            "title": "Status"
+          }
+        },
+        "title": "TradePatch",
+        "type": "object"
+      },
+      "TradeSummary": {
+        "properties": {
+          "avg_entry_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Entry Price"
+          },
+          "avg_exit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Exit Price"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "entry_quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Quantity"
+          },
+          "exit_quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Quantity"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fees"
+          },
+          "funding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding"
+          },
+          "gross_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Pnl"
+          },
+          "incomplete_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Incomplete Reasons",
+            "type": "array"
+          },
+          "net_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Pnl"
+          },
+          "net_r": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = N/A (no initial risk or no FX rate for it)",
+            "title": "Net R"
+          },
+          "open_quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Quantity"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "other_cashflows": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Cashflows"
+          },
+          "r_unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R Unavailable Reason"
+          },
+          "settlement_currency": {
+            "title": "Settlement Currency",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "settlement_currency",
+          "open_quantity",
+          "entry_quantity",
+          "exit_quantity",
+          "avg_entry_price",
+          "avg_exit_price",
+          "gross_pnl",
+          "fees",
+          "funding",
+          "other_cashflows",
+          "net_pnl",
+          "net_r",
+          "r_unavailable_reason",
+          "complete",
+          "incomplete_reasons",
+          "opened_at",
+          "closed_at"
+        ],
+        "title": "TradeSummary",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Wall": {
+        "properties": {
+          "age_s": {
+            "title": "Age S",
+            "type": "integer"
+          },
+          "mult": {
+            "description": "size / median size of the nearest levels on that side",
+            "title": "Mult",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "bid",
+              "ask"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "holding",
+              "adding",
+              "pulling"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "size",
+          "mult",
+          "age_s",
+          "status"
+        ],
+        "title": "Wall",
+        "type": "object"
+      },
+      "WallEvent": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "price_reached",
+              "removed",
+              "unknown"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "bid",
+              "ask"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "size",
+          "outcome",
+          "at"
+        ],
+        "title": "WallEvent",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "JWT access token from the identity provider",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend for the Flow Lab PWA: a market-analytics and private-journal tool.\nIt gives no entry/stop-loss/take-profit recommendations.\n\n* Authentication: `Authorization: Bearer <JWT>` only. Credentials in the URL are rejected.\n* Market data is read from our database; members with the *delayed* entitlement only receive\n  data older than now - 15 minutes on every market endpoint (enforced server-side).\n* Decimals are strings. Timestamps are ISO-8601 UTC (`Z`); request timestamps must carry a timezone.\n* Market data shown to members requires a data licence from the source (see ROADMAP section 4).\n",
+    "title": "Flow Lab API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness (no authentication, no data)",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/alerts/events": {
+      "get": {
+        "operationId": "list_events_v1_alerts_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "rule_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rule Id"
+            }
+          },
+          {
+            "description": "false hides events produced from backfilled data",
+            "in": "query",
+            "name": "include_backfill",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "false hides events produced from backfilled data",
+              "title": "Include Backfill",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unacknowledged",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unacknowledged",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Own alert events, newest market time first",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/v1/alerts/events/{event_id}": {
+      "get": {
+        "operationId": "get_event_v1_alerts_events__event_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One event with its delivery history",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/v1/alerts/events/{event_id}/ack": {
+      "post": {
+        "operationId": "ack_event_v1_alerts_events__event_id__ack_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Acknowledge an event (idempotent)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/v1/alerts/rules": {
+      "get": {
+        "operationId": "list_rules_v1_alerts_rules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Rule"
+                  },
+                  "title": "Response List Rules V1 Alerts Rules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List own alert rules",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "post": {
+        "operationId": "create_rule_v1_alerts_rules_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create an alert rule",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/v1/alerts/rules/{rule_id}": {
+      "delete": {
+        "operationId": "delete_rule_v1_alerts_rules__rule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete a rule and its event history",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "get": {
+        "operationId": "get_rule_v1_alerts_rules__rule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One own alert rule",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_rule_v1_alerts_rules__rule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change an alert rule (events keep their own copy)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/v1/export": {
+      "get": {
+        "operationId": "export_v1_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "csv",
+                "json"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "created_at >= from",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at >= from",
+              "title": "From"
+            }
+          },
+          {
+            "description": "created_at < to",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at < to",
+              "title": "To"
+            }
+          },
+          {
+            "description": "CSV only: which table to export",
+            "in": "query",
+            "name": "dataset",
+            "required": false,
+            "schema": {
+              "default": "journal_entries",
+              "description": "CSV only: which table to export",
+              "enum": [
+                "journal_entries",
+                "trades",
+                "fills"
+              ],
+              "title": "Dataset",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Download own journal entries and trades as CSV or JSON",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/v1/instruments": {
+      "get": {
+        "operationId": "list_instruments_v1_instruments_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstrumentList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Instruments with the newest data time the caller may see",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}": {
+      "get": {
+        "operationId": "get_instrument_v1_instruments__instrument_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instrument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One instrument and its contract specification",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/bars": {
+      "get": {
+        "operationId": "get_bars_v1_instruments__instrument_id__bars_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tf",
+            "required": false,
+            "schema": {
+              "default": "1m",
+              "enum": [
+                "1m",
+                "5m",
+                "15m",
+                "1h",
+                "4h",
+                "1d"
+              ],
+              "title": "Tf",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "kline = exchange 1m candles; trades = aggregated trade tape with taker side",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "kline",
+              "description": "kline = exchange 1m candles; trades = aggregated trade tape with taker side",
+              "enum": [
+                "kline",
+                "trades"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "OHLCV bars from stored 1m klines or from the trade tape",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/details": {
+      "get": {
+        "operationId": "get_details_v1_instruments__instrument_id__details_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "default: 6 h before `to`",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default: 6 h before `to`",
+              "title": "From"
+            }
+          },
+          {
+            "description": "default and maximum: the entitlement cut-off",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default and maximum: the entitlement cut-off",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Walls, big trades, volume profile, OI, funding, prices and per-stream quality of a window",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/metric-events": {
+      "get": {
+        "operationId": "get_metric_events_v1_instruments__instrument_id__metric_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metric Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricEventList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Versioned derived metrics/events (windows older than the entitlement cut-off)",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/observations": {
+      "get": {
+        "operationId": "get_observations_v1_instruments__instrument_id__observations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "default and maximum: the entitlement cut-off",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default and maximum: the entitlement cut-off",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Up to five facts at `to` (not forecasts), most notable first",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/quality": {
+      "get": {
+        "operationId": "get_quality_v1_instruments__instrument_id__quality_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Per-stream coverage of a window and the gaps inside it",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/instruments/{instrument_id}/quote": {
+      "get": {
+        "operationId": "get_quote_v1_instruments__instrument_id__quote_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Last price, mark/index, 24 h change and a 24 h sparkline (as of the entitlement cut-off)",
+        "tags": [
+          "market data"
+        ]
+      }
+    },
+    "/v1/journal/entries": {
+      "get": {
+        "operationId": "list_entries_v1_journal_entries_get",
+        "parameters": [
+          {
+            "description": "created_at >= from",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at >= from",
+              "title": "From"
+            }
+          },
+          {
+            "description": "created_at < to",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at < to",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entry_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "observation",
+                    "trade"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entry Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List own entries, newest first (cursor pagination)",
+        "tags": [
+          "journal"
+        ]
+      },
+      "post": {
+        "operationId": "create_entry_v1_journal_entries_post",
+        "parameters": [
+          {
+            "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            },
+            "description": "replay of an earlier request with the same key"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a journal entry (idempotent with Idempotency-Key)",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/v1/journal/entries/{entry_id}": {
+      "delete": {
+        "operationId": "delete_entry_v1_journal_entries__entry_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete an entry and its revisions permanently (a content-free tombstone remains)",
+        "tags": [
+          "journal"
+        ]
+      },
+      "get": {
+        "operationId": "get_entry_v1_journal_entries__entry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One own entry",
+        "tags": [
+          "journal"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_entry_v1_journal_entries__entry_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "expected_revision is not the current revision"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Edit an entry; every change is stored as a new revision",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/v1/journal/entries/{entry_id}/revisions": {
+      "get": {
+        "operationId": "get_revisions_v1_journal_entries__entry_id__revisions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Revision"
+                  },
+                  "title": "Response Get Revisions V1 Journal Entries  Entry Id  Revisions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Full edit history of an entry",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/v1/journal/snapshots": {
+      "post": {
+        "operationId": "create_snapshot_v1_journal_snapshots_post",
+        "parameters": [
+          {
+            "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Freeze what the chart shows now (computed server-side, immutable)",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/v1/journal/snapshots/{snapshot_id}": {
+      "get": {
+        "operationId": "get_snapshot_v1_journal_snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One own snapshot, exactly as captured",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "me_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The caller's account and market-data entitlement",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/trades": {
+      "get": {
+        "operationId": "list_trades_v1_trades_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "open",
+                    "partially_closed",
+                    "closed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "created_at >= from",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at >= from",
+              "title": "From"
+            }
+          },
+          {
+            "description": "created_at < to",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "created_at < to",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List own trades, newest first",
+        "tags": [
+          "personal trades"
+        ]
+      },
+      "post": {
+        "operationId": "create_trade_v1_trades_post",
+        "parameters": [
+          {
+            "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated unique key (8-200 chars, e.g. a UUID) reused on every retry of the same request; a retry returns the original result instead of creating a duplicate",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a personal trade (draft until a fill)",
+        "tags": [
+          "personal trades"
+        ]
+      }
+    },
+    "/v1/trades/stats": {
+      "get": {
+        "operationId": "trade_stats_v1_trades_stats_get",
+        "parameters": [
+          {
+            "description": "closed_at >= from",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "closed_at >= from",
+              "title": "From"
+            }
+          },
+          {
+            "description": "closed_at < to",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "closed_at < to",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Trade Stats V1 Trades Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Statistics over every closed trade in the range (computed server-side)",
+        "tags": [
+          "personal trades"
+        ]
+      }
+    },
+    "/v1/trades/{trade_id}": {
+      "delete": {
+        "operationId": "delete_trade_v1_trades__trade_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trade_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trade Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete a trade with its fills and cashflows permanently",
+        "tags": [
+          "personal trades"
+        ]
+      },
+      "get": {
+        "operationId": "get_trade_v1_trades__trade_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trade_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trade Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One own trade with fills, cashflows and its summary",
+        "tags": [
+          "personal trades"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_trade_v1_trades__trade_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trade_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trade Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Edit notes/funding status, cancel a draft, or set initial risk before the first fill",
+        "tags": [
+          "personal trades"
+        ]
+      }
+    },
+    "/v1/trades/{trade_id}/cashflows": {
+      "post": {
+        "operationId": "add_cashflow_v1_trades__trade_id__cashflows_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trade_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trade Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashflowCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashflowResult"
+                }
+              }
+            },
+            "description": "import_key already imported"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashflowResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add funding, a rebate, an extra fee or an adjustment",
+        "tags": [
+          "personal trades"
+        ]
+      }
+    },
+    "/v1/trades/{trade_id}/fills": {
+      "post": {
+        "operationId": "add_fill_v1_trades__trade_id__fills_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trade_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trade Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FillCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FillResult"
+                }
+              }
+            },
+            "description": "import_key already imported with the same values"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FillResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "import_key reused with different values, or fill already corrected"
+          },
+          "422": {
+            "description": "the fill would make the position invalid"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add a fill or a correction of an earlier fill",
+        "tags": [
+          "personal trades"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "account"
+    },
+    {
+      "name": "market data"
+    },
+    {
+      "name": "journal"
+    },
+    {
+      "name": "personal trades"
+    },
+    {
+      "name": "alerts"
+    },
+    {
+      "name": "export"
+    }
+  ]
+}

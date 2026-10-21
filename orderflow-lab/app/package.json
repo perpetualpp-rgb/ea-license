@@ -1,0 +1,31 @@
+{
+  "name": "flow-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:artifact": "vite --mode artifact",
+    "build": "tsc --noEmit && vite build",
+    "build:artifact": "vite build --mode artifact",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "node e2e/check.mjs",
+    "e2e:artifact": "node e2e/check-artifact.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "build:single": "npm run build && npm run build:artifact && node scripts/single-file.mjs && node scripts/check-bundle.mjs"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vitest": "2.1.8"
+  }
+}

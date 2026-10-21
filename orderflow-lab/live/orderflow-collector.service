@@ -1,0 +1,16 @@
+# Linux without Docker: copy to /etc/systemd/system/, adjust the paths and user, then
+#   sudo systemctl daemon-reload && sudo systemctl enable --now orderflow-collector
+[Unit]
+Description=Order Flow Lab market-data collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/ea-license/orderflow-lab
+ExecStart=/usr/bin/python3 -m live.collector
+Restart=always
+RestartSec=10
+User=orderflow
+
+[Install]
+WantedBy=multi-user.target
