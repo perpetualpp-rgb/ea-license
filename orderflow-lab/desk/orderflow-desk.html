@@ -171,10 +171,23 @@
   .ofticket .why { display: block; font-size: 0.76rem; color: var(--muted); }
   .ofticket table td { padding: 3px 4px; } .ofticket table td.num { white-space: nowrap; }
   .ofpill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+  .ofalert { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-radius: 10px; color: #fff; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+  .ofalert.sell { background: var(--sell); } .ofalert.buy { background: var(--buy); }
+  .ofalert button { background: #fff; color: #17160f; border: 0; font-weight: 600; }
+  .nowlist { margin: 0; padding-left: 1.3em; display: grid; gap: 7px; font-size: 0.95rem; line-height: 1.55; }
+  .nowlist .why { display: block; font-size: 0.8rem; color: var(--muted); }
+  details.guide > summary { cursor: pointer; font-family: var(--f-display); font-weight: 600; font-size: 0.98rem; letter-spacing: 0.04em; }
+  details.guide[open] > summary { margin-bottom: 8px; }
+  .guide ol { margin: 0 0 10px; padding-left: 1.3em; display: grid; gap: 4px; }
+  .guide td { white-space: normal; vertical-align: top; } .guide td:first-child { font-weight: 600; white-space: nowrap; }
+  @media (max-width: 640px) { .guide thead { display: none; } .guide tr, .guide td { display: block; } .guide tr { padding: 8px 0; border-bottom: 1px solid var(--grid); }
+    .guide td { border: 0; padding: 2px 0; } .guide td:nth-child(3)::before { content: "ใช้ยังไง: "; color: var(--muted); } }
   .ofpill.go { background: var(--buy); color: #fff; } .ofpill.wait { background: var(--raised); color: var(--ink); outline: 1px solid var(--axis); }
 </style>
 
 <div class="wrap">
+  <div class="ofalert" id="ofAlert" hidden role="alert"><span id="ofAlertText"></span><button type="button" id="btnOfAlertClose">รับทราบ</button></div>
   <header>
     <h1 class="brand">Order Flow Lab<small>โต๊ะอ่านกระแสคำสั่งซื้อขาย · ข้อมูลจาก Binance และ TradingView ในบัญชีของคุณ</small></h1>
     <span class="grow"></span>
@@ -192,6 +205,41 @@
   <section class="strip" id="strip" aria-label="ราคา"></section>
   <div class="err" id="errTop" hidden></div>
   <p class="note" id="newsBanner" hidden></p>
+
+  <section class="card" id="cardNow" aria-label="อ่านตลาดตอนนี้">
+    <h2>อ่านตลาดตอนนี้ <span class="hint">สรุปจากข้อมูลบนหน้านี้ อัปเดตเองทุกครั้งที่ข้อมูลเข้า</span></h2>
+    <ol class="nowlist" id="nowList"><li>รอข้อมูล</li></ol>
+  </section>
+
+  <details class="card guide" id="guide">
+    <summary>วิธีอ่านหน้านี้ (กดเพื่อเปิด)</summary>
+    <p style="margin:0 0 6px"><b>ดู 5 ขั้น ใช้เวลาไม่ถึงนาที</b></p>
+    <ol>
+      <li><b>ใครคุมวันนี้:</b> ดูข้อ 1 ของ "อ่านตลาดตอนนี้" (มาจาก CVD) วันที่ฝั่งขายคุมให้หาแต่จุดขาย วันที่ฝั่งซื้อคุมให้หาแต่จุดซื้อ</li>
+      <li><b>ราคาอยู่ตรงไหน:</b> บนกราฟดูว่าแท่งล่าสุดอยู่ในแถบสีเลนไหน และอยู่เหนือหรือใต้เส้น VWAP (เส้นสีน้ำเงิน)</li>
+      <li><b>โซนที่ต้องรอ:</b> เส้นประ "โซนรอขาย/โซนรอซื้อ (Checklist)" บนกราฟ คือที่ที่หลายอย่างซ้อนกัน รอราคาวิ่งไปถึง ไม่ไล่ราคา</li>
+      <li><b>รอจังหวะ:</b> เมื่อราคาถึงโซน ต้องมีแท่ง 5 นาทีปิดสีตรงข้ามและแรงซื้อขายไปทางเดียวกัน ครบเมื่อไรหน้าจะขึ้นแถบเตือนสีด้านบนพร้อมเสียง</li>
+      <li><b>ทำตามใบสั่ง:</b> การ์ด Checklist บอกเข้า / SL / TP เป็นราคา XAUUSD ให้กดเองที่โบรกเกอร์ ถ้าไม่มีสัญญาณก็ไม่เข้า</li>
+    </ol>
+    <div class="tbl"><table>
+      <thead><tr><th>บนหน้านี้</th><th>คืออะไร</th><th>ใช้ยังไง</th></tr></thead>
+      <tbody>
+        <tr><td>แท่งเทียน</td><td>ราคา แท่งเขียวทึบ = ปิดสูงกว่าเปิด แท่งขอบแดง = ปิดต่ำกว่าเปิด</td><td>ใช้ดูแท่งยืนยันตอนราคาถึงโซน</td></tr>
+        <tr><td>เส้นกำแพง (Wall)</td><td>คำสั่งซื้อ/ขายก้อนใหญ่ที่ตั้งรอใน order book เขียว = รอซื้อ (แนวรับ) แดง = รอขาย (แนวต้าน) ทึบ = ตั้งนานเชื่อถือได้ ประ = เพิ่งตั้งอาจถอน หนา = ใหญ่</td><td>โซนที่มีกำแพงทึบอยู่ด้วยหนักแน่นกว่า กำแพงที่หายตอนราคาเข้าใกล้คือของหลอก</td></tr>
+        <tr><td>จุดกลม (BigTrade)</td><td>การซื้อขายก้อนใหญ่ที่เกิดแล้ว ใต้แท่ง = ซื้อ บนแท่ง = ขาย จุดใหญ่ = ก้อนใหญ่</td><td>ใช้เป็นเป้าหรือแนวเก่า ไม่ใช่จุดเข้า ถ้าสองฝั่งชนกันที่เดียวคือโซนต่อสู้ รอดูผล</td></tr>
+        <tr><td>VWAP + เมฆ Assist</td><td>เส้นสีน้ำเงิน = ราคาเฉลี่ยถ่วงปริมาณของวัน แถบเขียวจางด้านบน (เมฆบน, +2σ ขึ้นไป) = แพง ด้านล่าง (เมฆล่าง) = ถูก</td><td>วันขายหาขายตอนราคาขึ้นไปเมฆบน วันซื้อหาซื้อตอนลงมาเมฆล่าง เมฆบานออกเร็ว = ตลาดวิ่งแรง ห้ามสวน</td></tr>
+        <tr><td>แถบเลน Range</td><td>กรอบของวันก่อน แดงอ่อน = Top Zone, น้ำตาลทอง = Magnet (ราคาวนต่อสู้), เขียวอ่อน = Bottom Zone, Y-Hi/Y-Lo = สูง/ต่ำสุดวันก่อน</td><td>ไม่ซื้อใน Top Zone ไม่ขายใน Bottom Zone หลุดขอบล่าง Magnet มักไหลไป Y-Lo</td></tr>
+        <tr><td>เส้นประเลขกลม</td><td>ทุก 25 ดอลลาร์</td><td>มีน้ำหนักเมื่อซ้อนกับอย่างอื่นเท่านั้น</td></tr>
+        <tr><td>เส้นสีม่วงชมพู SD</td><td>กรอบแกว่งที่ตลาดออปชันคาด (กลยุทธ์ 3 คำนวณจาก GVZ) ±1 = ปกติ ±2–3 = ไกลผิดปกติ</td><td>ใช้ดูว่าวันนี้วิ่งมาไกลแค่ไหนแล้ว</td></tr>
+        <tr><td>แผง CVD</td><td>แรงกดซื้อลบแรงกดขายสะสมทั้งวัน เหนือ 0 = ฝั่งซื้อคุม ใต้ 0 = ฝั่งขายคุม</td><td>เลือกขาของวัน ราคาขึ้นแต่ CVD ลงคือสัญญาณเตือนว่าแรงขึ้นไม่จริง</td></tr>
+        <tr><td>แผง OI</td><td>จำนวนสัญญาที่ยังค้าง (Binance)</td><td>ราคาขึ้นพร้อม OI เพิ่ม = มีคนเปิดใหม่ แรงจริง ราคาขึ้นแต่ OI ลด = คนปิดหนี แรงอาจหมด</td></tr>
+        <tr><td>Order Book</td><td>ออเดอร์ตั้งรอใกล้ราคา 2SD/3SD = ใหญ่ผิดปกติ (+) เติม (−) ถอน</td><td>ยืนยันว่ากำแพงที่โซนยังอยู่จริง</td></tr>
+        <tr><td>Flow</td><td>Net = ซื้อลบขาย 5 นาที, Pressure = % ฝั่งซื้อ</td><td>ตอนเข้าไม้ควรไปทางเดียวกับไม้</td></tr>
+        <tr><td>Checklist + ใบสั่ง</td><td>ตรวจทุกข้อข้างบนให้อัตโนมัติ</td><td>ครบแล้วบอกเข้า / SL / TP / ขนาดไม้ และบันทึกเป็นไม้จำลอง</td></tr>
+      </tbody>
+    </table></div>
+    <p class="cotnote">ทุกอย่างในหน้านี้คือข้อมูลประกอบการตัดสินใจ หน้าไม่ส่งคำสั่งซื้อขาย และผลในอดีตไม่รับประกันอนาคต · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</p>
+  </details>
 
   <div class="row2">
     <section class="card">
@@ -245,6 +293,7 @@
     <div class="bar" style="margin-top:8px">
       <label for="inSlBuf">SL เลยโซน $ <input id="inSlBuf" type="number" min="5" max="7" step="0.5" inputmode="decimal"></label>
       <button type="button" id="btnOfCopy">คัดลอกใบสั่ง (ราคา XAUUSD)</button><span class="hint" id="ofCopied"></span>
+      <button type="button" id="btnOfSound"></button>
     </div>
     <p class="cotnote">ตรวจอัตโนมัติจาก order flow จริงของ Binance XAUUSDT (CVD จากปริมาณผู้กดซื้อจริง, กำแพงและ Order Book ทุก 10 วิ, tape ไม้ใหญ่) ข้อที่มีป้าย "เสริม" ไม่บังคับ ·
       เข้า = ราคาปิดแท่งยืนยัน · SL = เลยขอบโซนและปลายแท่งยืนยันตามที่ตั้ง · TP1 = VWAP หรือกำแพงจริงแรก (เก็บครึ่ง เลื่อน SL บังทุน) · TP2 = ขอบเมฆฝั่งตรงข้าม / กำแพงจริง / Magnet · TP3 = กำแพงใหญ่ฝั่งตรงข้าม ·
@@ -1064,7 +1113,9 @@
   // then the checks before an entry; the entry is the close of the trigger candle, SL beyond the zone by slBuf
   // dollars, TP1 VWAP or the first real wall, TP2 the far Assist edge / a wall / Magnet, TP3 a big opposite wall.
   const OF_REQUIRED = ["cvd", "cloud", "expand", "lane", "wall", "bigx", "trigger", "flow", "sltp", "news"];
-  const OF_SOFT = new Set(["lane", "news"]);   // "warn" there (not known / outside the main hours) does not block
+  // "warn" there does not block: lane not known, outside the main hours, a one-sided big trade at the zone (the notes say
+  // "be careful" there; a contested one, both sides at the zone, still blocks)
+  const OF_SOFT = new Set(["lane", "news", "bigx"]);
   const OF_LABEL = {
     cvd: "CVD ใต้น้ำหรือเหนือน้ำ · ไม้ไปทางเดียวกับ CVD", cloud: "ราคาอยู่โซนแพง/ถูกของ Assist (ไม่ใช่กลางๆ)",
     expand: "Assist ไม่ได้ระเบิดสวนทางไม้", lane: "เลนของ Range · ไม้นี้เล่นในเลนเดียวกัน", round: "มีเลขกลมตรงโซน",
@@ -1086,7 +1137,8 @@
   /**
    * c = {ins, D, last, now (ms), sess (5m bars, oldest first), zone ({side, lo, hi, names} from ofZone),
    *      walls (WallTracker.active()), book ({bids, asks} bucketed), prevBook ({bid: Map, ask: Map}), bucket,
-   *      bigZones ([{price, buy, sell, contested}]), zoneTick, tape ({net5, pressure} or null), news ({status, title})}
+   *      bigZones ([{price, buy, sell, contested}]), zoneTick, tape ({net5, pressure} or null), news ({status, title}),
+   *      marketOpen (false while gold itself is closed: weekends and the daily break; Binance keeps trading)}
    */
   function checklist(c, opt = {}) {
     const o = { slBuf: 6, roundTol: 1.5, ...opt }, { ins, D, last, now } = c, items = {};
@@ -1173,8 +1225,8 @@
     // hours (Bangkok): Europe ≈ 14:00–15:00, US ≈ 19:30–20:30 are the real moves; and no new entry around high-impact news
     const mins = Math.floor(now / 60000 + 420) % 1440, main = (mins >= 840 && mins < 900) ? "ยุโรปเปิด" : (mins >= 1170 && mins < 1230) ? "สหรัฐเปิด" : null;
     const n = c.news || { status: "unavailable" };
-    set("news", n.status === "news" ? "fail" : main && n.status === "ok" ? "pass" : "warn",
-      n.status === "news" ? `ช่วงข่าวแรง ${n.title || ""}: ไม่เปิดไม้ใหม่` : `${main ? `ช่วง${main} (จังหวะจริง)` : mins >= 360 && mins < 840 ? "เช้าเอเชีย flow เบา เน้นเฝ้าดู" : "นอกช่วงเปิดยุโรป/สหรัฐ"}${n.status === "unavailable" ? " · ปฏิทินข่าวยังไม่พร้อม" : " · ไม่มีข่าวแรงใน ±30 นาที"}`);
+    set("news", c.marketOpen === false || n.status === "news" ? "fail" : main && n.status === "ok" ? "pass" : "warn",
+      c.marketOpen === false ? "ตลาดทองปิดอยู่ (เสาร์–อาทิตย์หรือช่วงพักรายวัน) XAUUSD ที่โบรกเกอร์เทรดไม่ได้" : n.status === "news" ? `ช่วงข่าวแรง ${n.title || ""}: ไม่เปิดไม้ใหม่` : `${main ? `ช่วง${main} (จังหวะจริง)` : mins >= 360 && mins < 840 ? "เช้าเอเชีย flow เบา เน้นเฝ้าดู" : "นอกช่วงเปิดยุโรป/สหรัฐ"}${n.status === "unavailable" ? " · ปฏิทินข่าวยังไม่พร้อม" : " · ไม่มีข่าวแรงใน ±30 นาที"}`);
     const list = OF_ORDER.map(id => items[id]);
     const ready = !!plan && !plan.planned && list.filter(i => i.required).every(i => i.state === "pass" || (i.soft && i.state === "warn"));
     return { side, cvd, zone: z, vwap: v || null, shape, items: list, ready, plan };
@@ -1212,7 +1264,7 @@
   const STATUS = { new: "ใหม่", holding: "ยืน", adding: "เติม", pulling: "ถอน", price_reached: "ราคาไปถึง", removed: "หายไปก่อนราคาถึง", unknown: "ไม่ทราบ" };
   const store = { get(k, d) { try { const v = localStorage.getItem("ofl3." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                   set(k, v) { try { localStorage.setItem("ofl3." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } } };
-  const ui = { ofSlBuf: store.get("ofSlBuf", 6), planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
+  const ui = { ofSound: store.get("ofSound", true), ofSlBuf: store.get("ofSlBuf", 6), planFull: store.get("planFull", false), jAll: store.get("jAll", false), size: Object.assign({ cap: 10000, pct: 1, unit: {} }, store.get("size", {})), plan: store.get("plan", "day"), inst: store.get("inst", "xs"), mode: store.get("mode", "native"), tf: store.get("tf", "5m"), big: store.get("big", {}),
                layers: Object.assign({ wall: true, big: true, plan: true, assist: true, range: true, round: true, oi: true, sd: true, opt: false }, store.get("layers", {})), hover: null,
                sd: Object.assign({ ivMode: "gvz", iv: 28.22, dteMode: "manual", dte: 1, baseMode: "open", base: "", paste: "" }, store.get("sd", {})) };
   // the XAUUSD chart (the price TradingView shows) opens once after it was added; later choices are kept
@@ -1225,10 +1277,11 @@
 
   // ---- state -------------------------------------------------------------------------
   let mcp = null, gen = 0, timers = [], unsubs = [], D = null, rafPending = false;
-  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
+  const S = { planShown: [], liveFrom: 0, cal: [], calLoaded: false, calCover: { loaded: false }, journal: [], armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0, bucketed: null, prevB: null }, of: ofFlowEmpty(), sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0,
               quotes: {}, xauPx: null, stamp: { bin: 0, tdv: 0 }, errs: {}, approve: null };
-  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0 }, sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
+  function resetData() { Object.assign(S, { planShown: [], liveFrom: 0, armed: {}, jCheck: 0, sessAt: 0, bookFails: 0, fut: { sym: "", oi: [], mark: null, ls: [], taker: [] }, oiChart: { key: "", pts: [], at: 0, busy: false, done: false }, xw: { tracker: null, at: 0, mid: null, fails: 0, bucketed: null, prevB: null }, of: ofFlowEmpty(), sd: sdEmpty(), sdM: null, opt: optEmpty(), ofZone: null, ofRes: null, ofLast: 0, chart: [], sess: [], daily: [], book: null, bucketed: null, prevBuckets: null, tracker: null, trades: [], lastId: null, gaps: 0, errs: {}, approve: null }); D = null; ui.hover = null; }
   function sdEmpty() { return { xau1d: [], gvz: [], xau5m: [], gc5m: [], got: {} }; }
+  function ofFlowEmpty() { return { sess: [], sessAt: 0, daily: [], trades: [], lastId: null, gaps: 0 }; }
   function optEmpty() { return { key: "", chain: null, center: null, unsubs: [], data: new Map(), errs: new Map(), at: 0 }; }
 
   // ---- formatting ---------------------------------------------------------------------
@@ -1412,9 +1465,9 @@
     C.markers.setMarkers(mk.sort((a, z) => a.time - z.time));
     syncOi(bs);
     // levels as price lines with labels on the price axis
-    for (const l of C.lines) C.candles.removePriceLine(l); C.lines = [];
+    for (const l of C.lines) C.candles.removePriceLine(l); C.lines = []; const titles = [];
     // phones keep only the axis labels; titles inside the pane would cover the candles
-    const St = LW.LineStyle, narrow = $("lwMain").clientWidth < 600, pl = (p, title, color, style, width, axis = true) => { if (p != null && isFinite(p)) C.lines.push(C.candles.createPriceLine({ price: V(p), title: narrow ? "" : title, color, lineStyle: style, lineWidth: width, axisLabelVisible: axis })); };
+    const St = LW.LineStyle, narrow = $("lwMain").clientWidth < 600, pl = (p, title, color, style, width, axis = true) => { if (p != null && isFinite(p)) { titles.push(title); C.lines.push(C.candles.createPriceLine({ price: V(p), title: narrow ? "" : title, color, lineStyle: style, lineWidth: width, axisLabelVisible: axis })); } };
     const pr = D && D.pr;
     syncLanes(V, T, bs);
     if (ui.layers.range && pr) { pl(pr.yhi, "Y-Hi", T.sell, St.Solid, 1); pl(pr.poc, "POC", T.brass, St.Dashed, 2); pl(pr.ylo, "Y-Lo", T.buy, St.Solid, 1); }
@@ -1425,13 +1478,16 @@
     drawSd(pl, T, St, V); syncSdOverlay(V, T);
     if (ui.layers.wall && ins.src === "bin" && S.tracker) { const act = S.tracker.active().slice(0, 8), mx = Math.max(1e-9, ...act.map(w => w.size));
       for (const w of act) pl(w.price, `${w.side === "bid" ? "Bid" : "Ask"} ${fmtV(w.size)}`, w.side === "bid" ? T.buy : T.sell, w.persistent ? St.Solid : St.Dashed, w.size >= 0.6 * mx ? 3 : w.size >= 0.3 * mx ? 2 : 1); }
-    const ofp = S.ofRes && S.ofRes.plan;
-    if (ui.layers.plan && ofp && !ofp.planned) { const buy = ofp.side === "buy";
-      pl(ofp.entry, `OF ${buy ? "▲" : "▼"} เข้า`, T.ink, St.Solid, 2); pl(ofp.stop, "OF SL", T.sell, St.Dashed, 1); pl(ofp.tp1, "OF TP1", T.buy, St.Dashed, 1); pl(ofp.tp2, "OF TP2", T.buy, St.Dotted, 1); if (ofp.tp3 != null) pl(ofp.tp3, "OF TP3", T.buy, St.SparseDotted, 1); }
-    if (ui.layers.plan && !ui.planFull) for (const p of S.planShown) { const buy = p.side === "buy", c = buy ? T.buy : T.sell; // zones only: the entry rules did not pass the back-test
-      pl(buy ? p.zoneHi : p.zoneLo, buy ? "โซนรับ" : "โซนต้าน", c, St.Dotted, 2); if (p.zoneHi - p.zoneLo > 1e-9) pl(buy ? p.zoneLo : p.zoneHi, "", c, St.Dotted, 1, false); }
+    const ofp = S.ofRes && S.ofRes.plan, sh = ins.gold ? ofChartShift() : null;
+    if (ui.layers.plan && ofp && sh != null) { const buy = ofp.side === "buy", q = v => v + sh;
+      if (ofp.planned) { pl(q(buy ? ofp.zoneHi : ofp.zoneLo), buy ? "▲ โซนรอซื้อ (Checklist)" : "▼ โซนรอขาย (Checklist)", buy ? T.buy : T.sell, St.Dotted, 2); if (ofp.zoneHi - ofp.zoneLo > 1e-9) pl(q(buy ? ofp.zoneLo : ofp.zoneHi), "", buy ? T.buy : T.sell, St.Dotted, 1, false); }
+      else { pl(q(ofp.entry), `${buy ? "▲" : "▼"} เข้า (Checklist)`, T.ink, St.Solid, 2); pl(q(ofp.stop), "SL", T.sell, St.Dashed, 1); pl(q(ofp.tp1), "TP1", T.buy, St.Dashed, 1); pl(q(ofp.tp2), "TP2", T.buy, St.Dotted, 1); if (ofp.tp3 != null) pl(q(ofp.tp3), "TP3", T.buy, St.SparseDotted, 1); } }
+    // on gold the checklist's zone is the one to watch; the plan table's zones stay in the table
+    if (ui.layers.plan && !ui.planFull) { if (!ins.gold) for (const p of S.planShown) { const buy = p.side === "buy", c = buy ? T.buy : T.sell; // zones only: the entry rules did not pass the back-test
+      pl(buy ? p.zoneHi : p.zoneLo, buy ? "โซนรับ" : "โซนต้าน", c, St.Dotted, 2); if (p.zoneHi - p.zoneLo > 1e-9) pl(buy ? p.zoneLo : p.zoneHi, "", c, St.Dotted, 1, false); } }
     else if (ui.layers.plan) for (const p of S.planShown) { const buy = p.side === "buy";
       pl(p.entry, buy ? "▲ เข้า" : "▼ เข้า", T.ink, St.Solid, 2); pl(p.stop, "SL", T.sell, St.Dashed, 1); pl(p.tp1, "TP1", T.buy, St.Dashed, 1); pl(p.tp2, "TP2", T.buy, St.Dotted, 1); }
+    $("lwMain").dataset.lineTitles = titles.filter(Boolean).join("|");
     // keep the user's view: prepended history shifts it, new bars follow only when it sits at the live edge
     if (!prevN || !prevRange) ts.setVisibleLogicalRange({ from: Math.max(0, bs.length - viewBars()), to: bs.length + 8 });
     else { const added = bs[0].t < prevFirst ? Math.max(0, barIndexAt(bs, prevFirst)) : 0, grew = bs.length - prevN - added, follow = prevRange.to >= prevN - 2 ? grew : 0;
@@ -1762,21 +1818,66 @@
     $("planHint").textContent = `${st.label} · อัปเดต ${fTs(now)} · เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน`;
   }
 
+  // ---- signal alert: a banner on top, a short sound (after the viewer has touched the page once), the tab title ----
+  let ofAlerted = 0, audioCtx = null, titleTimer = null;
+  const baseTitle = document.title;
+  function unlockAudio() { if (audioCtx) return; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { audioCtx = null; } }
+  function beep() {
+    if (!audioCtx || !ui.ofSound) return;
+    try { const t = audioCtx.currentTime;
+      for (const [f, at] of [[880, 0], [660, 0.22], [880, 0.44]]) { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(0.25, t + at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.18);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t + at); o.stop(t + at + 0.2); } } catch { /* no sound here */ }
+  }
+  function stopTitle() { clearInterval(titleTimer); titleTimer = null; document.title = baseTitle; }
+  function ofNotify(res) {
+    const p = res && res.ready && res.plan; if (!p || !p.trigger || p.trigger.end <= ofAlerted || Date.now() - p.trigger.end > 300000) return;
+    ofAlerted = p.trigger.end;
+    const el = $("ofAlert"); el.className = "ofalert " + p.side; el.hidden = false; $("ofAlertText").textContent = `สัญญาณ Checklist · ${ofOrderText(res)}`;
+    beep(); stopTitle();
+    let n = 0; const tag = `${p.side === "sell" ? "▼ SELL" : "▲ BUY"} XAUUSD`;
+    titleTimer = setInterval(() => { document.title = n++ % 2 ? baseTitle : tag; if (n > 120) stopTitle(); }, 1000);
+  }
+  if (window.__deskTest) window.__deskTest.ofNotify = ofNotify;   // the render check fires a made-up signal through it
+
   // ---- order-flow checklist card ---------------------------------------------------------------------------
   const styleLabel = s => s === "of" ? "Checklist OF" : (PLAN[s] || { label: s }).label;
-  /** XAUUSD (Pepperstone) − XAUUSDT now, to write the order in the broker's price */
-  function ofOffset() { const sp = S.quotes.spot && +S.quotes.spot.close, x = I().src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].price : S.xauPx; return sp > 0 && x > 0 ? sp - x : null; }
+  /** XAUUSDT now: this chart's tape, the background tape, or the ticker */
+  function xauusdtNow() { if (I().key === "xau" && S.trades.length) return S.trades[S.trades.length - 1].price; const f = S.of.trades; return f.length ? f[f.length - 1].price : S.xauPx; }
+  /** XAUUSD (Pepperstone) − XAUUSDT now, to write the order in the broker's price: the XAUUSD chart's latest close when it is fresh, else the quote */
+  function ofOffset() {
+    const x = xauusdtNow(); if (!(x > 0)) return null;
+    const lb = S.chart[S.chart.length - 1];
+    if (I().key === "xs" && lb && Date.now() / 1000 - lb.t < 900) return lb.c - x;
+    const sp = S.quotes.spot && +S.quotes.spot.close; return sp > 0 ? sp - x : null;
+  }
+  /** this chart's price − XAUUSDT, to draw the checklist's XAUUSDT levels on it */
+  function ofChartShift() { const k = I().key; if (k === "xau") return 0; if (k === "xs") return ofOffset(); if (k === "gc") { const g = gcPx(), x = xauusdtNow(); return g > 0 && x > 0 ? g - x : null; } return null; }
+  /** gold trades (Globex hours, Chicago): Sunday 17:00 to Friday 16:00, with a break 16:00–17:00 each day */
+  function goldOpen(t) { const L = new Date((t + chiOffset(t)) * 1000), d = L.getUTCDay(), h = L.getUTCHours();
+    if (d === 6) return false; if (d === 0) return h >= 17; if (d === 5) return h < 16; return h !== 16; }
+  function ofSrc() {
+    const ins = I(); if (!ins.gold) return null;
+    if (ins.src === "bin") return D ? { bg: false, ins, D, sess: S.sess, daily: S.daily, trades: S.trades, tracker: S.tracker, book: S.bucketed, prev: S.prevBuckets, last: lastPx() } : null;
+    const f = S.of, xi = INSTR.xau; if (f.sess.length < 5) return null;
+    return { bg: true, ins: xi, D: OFP.derive(f.sess, xi), sess: f.sess, daily: f.daily, trades: f.trades, tracker: S.xw.tracker, book: S.xw.bucketed, prev: S.xw.prevB,
+             last: f.trades.length ? f.trades[f.trades.length - 1].price : f.sess[f.sess.length - 1].c };
+  }
+  function tapeOf(trades) { if (!trades.length) return null; const t1 = trades[trades.length - 1].ts, w5 = trades.filter(t => t1 - t.ts <= 300000);
+    const b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0); return { net5: 2 * b - tot, pressure: tot ? b / tot * 100 : 50 }; }
   function ofEval(now) {
-    const ins = I(); if (!ins.gold || ins.src !== "bin" || !D) return null;
-    const last = lastPx(), M = planModel("day"); if (last == null || M.err) return null;
-    const cvd = D.cur.reduce((a, b) => a + delta(b), 0), side = cvd < 0 ? "sell" : cvd > 0 ? "buy" : null;
-    S.ofZone = side ? OFP.ofZone(S.ofZone, M, side, last, now) : null;
-    let tape = null;
-    if (S.trades.length) { const t1 = S.trades[S.trades.length - 1].ts, w5 = S.trades.filter(t => t1 - t.ts <= 300000), b = w5.reduce((a, t) => a + (t.side === "buy" ? t.size : 0), 0), tot = w5.reduce((a, t) => a + t.size, 0);
-      tape = { net5: 2 * b - tot, pressure: tot ? b / tot * 100 : 50 }; }
-    const Z = bigZones();
-    return OFP.checklist({ ins, D, last, now, sess: S.sess, zone: S.ofZone, walls: S.tracker ? S.tracker.active() : [], book: S.bucketed, prevBook: S.prevBuckets, bucket: ins.bucket,
-      bigZones: Z.real ? Z.zones : [], zoneTick: ins.zone, tape, news: OFJ.newsStatus(S.cal, S.calCover, now) }, { slBuf: Math.min(7, Math.max(5, +ui.ofSlBuf || 6)) });
+    const src = ofSrc(); if (!src || !src.D || src.last == null) return null;
+    const thr = ui.big[src.ins.key] ?? src.ins.bigDef, zones = OF.zones(src.trades.filter(t => t.size >= thr), src.ins.zone).slice(0, 12), tape = tapeOf(src.trades), walls = src.tracker ? src.tracker.active() : [];
+    const M = OFP.planModel({ ins: src.ins, D: src.D, daily: src.daily, sess: src.sess, last: src.last, press: tape ? tape.pressure : null, oi: OFP.oiRead(S.fut.oi, src.sess, 1),
+      walls: walls.filter(w => w.persistent).slice(0, 6).map(w => ({ p: w.price, name: `Wall ${w.side === "bid" ? "BID" : "ASK"} ${fmtV(w.size)}` })),
+      big: zones.slice(0, 3).map(z => ({ p: z.price, name: `ไม้ใหญ่ ${fmtV(z.buy + z.sell)}` })) }, "day");
+    if (M.err) return null;
+    const cvd = src.D.cur.reduce((a, b) => a + delta(b), 0), side = cvd < 0 ? "sell" : cvd > 0 ? "buy" : null;
+    S.ofZone = side ? OFP.ofZone(S.ofZone, M, side, src.last, now) : null;
+    const res = OFP.checklist({ ins: src.ins, D: src.D, last: src.last, now, sess: src.sess, zone: S.ofZone, walls, book: src.book, prevBook: src.prev, bucket: src.ins.bucket,
+      bigZones: zones, zoneTick: src.ins.zone, tape, news: OFJ.newsStatus(S.cal, S.calCover, now), marketOpen: goldOpen(now / 1000) }, { slBuf: Math.min(7, Math.max(5, +ui.ofSlBuf || 6)) });
+    if (res && !res.err) { res.bg = src.bg; res.last = src.last; }
+    return res;
   }
   function ofOrderText(res) {
     const p = res && res.plan, off = ofOffset(); if (!p || off == null) return "";
@@ -1784,22 +1885,52 @@
     const size = cap > 0 && pct > 0 ? ` · ขนาด ${fmtV(cap * pct / 100 / p.risk / mult)} ${k === "oz" ? "oz" : k.toUpperCase()} (เสี่ยง $${fmtV(cap * pct / 100)})` : "";
     return `${sell ? "SELL" : "BUY"} XAUUSD ${p.planned ? "(รอแท่งยืนยัน) ที่โซน " + F(p.zoneLo) + "–" + F(p.zoneHi) : "เข้า " + F(p.entry)} · SL ${F(p.stop)} · TP1 ${F(p.tp1)} (ปิดครึ่ง เลื่อน SL บังทุน) · TP2 ${F(p.tp2)}${p.tp3 != null ? " · TP3 " + F(p.tp3) : ""}${size}`;
   }
+  // ---- the market now, in words: who is in control, where the price is, the zone to wait for, what is missing ----
+  const OF_WAIT = { cvd: () => "CVD เลือกขาให้ชัด", cloud: s => s === "sell" ? "ราคาขึ้นไปถึงเมฆบน (โซนแพง)" : "ราคาลงมาถึงเมฆล่าง (โซนถูก)", expand: () => "เมฆ Assist หยุดบานออก",
+    lane: s => s === "sell" ? "ราคาไม่อยู่ Bottom Zone" : "ราคาไม่อยู่ Top Zone", wall: () => "มีกำแพงที่ตั้งนานอยู่ที่โซน", bigx: () => "ไม่มีไม้ใหญ่สองฝั่งปะทะกันที่โซน",
+    trigger: s => `แท่ง 5 นาทีแตะโซนแล้วปิด${s === "sell" ? "แดง" : "เขียว"}`, flow: s => `แรงซื้อขาย 5 นาทีเป็นฝั่ง${s === "sell" ? "ขาย" : "ซื้อ"}`, sltp: () => "วาง SL/TP ได้", news: () => "ตลาดเปิดและพ้นช่วงข่าวแรง" };
+  function renderNow() {
+    const ins = I(), el = $("nowList"), res = S.ofRes, xf = X(), last = lastPx();
+    if (!D || last == null) { el.innerHTML = "<li>รอข้อมูลกราฟ</li>"; return; }
+    const off = ins.gold ? ofOffset() : null, PX = v => v == null ? "–" : off != null ? fmt(v + off, 2) : fmt(v, 2);  // checklist levels (XAUUSDT) in XAUUSD
+    const F = v => fmt(xf.a * v + xf.b, xf.dec), rows = [];
+    // 1. who is in control (the checklist's CVD for gold: real taker volume; this chart's otherwise)
+    const cvd = res && !res.err ? res.cvd : D.cur.reduce((a, b) => a + delta(b), 0), red = cvd < 0;
+    rows.push(`<b>ใครคุมวันนี้:</b> ${cvd === 0 ? "ยังไม่ชัด (CVD เป็นศูนย์)" : `CVD ${sgn(cvd)} ${red ? "<b>ใต้น้ำ</b> = ฝั่งกดขายมากกว่า → คู่มือให้หาแต่จุด<b>ขาย</b>วันนี้" : "<b>เหนือน้ำ</b> = ฝั่งกดซื้อมากกว่า → คู่มือให้หาแต่จุด<b>ซื้อ</b>วันนี้"}`}`
+      + `<span class="why">${res && res.bg ? "CVD จากปริมาณผู้กดซื้อ/ขายจริงของ Binance XAUUSDT" : exact(D.last) ? "CVD จากปริมาณผู้กดซื้อ/ขายจริง" : "CVD ประมาณจากแท่งเทียน"} · เริ่มนับใหม่ทุก session</span>`);
+    // 2. where the price is, on this chart: VWAP and the Range lane
+    const vw = OF.vwapBands(D.cur, [1, 2, 3]), v = vw[vw.length - 1], z = v && v.sd > 0 ? (last - v.vwap) / v.sd : null, ln = laneOf(last);
+    rows.push(`<b>ราคาอยู่ตรงไหน:</b> ${ins.sub} ${F(last)}${v ? ` · ${z >= 0 ? "เหนือ" : "ใต้"} VWAP ${F(v.vwap)} (${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(1)}σ) ${z >= 2 ? "อยู่ในเมฆบน = แพง" : z <= -2 ? "อยู่ในเมฆล่าง = ถูก" : z >= 0 ? "ฝั่งซื้อได้เปรียบ" : "ฝั่งขายได้เปรียบ"}` : ""}${ln ? ` · เลน <b>${ln}</b>` : ""}`
+      + `<span class="why">${ln === "Magnet" ? "Magnet = โซนต่อสู้ ราคามักวนไปมา" : ln === "Top Zone" ? "Top Zone = อันตราย ไม่ซื้อ" : ln === "Bottom Zone" ? "Bottom Zone = ไม่ขาย" : "เลนดูจากแถบสีบนกราฟ (กรอบของวันก่อน)"}</span>`);
+    if (!ins.gold) { rows.push("<b>Checklist และสัญญาณ:</b> ใช้กับทองคำตามคู่มือ The Trader X เลือก \"ทองคำ\" ด้านบนเพื่อดู"); el.innerHTML = rows.map(r => `<li>${r}</li>`).join(""); return; }
+    if (!res || res.err) { rows.push("<b>Checklist:</b> กำลังดึง order flow ของ Binance XAUUSDT"); el.innerHTML = rows.map(r => `<li>${r}</li>`).join(""); return; }
+    // 3. the zone to wait for
+    const p = res.plan, side = res.side, sideTxt = side === "sell" ? "ขาย" : "ซื้อ", wall = res.items.find(i => i.id === "wall");
+    if (!side) rows.push("<b>โซนที่รอ:</b> ยังไม่มี เพราะยังไม่รู้ขา");
+    else if (!p) rows.push(`<b>โซนที่รอ:</b> ยังไม่มีโซนฝั่ง${sideTxt}ที่หลายระดับซ้อนกัน รอให้แนวต่าง ๆ มาซ้อนกันก่อน`);
+    else { const dist = side === "sell" ? p.zoneLo - res.last : res.last - p.zoneHi, inside = res.last >= p.zoneLo && res.last <= p.zoneHi;
+      rows.push(`<b>โซนที่รอ${sideTxt}:</b> XAUUSD ${PX(p.zoneLo)}–${PX(p.zoneHi)} ${inside ? "<b>ราคาอยู่ในโซนแล้ว</b>" : `(ราคาต้อง${side === "sell" ? "ขึ้น" : "ลง"}ไปอีก ${fmt(Math.abs(dist), 2)} ดอลลาร์)`}`
+        + `<span class="why">ระดับที่ซ้อน: ${p.names}${wall && wall.state === "pass" ? ` · ${wall.detail}` : " · ยังไม่มีกำแพงที่ตั้งนานที่โซน"}</span>`); }
+    // 4. what is still missing, in words, or the signal
+    const need = res.items.filter(i => i.required && !(i.state === "pass" || (i.soft && i.state === "warn")));
+    rows.push((res.ready ? `<b>ครบเงื่อนไขแล้ว:</b> ${sideTxt} XAUUSD ดูใบสั่งในการ์ด Checklist (เข้า / SL / TP)` : `<b>ยังขาด:</b> ${need.map(i => (OF_WAIT[i.id] || (() => i.label))(side)).join(" · ") || "—"}`)
+      + `<span class="why">${res.ready ? "กดเองที่โบรกเกอร์ หน้านี้ไม่ส่งคำสั่ง" : "ครบเมื่อไรหน้าจะขึ้นแถบเตือนด้านบนพร้อมเสียง"}</span>`);
+    rows.push(`<b>สถานะ:</b> ${res.ready ? `<span class="ofpill go">มีสัญญาณ${sideTxt}</span>` : `<span class="ofpill wait">ยังไม่มีสัญญาณ · รอ</span>`}`);
+    el.innerHTML = rows.map(r => `<li>${r}</li>`).join("");
+  }
+
   function renderOf() {
     const ins = I(), card = $("cardOf"), st = $("ofStatus"), list = $("ofList"), tk = $("ofTicket");
     card.hidden = !ins.gold;
     if (!ins.gold) return;
-    if (ins.src !== "bin") {
-      st.innerHTML = `Checklist ใช้ order flow จริง (tape, กำแพง, Order Book) ซึ่งมีเฉพาะ Binance XAUUSDT <button type="button" id="btnOfXau">เปิดกราฟ XAUUSDT</button> ใบสั่งจะแสดงเป็นราคา XAUUSD ให้`;
-      $("btnOfXau").onclick = () => { ui.inst = "xau"; store.set("inst", "xau"); renderControls(); start(); };
-      list.innerHTML = ""; tk.innerHTML = ""; $("ofHint").textContent = ""; return;
-    }
     const res = S.ofRes;
-    if (!res || res.err) { st.textContent = res ? res.err : "รอข้อมูล"; list.innerHTML = ""; tk.innerHTML = ""; return; }
+    if (!res || res.err) { st.textContent = res ? res.err : ins.src === "bin" ? "รอข้อมูล" : "กำลังดึง order flow ของ Binance XAUUSDT มาใช้ตรวจ (ไม่ใช้โควตา TradingView)…"; list.innerHTML = ""; tk.innerHTML = ""; return; }
     const need = res.items.filter(i => i.required && !(i.state === "pass" || (i.soft && i.state === "warn")));
     const sideTxt = res.side === "sell" ? "ขาย" : res.side === "buy" ? "ซื้อ" : null;
     st.innerHTML = !res.side ? "CVD ยังไม่มีขา (เป็นศูนย์) ยังไม่หาไม้"
       : res.ready ? `<span class="ofpill go">ครบเงื่อนไข · ${sideTxt}</span> แท่งยืนยันปิดแล้ว ดูใบสั่งด้านขวา`
       : `<span class="ofpill wait">รอ · ${sideTxt}เท่านั้น</span> ยังไม่ผ่าน ${need.length} ข้อ: ${need.map(i => i.label.split(" ·")[0].split(" (")[0]).join(", ")}`;
+    if (res.bg) st.innerHTML += ` <span class="hint">· ตรวจจาก order flow ของ Binance XAUUSDT (กราฟนี้ไม่มี order book/tape) ราคาในใบสั่งแปลงเป็น XAUUSD แล้ว</span>`;
     const icon = { pass: "✓", fail: "✕", warn: "!", na: "–" };
     list.innerHTML = res.items.map(i => `<li class="${i.state}${i.required ? " req" : ""}"><span class="i">${icon[i.state]}</span><span>${i.label}${i.required ? "" : '<span class="opt">เสริม</span>'}</span><span class="d">${i.detail || ""}</span></li>`).join("");
     const p = res.plan, off = ofOffset(), F = v => fmt(v, 2), Fx = v => off == null ? "–" : fmt(v + off, 2);
@@ -1827,49 +1958,52 @@
   const akey = (style, side) => style + ":" + side;
   const openTrade = (inst, style, side) => S.journal.find(t => t.inst === inst && t.style === style && t.side === side && t.status === "open");
   async function journalTick() {
-    if (!J.col || J.busy || !S.sess.length) return; J.busy = true;
+    if (!J.col || J.busy) return; J.busy = true;
     try {
-      D = derive(); const ins = I(), now = Date.now(), last = lastPx(), R = OFJ.RULES; if (!D || last == null) return;
-      // price range since the previous tick (the first tick only knows the last price): used to lock, touch and cancel
-      let hi = last, lo = last;
-      if (S.jCheck) { if (ins.src === "bin") { for (const t of S.trades) if (t.ts > S.jCheck) { hi = Math.max(hi, t.price); lo = Math.min(lo, t.price); } }
-                      else for (const b of S.sess) if ((b.t + 60) * 1000 > S.jCheck) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); } }
-      S.jCheck = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].ts : now;
-      for (const style of Object.keys(PLAN)) {
-        const M = planModel(style), st = PLAN[style]; if (M.err) continue;
-        for (const side of ["buy", "sell"]) {
-          const key = akey(style, side), sell = side === "sell"; let a = S.armed[key];
-          if (openTrade(ins.key, style, side)) { S.armed[key] = null; continue; }
-          if (a && !a.touchedAt && (Math.abs(last - a.entry) > R.armRadius * M.slGap || now - a.armedAt > st.armMs)) a = null;
-          if (!a && M.plans[side] && Math.abs(last - M.plans[side].entry) <= R.armRadius * M.slGap) a = { ...M.plans[side], armedAt: now, touchedAt: null };
-          S.armed[key] = a || null; if (!a) continue;
-          if (!a.touchedAt && (sell ? hi >= a.entry : lo <= a.entry)) a.touchedAt = now;
-          if (!a.touchedAt) continue;
-          if (sell ? hi >= a.stop : lo <= a.stop) { S.armed[key] = null; continue; } // ran through the stop before confirming
-          const ok = OFJ.confirmEntry(a, OFJ.candlesOf(S.sess, st.confSec, S.sessAt));
-          if (!ok.done) continue;
-          S.armed[key] = null;
-          if (!ok.ok) continue; // no confirmation in time, or the fill left TP1 on the wrong side / under 1R
-          const news = OFJ.newsStatus(S.cal, S.calCover, ok.at);
-          if (news.status === "news") continue; // no new entries around high-impact news
-          const rec = { kind: "simulation", rule_version: R.version, inst: a.inst, style, side, created: ok.at, entry: ok.entry, stop: a.stop, risk: ok.risk,
-                        tp1: a.tp1, tp2: a.tp2, tp1Name: a.tp1Name, tp2Name: a.tp2Name, zoneLo: a.zoneLo, zoneHi: a.zoneHi, names: a.names, trend: a.trend, bias: M.bias,
-                        conditions: { news: news.status, bias: M.bias, biasScore: M.score, why: M.why, trend: a.trend, src: ins.src, atr: M.atr, atrName: M.atrName, slGap: M.slGap,
-                                      planEntry: a.entry, armedAt: a.armedAt, touchedAt: a.touchedAt, confirm: ok.candle, r1: ok.r1, r2: ok.r2 },
-                        status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
-          const id = `${a.inst}-${style}-${side}-${ok.at}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+      D = derive(); const ins = I(), now = Date.now(), last = lastPx(), R = OFJ.RULES;
+      if (D && last != null && S.sess.length) {
+        // price range since the previous tick (the first tick only knows the last price): used to lock, touch and cancel
+        let hi = last, lo = last;
+        if (S.jCheck) { if (ins.src === "bin") { for (const t of S.trades) if (t.ts > S.jCheck) { hi = Math.max(hi, t.price); lo = Math.min(lo, t.price); } }
+                        else for (const b of S.sess) if ((b.t + 60) * 1000 > S.jCheck) { hi = Math.max(hi, b.h); lo = Math.min(lo, b.l); } }
+        S.jCheck = ins.src === "bin" && S.trades.length ? S.trades[S.trades.length - 1].ts : now;
+        for (const style of Object.keys(PLAN)) {
+          const M = planModel(style), st = PLAN[style]; if (M.err) continue;
+          for (const side of ["buy", "sell"]) {
+            const key = akey(style, side), sell = side === "sell"; let a = S.armed[key];
+            if (openTrade(ins.key, style, side)) { S.armed[key] = null; continue; }
+            if (a && !a.touchedAt && (Math.abs(last - a.entry) > R.armRadius * M.slGap || now - a.armedAt > st.armMs)) a = null;
+            if (!a && M.plans[side] && Math.abs(last - M.plans[side].entry) <= R.armRadius * M.slGap) a = { ...M.plans[side], armedAt: now, touchedAt: null };
+            S.armed[key] = a || null; if (!a) continue;
+            if (!a.touchedAt && (sell ? hi >= a.entry : lo <= a.entry)) a.touchedAt = now;
+            if (!a.touchedAt) continue;
+            if (sell ? hi >= a.stop : lo <= a.stop) { S.armed[key] = null; continue; } // ran through the stop before confirming
+            const ok = OFJ.confirmEntry(a, OFJ.candlesOf(S.sess, st.confSec, S.sessAt));
+            if (!ok.done) continue;
+            S.armed[key] = null;
+            if (!ok.ok) continue; // no confirmation in time, or the fill left TP1 on the wrong side / under 1R
+            const news = OFJ.newsStatus(S.cal, S.calCover, ok.at);
+            if (news.status === "news") continue; // no new entries around high-impact news
+            const rec = { kind: "simulation", rule_version: R.version, inst: a.inst, style, side, created: ok.at, entry: ok.entry, stop: a.stop, risk: ok.risk,
+                          tp1: a.tp1, tp2: a.tp2, tp1Name: a.tp1Name, tp2Name: a.tp2Name, zoneLo: a.zoneLo, zoneHi: a.zoneHi, names: a.names, trend: a.trend, bias: M.bias,
+                          conditions: { news: news.status, bias: M.bias, biasScore: M.score, why: M.why, trend: a.trend, src: ins.src, atr: M.atr, atrName: M.atrName, slGap: M.slGap,
+                                        planEntry: a.entry, armedAt: a.armedAt, touchedAt: a.touchedAt, confirm: ok.candle, r1: ok.r1, r2: ok.r2 },
+                          status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
+            const id = `${a.inst}-${style}-${side}-${ok.at}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+          }
         }
       }
-      // order-flow checklist: every required check passed on a trigger candle that just closed -> one simulated entry
-      const of = ins.gold && ins.src === "bin" ? ofEval(now) : null, op = of && of.plan;
-      if (of && of.ready && op.trigger && op.trigger.end > S.ofLast && now - op.trigger.end <= 300000 && !openTrade(ins.key, "of", of.side)) {
+      // order-flow checklist: every required check passed on a trigger candle that just closed -> one simulated entry,
+      // in XAUUSDT prices (inst "xau") on whichever gold chart is open
+      const of = ins.gold ? ofEval(now) : null, op = of && of.plan;
+      if (of && of.ready && op.trigger && op.trigger.end > S.ofLast && now - op.trigger.end <= 300000 && !openTrade("xau", "of", of.side)) {
         S.ofLast = op.trigger.end;
-        const rec = { kind: "simulation", rule_version: R.version, inst: ins.key, style: "of", side: of.side, created: op.trigger.end, entry: op.entry, stop: op.stop, risk: op.risk,
+        const rec = { kind: "simulation", rule_version: R.version, inst: "xau", style: "of", side: of.side, created: op.trigger.end, entry: op.entry, stop: op.stop, risk: op.risk,
                       tp1: op.tp1, tp2: op.tp2, tp1Name: op.tp1Name, tp2Name: op.tp2Name, zoneLo: op.zoneLo, zoneHi: op.zoneHi, names: op.names, trend: true, bias: `CVD ${of.side === "sell" ? "ใต้น้ำ" : "เหนือน้ำ"}`,
                       conditions: { checklist: Object.fromEntries(of.items.map(i => [i.id, i.state])), news: OFJ.newsStatus(S.cal, S.calCover, op.trigger.end).status, trigger: op.trigger.kind,
-                                    cvd: of.cvd, tp3: op.tp3, tp3Name: op.tp3Name, slBuf: +ui.ofSlBuf, xauusdOffset: ofOffset(), src: ins.src },
+                                    cvd: of.cvd, tp3: op.tp3, tp3Name: op.tp3Name, slBuf: +ui.ofSlBuf, xauusdOffset: ofOffset(), src: of.bg ? "xauusdt-background" : "xauusdt", chart: ins.key },
                       status: "open", tp1Hit: false, tp1At: null, closedAt: null, exit: null, r: null };
-        const id = `${ins.key}-of-${of.side}-${op.trigger.end}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
+        const id = `xau-of-${of.side}-${op.trigger.end}`; S.journal.unshift({ id, ...rec }); await J.col.doc(id).set(rec);
       }
       await resolveTrades();
       J.err = ""; J.lastTick = now;
@@ -1877,13 +2011,18 @@
     finally { J.busy = false; schedule(); }
   }
   async function resolveTrades() {
-    // only bars that had closed when they were fetched (S.sessAt) can decide an outcome
-    const ins = I(), barSec = ins.src === "bin" ? 300 : 60;
-    const bars = S.sess.map(b => ({ start: b.t * 1000, end: (b.t + barSec) * 1000, o: b.o, h: b.h, l: b.l, c: b.c }));
-    for (const t of S.journal.filter(x => x.status === "open" && x.inst === ins.key)) {
-      const res = OFJ.resolveTrade(t, bars, { now: S.sessAt, timeoutMs: (PLAN[t.style] || PLAN.day).timeoutMs });
-      if (!res.material) continue;
-      Object.assign(t, res.patch); await J.col.doc(t.id).update(res.patch);
+    // only bars that had closed when they were fetched (sessAt) can decide an outcome; XAUUSDT trades follow the
+    // background XAUUSDT candles while a TradingView gold chart is open
+    const ins = I(), sets = [{ inst: ins.key, bars: S.sess, at: S.sessAt, sec: ins.src === "bin" ? 300 : 60 }];
+    if (ins.key !== "xau" && S.of.sess.length) sets.push({ inst: "xau", bars: S.of.sess, at: S.of.sessAt, sec: 300 });
+    for (const set of sets) {
+      if (!set.bars.length) continue;
+      const bars = set.bars.map(b => ({ start: b.t * 1000, end: (b.t + set.sec) * 1000, o: b.o, h: b.h, l: b.l, c: b.c }));
+      for (const t of S.journal.filter(x => x.status === "open" && x.inst === set.inst)) {
+        const res = OFJ.resolveTrade(t, bars, { now: set.at, timeoutMs: (PLAN[t.style] || PLAN.day).timeoutMs });
+        if (!res.material) continue;
+        Object.assign(t, res.patch); await J.col.doc(t.id).update(res.patch);
+      }
     }
   }
   function renderJournal() {
@@ -1999,7 +2138,7 @@
     rafPending = false; D = derive(); S.sdM = I().gold ? sdModel() : null; syncOptions();
     const ins = I(), cot = $("cardCot"); if (cot) { const was = cot.hidden; cot.hidden = !ins.gold; if (was && !cot.hidden) window.dispatchEvent(new Event("resize")); }
     $("lblBig").hidden = ins.src !== "bin"; for (const e of document.querySelectorAll(".goldonly")) e.hidden = !ins.gold; setTag("tagVol", false); $("tagVol").textContent = `กระจายจากแท่ง ${ins.src === "bin" ? 5 : 1} นาที`;
-    S.ofRes = ofEval(Date.now());
+    S.ofRes = ofEval(Date.now()); ofNotify(S.ofRes); renderNow();
     renderStrip(); drawVol(); drawBig(); cvdInfo(); renderBook(); renderFlow(); renderLadder(); renderDelta(); renderOf(); renderPlan(); syncChart(); renderFut(); renderNews(); renderJournal(); renderStatus();
     $("mainTitle").textContent = `${ins.label} · ${ui.tf}`;
     $("mainHint").textContent = S.chart.length ? `${S.chart.length} แท่ง · ${fDT(S.chart[0].t)} – ${fDT(S.chart[S.chart.length - 1].t)}` + (ins.src === "bin" && S.tracker ? ` · Wall ${S.tracker.active().length} จุด` : ins.src === "tdv" && ins.gold && S.xw.tracker ? ` · กำแพง XAUUSDT ${S.xw.tracker.active().length} จุด` : "") : "";
@@ -2030,7 +2169,24 @@
       catch (e) { if (g === gen && ++xw.fails === 2) xw.tracker.bookLost(Date.now()); throw e; }
       if (g !== gen || !p || !p.bids || !p.bids.length || !p.asks.length) return;
       const book = { ts: p.T || p.E || Date.now(), symbol: "XAUUSDT", ...OF.sortBook(p.bids.map(l => [+l[0], +l[1]]), p.asks.map(l => [+l[0], +l[1]])) };
-      xw.tracker.update(bucketBook(book, xi.bucket)); xw.at = book.ts; xw.mid = (book.bids[0][0] + book.asks[0][0]) / 2; schedule(); }));
+      const B = bucketBook(book, xi.bucket); if (xw.bucketed) xw.prevB = { bid: new Map(xw.bucketed.bids), ask: new Map(xw.bucketed.asks) };
+      xw.bucketed = B; xw.tracker.update(B); xw.at = book.ts; xw.mid = (book.bids[0][0] + book.asks[0][0]) / 2; schedule(); }));
+  }
+  // the checklist reads real order flow, which only Binance XAUUSDT has: behind a TradingView gold chart its candles,
+  // daily bars and tape are fetched too (the book already is, for the walls); none of this uses the TradingView quota
+  function startOfFlow() {
+    const f = S.of, sym = "XAUUSDT", T = TOOLS.fut;
+    every(60000, g => binLoop(g, async () => { const at = Date.now(), rows = await bin(T.k, { symbol: sym, interval: "5m", limit: 1000 }); if (g !== gen) return; f.sess = kl(rows); f.sessAt = at; schedule(); }), true);
+    every(600000, g => binLoop(g, async () => { const rows = await bin(T.k, { symbol: sym, interval: "1d", limit: 30 }); if (g !== gen) return; f.daily = kl(rows); schedule(); }), true);
+    every(8000, g => binLoop(g, async () => {
+      for (let page = 0; page < 3; page++) {
+        const args = { symbol: sym, limit: 1000 }; if (f.lastId != null) args.fromId = f.lastId + 1;
+        const rows = await bin(T.t, args); if (g !== gen || !Array.isArray(rows) || !rows.length) return;
+        if (f.lastId != null && +rows[0].a > f.lastId + 1) f.gaps += 1;
+        for (const r of rows) { const id = +r.a; if (f.lastId != null && id <= f.lastId) continue; f.trades.push({ ts: +r.T, price: +r.p, size: +r.q, side: r.m ? "sell" : "buy" }); f.lastId = id; }
+        if (f.lastId == null || rows.length < 1000 || args.fromId == null) break;
+      }
+      const cut = f.trades[f.trades.length - 1].ts - 4 * 3600000; if (f.trades[0].ts < cut) f.trades = f.trades.filter(t => t.ts >= cut); schedule(); }), true);
   }
   /** the chart's price now and the gap to XAUUSDT, or why the walls cannot be placed */
   function gcXauGap() {
@@ -2373,7 +2529,7 @@
     overlay(`กำลังดึง ${ins.label} ${ui.tf}…`, false); schedule();
     if (ins.src === "bin") startBinance(); else startTdvChart();
     if (ins.gold) { startQuotes(); startXauTicker(); }
-    if (ins.src === "tdv" && ins.gold) startXauWallsForTdv();
+    if (ins.src === "tdv" && ins.gold) { startXauWallsForTdv(); startOfFlow(); }
     if (ins.gold) startSd();
     startNews(); startFutures(ins.key === "btc" ? "BTCUSDT" : "XAUUSDT");
     every(10000, async g => { if (g === gen) await journalTick(); }, true);
@@ -2418,6 +2574,10 @@
     $("btnApprove").addEventListener("click", approve);
     $("btnOvXau").addEventListener("click", () => { ui.inst = "xau"; store.set("inst", "xau"); renderControls(); start(); });
     $("inCap").value = ui.size.cap; $("inPct").value = ui.size.pct;
+    const soundLabel = () => { $("btnOfSound").textContent = `เสียงเตือน: ${ui.ofSound ? "เปิด" : "ปิด"}`; $("btnOfSound").setAttribute("aria-pressed", String(ui.ofSound)); };
+    soundLabel(); $("btnOfSound").addEventListener("click", () => { ui.ofSound = !ui.ofSound; store.set("ofSound", ui.ofSound); unlockAudio(); soundLabel(); });
+    document.addEventListener("pointerdown", unlockAudio);
+    $("btnOfAlertClose").addEventListener("click", () => { $("ofAlert").hidden = true; stopTitle(); });
     $("inSlBuf").value = ui.ofSlBuf;
     $("inSlBuf").addEventListener("change", e => { ui.ofSlBuf = Math.min(7, Math.max(5, +e.target.value || 6)); e.target.value = ui.ofSlBuf; store.set("ofSlBuf", ui.ofSlBuf); schedule(); });
     $("btnOfCopy").addEventListener("click", async () => { const txt = ofOrderText(S.ofRes); if (!txt) { $("ofCopied").textContent = "ยังไม่มีใบสั่ง"; return; }

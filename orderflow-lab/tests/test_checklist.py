@@ -30,10 +30,12 @@ for (const [name, cfg] of Object.entries(cases)) {
             { side: "bid", price: 4185, size: 30, persistent: true, status: "holding", age_ms: 900000 }],
     book: { asks: [[4198, 60]].concat(Array.from({ length: 199 }, (_, i) => [4198.5 + i * 0.5, 5 + (i % 3)])), bids: Array.from({ length: 200 }, (_, i) => [4194.5 - i * 0.5, 5 + (i % 3)]) },
     prevBook: { ask: new Map([[4198, 50]]), bid: new Map() }, bucket: 0.5, zoneTick: 1,
-    bigZones: cfg.contested ? [{ price: 4198, buy: 30, sell: 35, contested: true }] : [], tape: { net5: -20, pressure: 40 },
+    bigZones: cfg.contested ? [{ price: 4198, buy: 30, sell: 35, contested: true }] : cfg.oppBig ? [{ price: 4198, buy: 40, sell: 5, contested: false }] : [], tape: { net5: -20, pressure: 40 },
+    marketOpen: cfg.closed ? false : true,
     news: cfg.news ? { status: "news", title: "CPI" } : { status: "ok" } };
   if (cfg.cvdUp) ctx.D = P.derive(bars.map(b => ({ ...b, bv: b.v * 0.6 })), ins);
-  if (cfg.expandUp) { const D = ctx.D, last = D.cur.slice(-12); for (const [i, b] of last.entries()) Object.assign(b, { h: b.h + i * 4, c: b.c + i * 4, o: b.o + i * 4, l: b.l + i * 4 }); }
+  if (cfg.expandUp) { ctx.D = P.derive(bars.map(b => ({ ...b })), ins); const last = ctx.D.cur.slice(-12);   // a copy: the other cases keep the bars
+    for (const [i, b] of last.entries()) Object.assign(b, { h: b.h + i * 4, c: b.c + i * 4, o: b.o + i * 4, l: b.l + i * 4 }); }
   const res = P.checklist(ctx, { slBuf: 6 });
   out[name] = { ready: res.ready, side: res.side, plan: res.plan, items: Object.fromEntries(res.items.map(i => [i.id, [i.state, i.detail]])) };
 }
@@ -41,7 +43,7 @@ console.log(JSON.stringify(out));
 """
 
 CASES = {"base": {}, "contested": {"contested": True}, "pulling": {"wallStatus": "pulling"}, "news": {"news": True},
-         "cvd_up": {"cvdUp": True}, "expand_up": {"expandUp": True}}
+         "cvd_up": {"cvdUp": True}, "expand_up": {"expandUp": True}, "opp_big": {"oppBig": True}, "closed": {"closed": True}}
 
 
 @unittest.skipUnless(NODE, "node not installed")
@@ -67,6 +69,19 @@ class Checklist(unittest.TestCase):
     def test_fight_zone_blocks(self):
         c = self.r["contested"]
         self.assertEqual(c["items"]["bigx"][0], "fail")
+        self.assertFalse(c["ready"])
+
+    def test_one_sided_big_trade_warns_only(self):
+        # buyers' big trades at a sell zone: the notes say be careful, so a warning that does not block
+        c = self.r["opp_big"]
+        self.assertEqual(c["items"]["bigx"][0], "warn")
+        self.assertTrue(c["ready"])
+
+    def test_gold_closed_blocks(self):
+        # Binance XAUUSDT trades all weekend; the broker's XAUUSD does not
+        c = self.r["closed"]
+        self.assertEqual(c["items"]["news"][0], "fail")
+        self.assertIn("ตลาดทองปิด", c["items"]["news"][1])
         self.assertFalse(c["ready"])
 
     def test_pulled_wall_blocks(self):

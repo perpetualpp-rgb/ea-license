@@ -51,7 +51,7 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       if (sym === "PEPPERSTONE:XAUUSD") { if (iv === "1D") return series(n, 86400, dayStart, 4165.42, null);
         if (iv === "5m") { const g = gc(), j = () => (r() - 0.5) * 0.6; return { t: g.t, o: g.o.map(x => x - 20.6 + j()), h: g.h.map(x => x - 20.3), l: g.l.map(x => x - 20.9), c: g.c.map(x => x - 20.6 + j()), v: g.v.map(x => x * 4) }; } const sec = SECS[iv] || 300; return series(n, sec, Math.floor(now / 1000 / sec) * sec, 4165.42, null); }
       return gc(); };
-    window.__calls = []; window.__dbWrites = []; window.__dbReads = [];
+    window.__calls = []; window.__dbWrites = []; window.__dbReads = []; window.__deskTest = {};
     // in-memory db (where / orderBy / limit / get / onSnapshot like the real store, pages capped at 1000)
     // with one seeded open trade so the resolver has work to do, and older closed records for pagination
     const store = new Map(), subs = [];
@@ -145,7 +145,23 @@ const OLD_RECORDS = 1003; // older than the live window: loaded page by page (10
       if (lanes.n !== 5 || !/เลน /.test(lanes.legend)) errs.push("xau: Range lanes not drawn or not named in the readout");
       await p.locator("#cardMain").screenshot({ path: path.join(OUT, "desk-xau-lanes.png") });
       if (ofc.items !== 12 || ofc.hidden || !/CVD|รอ|ครบ/.test(ofc.status) || !(/XAUUSD/.test(copied) || /ยังไม่มีใบสั่ง|คัดลอกแล้ว/.test(copied))) errs.push("checklist card on XAUUSDT not complete");
-    } else if (!(ofc.sw && ofc.items === 0)) errs.push(name + ": checklist on the XAUUSD chart should offer the XAUUSDT chart");
+    } else if (!(ofc.items === 12 && !ofc.sw && /Binance XAUUSDT/.test(ofc.status))) errs.push(name + ": checklist on the XAUUSD chart should run on the background XAUUSDT flow: " + ofc.items + " · " + ofc.status.slice(0, 120));
+    if (name !== "light") console.log("checklist on XAUUSD:", ofc.items, "items ·", ofc.status.slice(0, 160));
+    // gold charts draw the checklist's zone, not the plan table's entries (those failed the back-test)
+    const titles = await p.evaluate(() => document.getElementById("lwMain").dataset.lineTitles || "");
+    if (/(^|\|)[▲▼] เข้า(\||$)/.test(titles)) errs.push(name + ": plan-table entry lines drawn on a gold chart: " + titles);
+    // the market in words and the reading guide
+    const now = await p.evaluate(() => ({ rows: [...document.querySelectorAll("#nowList li")].map(l => l.textContent), guide: document.querySelectorAll("#guide tbody tr").length, steps: document.querySelectorAll("#guide ol li").length }));
+    console.log(name, "now:", now.rows.map(r => r.slice(0, 70)).join(" ‖ "), "| guide rows", now.guide, "steps", now.steps);
+    if (!(now.rows.length >= 4 && /ใครคุมวันนี้/.test(now.rows[0]) && /ราคาอยู่ตรงไหน/.test(now.rows[1]) && now.rows.some(r => /สถานะ/.test(r)) && now.guide >= 10 && now.steps === 5)) errs.push(name + ": the 'read the market now' card or the guide is incomplete");
+    // a signal: banner with the ticket in XAUUSD, title flashing; nothing fires without one
+    const a0 = await p.evaluate(() => document.getElementById("ofAlert").hidden);
+    await p.evaluate(() => { const t = Date.now() - 2000; window.__deskTest.ofNotify({ ready: true, side: "sell", plan: { side: "sell", planned: false, entry: 4170, stop: 4177, risk: 7, tp1: 4163, tp2: 4158, tp3: null, zoneLo: 4169, zoneHi: 4171, trigger: { kind: "5m", t: t - 300000, end: t } } }); });
+    await p.waitForTimeout(1300);
+    const a1 = await p.evaluate(() => ({ hidden: document.getElementById("ofAlert").hidden, text: document.getElementById("ofAlertText").textContent, title: document.title, sound: document.getElementById("btnOfSound").textContent }));
+    console.log(name, "alert:", a0, "→", a1.hidden, "|", a1.text.slice(0, 110), "| title", a1.title, "|", a1.sound);
+    if (!(a0 && !a1.hidden && /SELL XAUUSD/.test(a1.text) && /เตือน/.test(a1.sound))) errs.push(name + ": the signal alert did not show");
+    await p.click("#btnOfAlertClose"); if (!(await p.evaluate(() => document.getElementById("ofAlert").hidden))) errs.push(name + ": the alert does not close");
     if (name === "light") {
       await p.click('#segMode button[data-k="gc"]'); await p.waitForTimeout(300); console.log("mode gc last:", await p.textContent("#strip .q.hl .v"));
       await p.click('#segMode button[data-k="native"]'); await p.waitForTimeout(200);

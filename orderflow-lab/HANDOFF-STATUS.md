@@ -7,7 +7,7 @@
 
 | ชุดเทสต์ | คำสั่ง | ผล |
 |---|---|---|
-| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python, backtest ไม่มี look-ahead, checklist order flow) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 129 ผ่าน |
+| Python (engine, collector รวมแท่งย้อนหลัง, check, journal resolver, parity JS↔Python, backtest ไม่มี look-ahead, checklist order flow) | `cd orderflow-lab && python3 -m unittest discover -s tests` | 131 ผ่าน |
 | Backend (PostgreSQL 16 ชั่วคราว, ไม่มี TimescaleDB) | `cd orderflow-lab/server && python3 -m pytest -q` | 83 ผ่าน |
 | แอป unit (vitest) | `cd orderflow-lab/app && npm test` | 84 ผ่าน |
 | แอป e2e รุ่น production (ข้อมูลตัวอย่าง, 320/390/1440 px) | `node e2e/check.mjs` | 51 ผ่าน (รวมตรวจว่ากำแพง ไม้ใหญ่ OI Range เลขกลม วาดบนกราฟ และกราฟเต็มจอเปิด/ปิดได้) |
@@ -15,7 +15,7 @@
 | แอป e2e รุ่น claude.ai (connector จำลอง) | `node e2e/check-artifact.mjs` | 85 ผ่าน, เรียกเฉพาะเครื่องมือใน allowlist, กำแพงและ OI วาดบนกราฟ |
 | **แอป e2e กับเซิร์ฟเวอร์ที่รันจริง + ข้อมูลจริงจาก Binance spot** | `DATA=... node e2e/check-api.mjs` | 44 ผ่าน: ราคา/24 ชม./แท่ง/กำแพง (ในแผงและบนกราฟ)/OI/คุณภาพข้อมูลบนจอตรงกับ API, สมาชิกหน่วงเห็นป้ายหน่วง, token ผิดขึ้นให้ล็อกอินใหม่, ไม่เรียก host อื่น |
 | bundle รุ่น production ไม่มีโค้ด connector | `npm run build:single` | ผ่าน |
-| Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error · เปิดที่กราฟ XAUUSD, เส้น SD 7 เส้นบนกราฟ XAUUSD/XAUUSDT/GC, 1SD = ฐาน × %IV × √(DTE/365) ตรงกับตัวเลขบนจอ, IV = GVZ ปิดก่อนเปิดวัน, diff = median 5 นาทีปัด 2.50, โหมดวางข้อมูล IV/DTE/OPEN, option volume ตาม strike |
+| Desk (Playwright, ข้อมูล stub) | `node orderflow-lab/desk/check.js` | ไม่มี page error · เปิดที่กราฟ XAUUSD, เส้น SD 7 เส้นบนกราฟ XAUUSD/XAUUSDT/GC, 1SD = ฐาน × %IV × √(DTE/365) ตรงกับตัวเลขบนจอ, IV = GVZ ปิดก่อนเปิดวัน, diff = median 5 นาทีปัด 2.50, โหมดวางข้อมูล IV/DTE/OPEN, option volume ตาม strike · Checklist 12 ข้อทำงานบนกราฟ XAUUSD จาก order flow เบื้องหลังของ XAUUSDT, แถบเตือนสัญญาณขึ้น/ปิดได้ และชื่อแท็บเปลี่ยน, การ์ด "อ่านตลาดตอนนี้" และคู่มือ 5 ขั้น + 12 แถว, กราฟทองไม่วาดเส้นเข้า/SL/TP ของตารางแผน |
 | openapi.json ตรงกับโค้ด | `cd orderflow-lab/server && python3 -m app.openapi_export --check` | ตรงกัน |
 
 ## ทดสอบแผนของหน้า Desk ย้อนหลัง (19 ต.ค. 2026)

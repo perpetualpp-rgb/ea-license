@@ -147,7 +147,9 @@
   // then the checks before an entry; the entry is the close of the trigger candle, SL beyond the zone by slBuf
   // dollars, TP1 VWAP or the first real wall, TP2 the far Assist edge / a wall / Magnet, TP3 a big opposite wall.
   const OF_REQUIRED = ["cvd", "cloud", "expand", "lane", "wall", "bigx", "trigger", "flow", "sltp", "news"];
-  const OF_SOFT = new Set(["lane", "news"]);   // "warn" there (not known / outside the main hours) does not block
+  // "warn" there does not block: lane not known, outside the main hours, a one-sided big trade at the zone (the notes say
+  // "be careful" there; a contested one, both sides at the zone, still blocks)
+  const OF_SOFT = new Set(["lane", "news", "bigx"]);
   const OF_LABEL = {
     cvd: "CVD ใต้น้ำหรือเหนือน้ำ · ไม้ไปทางเดียวกับ CVD", cloud: "ราคาอยู่โซนแพง/ถูกของ Assist (ไม่ใช่กลางๆ)",
     expand: "Assist ไม่ได้ระเบิดสวนทางไม้", lane: "เลนของ Range · ไม้นี้เล่นในเลนเดียวกัน", round: "มีเลขกลมตรงโซน",
@@ -169,7 +171,8 @@
   /**
    * c = {ins, D, last, now (ms), sess (5m bars, oldest first), zone ({side, lo, hi, names} from ofZone),
    *      walls (WallTracker.active()), book ({bids, asks} bucketed), prevBook ({bid: Map, ask: Map}), bucket,
-   *      bigZones ([{price, buy, sell, contested}]), zoneTick, tape ({net5, pressure} or null), news ({status, title})}
+   *      bigZones ([{price, buy, sell, contested}]), zoneTick, tape ({net5, pressure} or null), news ({status, title}),
+   *      marketOpen (false while gold itself is closed: weekends and the daily break; Binance keeps trading)}
    */
   function checklist(c, opt = {}) {
     const o = { slBuf: 6, roundTol: 1.5, ...opt }, { ins, D, last, now } = c, items = {};
@@ -256,8 +259,8 @@
     // hours (Bangkok): Europe ≈ 14:00–15:00, US ≈ 19:30–20:30 are the real moves; and no new entry around high-impact news
     const mins = Math.floor(now / 60000 + 420) % 1440, main = (mins >= 840 && mins < 900) ? "ยุโรปเปิด" : (mins >= 1170 && mins < 1230) ? "สหรัฐเปิด" : null;
     const n = c.news || { status: "unavailable" };
-    set("news", n.status === "news" ? "fail" : main && n.status === "ok" ? "pass" : "warn",
-      n.status === "news" ? `ช่วงข่าวแรง ${n.title || ""}: ไม่เปิดไม้ใหม่` : `${main ? `ช่วง${main} (จังหวะจริง)` : mins >= 360 && mins < 840 ? "เช้าเอเชีย flow เบา เน้นเฝ้าดู" : "นอกช่วงเปิดยุโรป/สหรัฐ"}${n.status === "unavailable" ? " · ปฏิทินข่าวยังไม่พร้อม" : " · ไม่มีข่าวแรงใน ±30 นาที"}`);
+    set("news", c.marketOpen === false || n.status === "news" ? "fail" : main && n.status === "ok" ? "pass" : "warn",
+      c.marketOpen === false ? "ตลาดทองปิดอยู่ (เสาร์–อาทิตย์หรือช่วงพักรายวัน) XAUUSD ที่โบรกเกอร์เทรดไม่ได้" : n.status === "news" ? `ช่วงข่าวแรง ${n.title || ""}: ไม่เปิดไม้ใหม่` : `${main ? `ช่วง${main} (จังหวะจริง)` : mins >= 360 && mins < 840 ? "เช้าเอเชีย flow เบา เน้นเฝ้าดู" : "นอกช่วงเปิดยุโรป/สหรัฐ"}${n.status === "unavailable" ? " · ปฏิทินข่าวยังไม่พร้อม" : " · ไม่มีข่าวแรงใน ±30 นาที"}`);
     const list = OF_ORDER.map(id => items[id]);
     const ready = !!plan && !plan.planned && list.filter(i => i.required).every(i => i.state === "pass" || (i.soft && i.state === "warn"));
     return { side, cvd, zone: z, vwap: v || null, shape, items: list, ready, plan };
