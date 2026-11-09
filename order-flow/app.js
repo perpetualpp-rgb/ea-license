@@ -483,7 +483,11 @@
   }
   const fmtSigned = (q) => (!Number.isFinite(q) ? '–' : (q > 0 ? '+' : q < 0 ? '−' : '') + fmtQty(Math.abs(q)));
   const fmtPct = (v) => (Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '–');
-  const fmtNum = (v, d) => (Number.isFinite(v) ? (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d) : '–');
+  function fmtNum(v, d) {
+    if (!Number.isFinite(v)) return '–';
+    const a = Math.abs(v).toFixed(d);
+    return (+a === 0 ? '' : v > 0 ? '+' : '−') + a; // no sign on values that round to zero
+  }
   const pad2 = (n) => String(n).padStart(2, '0');
   function fmtClock(ms, withSec = true) {
     const d = new Date(ms);
