@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gold Order Flow</title>
+  <meta name="description" content="Order flow screener สำหรับทองคำ (XAUUSDT perp / PAXG) และคริปโต — CVD, Volume Z-score, Realized volatility, Order book imbalance, Volume profile, Big trades">
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #11171f;
+      --panel-2: #161d27;
+      --border: #222c38;
+      --text: #d7dee8;
+      --muted: #7f8c9c;
+      --up: #22c08a;
+      --down: #f0555a;
+      --gold: #f2b84b;
+      --vwap: #5aa8ff;
+      --cvd: #b18cff;
+      --warn: #f5a623;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body { font: 13px/1.45 -apple-system, "Segoe UI", "Noto Sans Thai", Tahoma, sans-serif; }
+    .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    a { color: var(--vwap); }
+
+    header.top { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+    .brand { font-weight: 700; font-size: 15px; letter-spacing: .2px; white-space: nowrap; }
+    .brand small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+    .brand a { color: inherit; text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1; }
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .seg button { background: transparent; color: var(--muted); border: 0; padding: 5px 10px; font: inherit; cursor: pointer; }
+    .seg button + button { border-left: 1px solid var(--border); }
+    .seg button.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--gold); }
+    input.sym, select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font: inherit; }
+    input.sym { width: 120px; text-transform: uppercase; }
+    .status { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+    .dot.live { background: var(--up); }
+    .dot.err { background: var(--down); }
+
+    .banner { margin: 10px 16px 0; padding: 10px 12px; border: 1px solid #5a2a2d; background: #2a1517; border-radius: 6px; color: #ffd6d8; display: none; }
+    .banner.show { display: block; }
+
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+    .kpi { background: var(--panel); padding: 8px 12px; min-width: 0; }
+    .kpi .l { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi .v { font-size: 16px; font-weight: 600; white-space: nowrap; }
+    .kpi .s { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+
+    main { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 10px; padding: 10px 16px 16px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; min-width: 0; display: flex; flex-direction: column; }
+    .panel > header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .panel h2 { font-size: 13px; margin: 0; font-weight: 600; }
+    .panel .hint { color: var(--muted); font-size: 11px; }
+    .panel .tools { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .panel .tools select { padding: 2px 6px; font-size: 12px; }
+    .panel .body { padding: 8px 10px; flex: 1; min-height: 0; }
+    canvas { display: block; width: 100%; }
+    .span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; }
+    #c-chart { height: 380px; }
+    #c-z, #c-vol, #c-profile { height: 230px; }
+    #c-obi { height: 46px; margin-top: 8px; }
+    .legend { display: flex; gap: 10px; color: var(--muted); font-size: 11px; flex-wrap: wrap; }
+    .legend i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; }
+    .flag { font-size: 11px; padding: 1px 6px; border-radius: 4px; display: none; }
+    .flag.bear { display: inline-block; background: #3a1a1c; color: #ff9a9e; }
+    .flag.bull { display: inline-block; background: #12302a; color: #7fe3bf; }
+    .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+    .chips button { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; font: inherit; font-size: 12px; cursor: pointer; }
+    .chips button.on { color: var(--text); border-color: var(--gold); }
+
+    .book { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .book td { padding: 1px 6px; position: relative; white-space: nowrap; }
+    .book td.p { width: 40%; }
+    .book td.q { text-align: right; }
+    .book td.c { text-align: right; color: var(--muted); }
+    .book tr.ask td.p { color: var(--down); }
+    .book tr.bid td.p { color: var(--up); }
+    .book .bar { position: absolute; top: 1px; bottom: 1px; right: 0; opacity: .18; pointer-events: none; }
+    .book tr.ask .bar { background: var(--down); }
+    .book tr.bid .bar { background: var(--up); }
+    .book tr.mid td { color: var(--muted); text-align: center; padding: 4px 6px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .obi-row { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+    .obi-row b { color: var(--text); font-weight: 600; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 12px; margin-top: 8px; font-size: 12px; }
+    .stats div { color: var(--muted); }
+    .stats b { display: block; color: var(--text); font-weight: 600; }
+
+    .list { max-height: 300px; overflow-y: auto; font-size: 12px; }
+    .list table { width: 100%; border-collapse: collapse; }
+    .list td { padding: 2px 6px; white-space: nowrap; border-bottom: 1px solid #18202a; }
+    .list td.r { text-align: right; }
+    .list tr.buy td.side { color: var(--up); }
+    .list tr.sell td.side { color: var(--down); }
+    .list tr.huge td { background: #1d2430; font-weight: 600; }
+    .empty { color: var(--muted); padding: 12px 6px; }
+    .sig { display: flex; gap: 8px; padding: 4px 6px; border-bottom: 1px solid #18202a; }
+    .sig .t { color: var(--muted); white-space: nowrap; }
+    .sig.up .k { color: var(--up); } .sig.down .k { color: var(--down); } .sig.info .k { color: var(--gold); }
+    .sig .k { white-space: nowrap; font-weight: 600; }
+
+    .pos { color: var(--up); } .neg { color: var(--down); } .mut { color: var(--muted); }
+    .rg-compressed { color: #7cc4ff; } .rg-normal { color: var(--text); } .rg-elevated { color: var(--warn); } .rg-extreme { color: var(--down); }
+
+    footer.notes { padding: 4px 16px 32px; color: var(--muted); font-size: 12px; max-width: 1100px; }
+    footer.notes h3 { color: var(--text); font-size: 13px; margin: 18px 0 6px; }
+    footer.notes li { margin: 4px 0; }
+
+    @media (max-width: 1100px) {
+      .span-8, .span-4 { grid-column: span 12; }
+      .span-6 { grid-column: span 6; }
+      #p-z, #p-vol { grid-column: span 6; }
+      #p-profile { grid-column: span 12; }
+    }
+    @media (max-width: 760px) {
+      main > .panel, #p-z, #p-vol, #p-profile { grid-column: span 12; }
+      #c-chart { height: 320px; }
+      .status { margin-left: 0; }
+      header.top { position: static; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><a href="../">←</a> Order Flow <small>ทองคำ · คริปโต</small></div>
+    <div class="controls">
+      <div class="seg" id="market">
+        <button data-v="futures">Perp</button>
+        <button data-v="spot">Spot</button>
+      </div>
+      <input class="sym" id="symbol" list="symbols" spellcheck="false" autocomplete="off" aria-label="Symbol">
+      <datalist id="symbols"></datalist>
+      <div class="chips" id="tf" aria-label="Chart timeframe"></div>
+      <select id="anchor" aria-label="Session anchor">
+        <option value="utc">Session: UTC 00:00 (07:00 ไทย)</option>
+        <option value="ny">Session: NY 17:00 (รอบทอง/FX)</option>
+      </select>
+      <span class="status"><span class="dot" id="dot"></span><span id="status">กำลังเชื่อมต่อ…</span></span>
+    </div>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <section class="kpis" id="kpis">
+    <div class="kpi"><div class="l">ราคา</div><div class="v num" id="k-price">–</div><div class="s num" id="k-chg">–</div></div>
+    <div class="kpi"><div class="l">Session High / Low</div><div class="v num" id="k-hl">–</div><div class="s num" id="k-range">–</div></div>
+    <div class="kpi"><div class="l">VWAP (session)</div><div class="v num" id="k-vwap">–</div><div class="s num" id="k-vwapd">–</div></div>
+    <div class="kpi"><div class="l">POC · VA 70%</div><div class="v num" id="k-poc">–</div><div class="s num" id="k-va">–</div></div>
+    <div class="kpi"><div class="l">Volume (session)</div><div class="v num" id="k-vol">–</div><div class="s" id="k-volu">–</div></div>
+    <div class="kpi"><div class="l">Delta (session)</div><div class="v num" id="k-delta">–</div><div class="s num" id="k-deltap">–</div></div>
+    <div class="kpi"><div class="l">Trades/s (10s)</div><div class="v num" id="k-tps">–</div><div class="s num" id="k-avgsz">–</div></div>
+    <div class="kpi"><div class="l">Realized vol 30m</div><div class="v num" id="k-rv">–</div><div class="s" id="k-reg">–</div></div>
+    <div class="kpi"><div class="l">Volume z</div><div class="v num" id="k-z">–</div><div class="s" id="k-zs">–</div></div>
+    <div class="kpi"><div class="l">OBI 20 levels</div><div class="v num" id="k-obi">–</div><div class="s" id="k-obis">–</div></div>
+  </section>
+
+  <main>
+    <section class="panel span-8" id="p-chart">
+      <header>
+        <h2>ราคา &amp; Cumulative Delta</h2>
+        <div class="legend">
+          <span><i style="background:var(--vwap)"></i>VWAP ±1σ</span>
+          <span><i style="background:var(--gold)"></i>POC</span>
+          <span><i style="background:var(--cvd)"></i>CVD (aggressive buy − sell)</span>
+        </div>
+        <span class="flag" id="div-flag"></span>
+      </header>
+      <div class="body"><canvas id="c-chart"></canvas></div>
+    </section>
+
+    <section class="panel span-4" id="p-book">
+      <header>
+        <h2>Order Book</h2>
+        <span class="hint" id="book-hint">top 20 levels</span>
+      </header>
+      <div class="body">
+        <table class="book num" id="book"></table>
+        <div class="obi-row">
+          <span>OBI 5 lv <b class="num" id="obi5">–</b></span>
+          <span>OBI 20 lv <b class="num" id="obi20">–</b></span>
+          <span>Bid/Ask <b class="num" id="bidask">–</b></span>
+        </div>
+        <canvas id="c-obi" aria-label="OBI history"></canvas>
+      </div>
+    </section>
+
+    <section class="panel span-4" id="p-z">
+      <header>
+        <h2>Volume Z-Score</h2>
+        <div class="tools">
+          <select id="ztf" aria-label="Z-score bar size"></select>
+          <select id="zn" aria-label="Z-score lookback">
+            <option value="20">vs prior 20</option>
+            <option value="50">vs prior 50</option>
+            <option value="100">vs prior 100</option>
+          </select>
+        </div>
+      </header>
+      <div class="body"><canvas id="c-z"></canvas><div class="hint">แท่งสีเขียว/แดง = z ≥ 2σ (สีตามฝั่งที่ aggressive มากกว่า) · ไม่ใช่ค่าความผันผวน</div></div>
+    </section>
+
+    <section class="panel span-4" id="p-vol">
+      <header>
+        <h2>Volatility</h2>
+        <span class="hint">1m bars · 30m window · annualized</span>
+      </header>
+      <div class="body">
+        <canvas id="c-vol"></canvas>
+        <div class="stats num">
+          <div>Realized vol<b id="v-rv">–</b></div>
+          <div>Percentile<b id="v-pct">–</b></div>
+          <div>Parkinson (30m)<b id="v-pk">–</b></div>
+          <div>ATR14 (1m)<b id="v-atr1">–</b></div>
+          <div>ATR14 (chart TF)<b id="v-atrtf">–</b></div>
+          <div>Range now / ATR<b id="v-rng">–</b></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel span-4" id="p-profile">
+      <header>
+        <h2>Volume Profile (session)</h2>
+        <span class="hint" id="profile-hint">–</span>
+      </header>
+      <div class="body"><canvas id="c-profile"></canvas></div>
+    </section>
+
+    <section class="panel span-6" id="p-tape">
+      <header>
+        <h2>Time &amp; Sales</h2>
+        <span class="hint">ขนาดเทียบค่าเฉลี่ย 500 เทรดล่าสุด</span>
+        <div class="tools chips" id="bigmult">
+          <button data-v="1">ทั้งหมด</button>
+          <button data-v="2">≥2×</button>
+          <button data-v="5">≥5×</button>
+          <button data-v="10">≥10×</button>
+        </div>
+      </header>
+      <div class="body list num" id="tape"></div>
+    </section>
+
+    <section class="panel span-6" id="p-sig">
+      <header>
+        <h2>Signals</h2>
+        <span class="hint">Volume spike z ≥ 3 · เทรดใหญ่ ≥ 10× · CVD divergence · เปลี่ยน regime</span>
+      </header>
+      <div class="body list" id="signals"></div>
+    </section>
+  </main>
+
+  <footer class="notes">
+    <h3>แหล่งข้อมูล</h3>
+    <ul>
+      <li><b>Perp</b> = Binance USDⓈ-M Futures (เช่น <b>XAUUSDT</b> สัญญาทองคำ 1 สัญญา = 1 ออนซ์), <b>Spot</b> = Binance Spot (เช่น <b>PAXGUSDT</b> โทเคนทอง) — ใช้ trade จริงทุกไม้ (aggTrade) และ order book 20 ระดับ ผ่าน WebSocket สาธารณะ ไม่ต้องใช้ API key ทุกอย่างคำนวณในเบราว์เซอร์</li>
+      <li>XAUUSD ของโบรกเกอร์ Forex/CFD ไม่มี volume กลาง (volume ใน MT4/MT5 คือจำนวน tick) จึงไม่มี order flow จริง — ราคา XAUUSDT perp วิ่งตามทองสปอตใกล้เคียงกัน แต่อาจห่างกันเล็กน้อยตาม funding / basis</li>
+      <li>ประวัติก่อนเปิดหน้าเว็บ (ราคา, Delta, VWAP, Profile) โหลดจากแท่ง 1 นาที: Delta ใช้ taker-buy volume ของแท่ง, VWAP/Profile ใช้ typical price ของแท่ง — หลังเปิดหน้าเว็บใช้ทุก trade จริง ส่วน timeframe 1s/5s/15s เริ่มนับตั้งแต่เชื่อมต่อ</li>
+    </ul>
+    <h3>วิธีอ่าน</h3>
+    <ul>
+      <li><b>Delta / CVD</b> = volume ที่ซื้อแบบ market (aggressive buy) − ขายแบบ market สะสมตั้งแต่เริ่ม session · <b>Divergence</b>: ราคาทำ high ใหม่แต่ CVD ไม่ทำ (bearish) หรือราคาทำ low ใหม่แต่ CVD ไม่ทำ (bullish) ใน 30 แท่งล่าสุด</li>
+      <li><b>Volume z-score</b> = (volume แท่งนี้ − ค่าเฉลี่ย N แท่งก่อนหน้า) ÷ SD ของ N แท่งนั้น — บอกว่า volume ผิดปกติแค่ไหน ไม่ใช่ความผันผวนของราคา</li>
+      <li><b>Realized vol</b> = √(mean r²) × √(จำนวนแท่งต่อปี) จาก log return แท่ง 1 นาที 30 แท่ง (ปี = 365 วัน เพราะตลาดเปิด 24/7) · <b>Percentile/Regime</b> เทียบกับค่าย้อนหลังที่โหลดไว้ (~12 ชม. ก่อน session ถึงตอนนี้): &lt;20 compressed, 20–70 normal, 70–90 elevated, ≥90 extreme · <b>Parkinson</b> ใช้ high/low ของแท่ง · <b>ATR14</b> แบบ Wilder</li>
+      <li><b>OBI</b> = (bid size − ask size) ÷ (bid + ask) ของ N ระดับบนสุด ช่วง −1 ถึง +1 · เส้นในกราฟเล็กคือ EMA ของ OBI 20 ระดับ</li>
+      <li><b>POC</b> = ราคาที่มี volume มากที่สุดใน session · <b>Value Area 70%</b> = ช่วงราคารอบ POC ที่มี volume 70%</li>
+    </ul>
+    <p>เครื่องมือนี้แสดงข้อมูลตลาดเท่านั้น ไม่ใช่คำแนะนำการลงทุน · แนวคิดมาจาก <a href="https://github.com/zadescoxp/order-flow-screener" target="_blank" rel="noopener">order-flow-screener</a> (open source, Apache-2.0) — โค้ดในหน้านี้เขียนใหม่ทั้งหมด</p>
+  </footer>
+
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
